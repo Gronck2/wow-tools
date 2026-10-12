@@ -111,7 +111,7 @@ same = "la source et la cible sont identiques : {name}"
 [autostart]
 no_exe = "impossible de trouver le chemin de l'exe"
 schtasks_failed = "impossible d'exécuter schtasks"
-bad_interval = "l'intervalle doit être compris entre 1 et 1439 minutes"
+bad_interval = "l'intervalle doit être compris entre 1 et 1439 minutes ou en jours entiers (1440, 2880, …)"
 too_long = "la ligne de commande de la tâche dépasse {n} caractères — placez l'exe dans un chemin plus court"
 windows_only = "le démarrage automatique n'est pris en charge que sous Windows"
 

@@ -394,17 +394,17 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         status: Status {
             phase: Phase::Idle,
             work: watch::Work::Backup,
-            last: Some(now - Duration::minutes(12)),
+            last: Some(now),
             game: None,
         },
         points: vec![
             point("_retail_", 0, "", Some(75_300_000)),
-            point("_classic_era_", 2, "", Some(21_800_000)),
-            point("_retail_", 3, "-pre-restore", Some(75_300_000)),
             RestorePoint {
                 kind: Some(Kind::Addons),
                 ..point("_retail_", 1, "-pre-update", Some(71_800_000))
             },
+            point("_classic_era_", 2, "", Some(21_800_000)),
+            point("_retail_", 3, "-pre-restore", Some(75_300_000)),
             point("_retail_", 50, "", None),
         ],
         autostart: true,
@@ -419,10 +419,17 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         update_waits_for_game: false,
         last_update: Some(now - Duration::minutes(25)),
         updates: [
-            (25, true, true, tr!("addons.updated", n = 3, names = "BigWigs, Details! Damage Meter, ElvUI")),
-            (85, true, false, tr!("addons.none").to_string()),
             (
-                145,
+                25,
+                "CurseForge",
+                true,
+                true,
+                tr!("addons.updated", n = 3, names = "BigWigs, Details! Damage Meter, ElvUI"),
+            ),
+            (85, "CurseForge", true, false, tr!("addons.none").to_string()),
+            (
+                1450,
+                "WowUp",
                 false,
                 false,
                 tr!(
@@ -432,11 +439,11 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                     why = tr!("wowup.wago_denied", app = "WowUp")
                 ),
             ),
-            (1500, true, false, tr!("addons.updated", n = 1, names = "WeakAuras")),
+            (1500, "WowUp", true, false, tr!("addons.updated", n = 1, names = "WeakAuras")),
         ]
-        .map(|(min, ok, manual, text)| updater::Entry {
+        .map(|(min, app, ok, manual, text)| updater::Entry {
             time: now - Duration::minutes(min),
-            app: "CurseForge".into(),
+            app: app.into(),
             ok,
             text,
             manual,

@@ -35,15 +35,18 @@ fn schtasks(args: &[&str]) -> Result<String> {
 }
 
 pub fn install_interval(every_minutes: u64, config: Option<&Path>) -> Result<()> {
-    if !(1..=1439).contains(&every_minutes) {
-        bail!(tr!("autostart.bad_interval"));
-    }
+    // schtasks takes at most 1439 for /SC MINUTE; whole days go as /SC DAILY.
+    let (unit, every) = match every_minutes {
+        1..=1439 => ("MINUTE", every_minutes),
+        m if m % (24 * 60) == 0 && m / (24 * 60) <= 365 => ("DAILY", m / (24 * 60)),
+        _ => bail!(tr!("autostart.bad_interval")),
+    };
     let tr = command_line(config, "backup")?;
     if tr.len() > MAX_TR_LEN {
         bail!(tr!("autostart.too_long", n = MAX_TR_LEN));
     }
-    let mo = every_minutes.to_string();
-    schtasks(&["/Create", "/F", "/TN", TASK_NAME, "/SC", "MINUTE", "/MO", &mo, "/TR", &tr])?;
+    let mo = every.to_string();
+    schtasks(&["/Create", "/F", "/TN", TASK_NAME, "/SC", unit, "/MO", &mo, "/TR", &tr])?;
     Ok(())
 }
 

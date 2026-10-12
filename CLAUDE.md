@@ -43,7 +43,9 @@ code; every visible command/argument has a help key. Tests assert Russian texts 
 Repo `Gronck2/wow-tools` (private), branch `main`. `.github/workflows/ci.yml` (push to main, PRs, windows-latest,
 MSVC): fmt, clippy, tests, build with `--locked`; the exe is a run artifact. `release.yml`: a `v1.2.3` tag must match
 `version` in Cargo.toml; it tests, builds and creates a draft release with `WoW-Tools-1.2.3.exe` and its SHA-256 —
-publish it by hand. Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
+publish it by hand. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them
+quote the locale files; pictures in `docs/images/<view>-<lang>.png` come from `ui-snapshot` (regenerate after UI
+changes). Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
 links the MSVC C runtime statically, so the exe needs no VC++ redistributable. Commit and push only when asked.
 
 ## Seeing the UI without a screen

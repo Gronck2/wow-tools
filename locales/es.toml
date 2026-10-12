@@ -111,7 +111,7 @@ same = "el origen y el destino son el mismo: {name}"
 [autostart]
 no_exe = "no se encontró la ruta del exe"
 schtasks_failed = "no se pudo ejecutar schtasks"
-bad_interval = "el intervalo debe ser de 1 a 1439 minutos"
+bad_interval = "el intervalo debe ser de 1 a 1439 minutos o de días enteros (1440, 2880, …)"
 too_long = "la línea de comandos de la tarea supera los {n} caracteres: pon el exe en una ruta más corta"
 windows_only = "el inicio automático solo funciona en Windows"
 

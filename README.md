@@ -1,106 +1,273 @@
 # WoW Tools
 
-Набор утилит для World of Warcraft (Windows). Сейчас: бэкап настроек (`WTF`) и аддонов
-(`Interface/AddOns`) с историей снапшотов, восстановление и перенос настроек между персонажами.
+**English** · [Русский](README.ru.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md)
 
-## Быстрый старт
+A small Windows tray app for World of Warcraft that keeps your settings and addons safe:
 
-```
-wow-tools init                 # найдёт игру и создаст конфиг
-wow-tools status               # что найдено, сколько снапшотов, запущена ли игра
-wow-tools backup               # снапшот (только если что-то изменилось)
-wow-tools list
-```
+- **Backups** of `WTF` (key bindings, macros, chat, CVars, addon settings) and `Interface\AddOns` — after every game
+  session or on a schedule, for every game version you have installed.
+- **One-click restore** to any earlier point, with the current state saved first, so a restore can always be undone.
+- **Copying settings between characters**: bindings, macros, chat windows, frame layout, enabled addons, addon settings.
+- **Addon updates** through the addon manager you already use — CurseForge, WowUp, WowUp-CF or the Wago App —
+  started without a window, on a schedule, never while you are playing.
+- English, Russian, German, French and Spanish.
 
-Конфиг: `%APPDATA%\WoW Tools\config\config.toml`, снапшоты по умолчанию — `%LOCALAPPDATA%\WoW Tools\data\backups`
-(внутри: `<версия игры>\wtf\*.zip` и `<версия игры>\addons\*.zip`). Данные старого имени `wtf_sync`
-переносятся сюда автоматически.
+<p>
+  <img src="docs/images/panel-en.png" width="270" alt="Backup tab of the panel">
+  <img src="docs/images/addons-en.png" width="270" alt="Addons tab of the panel">
+  <img src="docs/images/menu-en.png" width="210" alt="Tray menu">
+</p>
 
-## Трей
+## Contents
 
-`wow-tools` без аргументов (или двойной клик по exe) запускает значок в трее. Снапшоты он делает так, как выбрано
-в настройках: **после каждого выхода из игры** или **по расписанию** — в выбранные дни недели в заданное время
-(например, Пн и Чт в 10:00). Если компьютер в это время был выключен, бэкап сделается при включении; если игра
-запущена — сразу после её закрытия. Кнопка «Сделать бэкап сейчас» работает в любом режиме.
-Цвет значка показывает состояние: зелёный — всё в порядке,
-кольцо — игра запущена (бэкап после выхода), синий — идёт работа, красный — ошибка, серый — бэкапов ещё нет.
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [The tray icon and the panel](#the-tray-icon-and-the-panel)
+- [Settings](#settings)
+- [Backups: how they work](#backups-how-they-work)
+- [Restoring](#restoring)
+- [Addon updates](#addon-updates)
+- [Copying settings between characters](#copying-settings-between-characters)
+- [Command line](#command-line)
+- [Files and folders](#files-and-folders)
+- [Privacy and safety](#privacy-and-safety)
+- [Uninstalling](#uninstalling)
+- [FAQ and limitations](#faq-and-limitations)
+- [Building from source](#building-from-source)
 
-Левый клик открывает панель в стиле Windows 11 (светлая/тёмная тема и акцентный цвет системы) с двумя вкладками.
-«Бэкап»: статус, «Сделать бэкап сейчас», последние точки восстановления с кнопкой «Вернуть» (подтверждение прямо в
-строке; WTF и аддоны возвращаются на один момент времени). «Аддоны»: когда аддоны обновлялись, «Обновить аддоны» и
-четыре последних обновления (что обновилось или что пошло не так). Сверху — папка бэкапов и настройки, внизу —
-переключатель автозапуска.
-Правый клик — меню: панель, бэкап, папка, настройки, лог, автозапуск, выход.
+## Requirements
 
-## Настройки
+- **Windows 10 or 11**, 64-bit. Nothing else to install: it is a single `.exe` with no runtime dependencies.
+- **World of Warcraft** installed through Battle.net. Every game version is supported: Retail, Classic (progression),
+  Classic Era / Hardcore / Season of Discovery, Anniversary, PTR, beta, and versions that do not exist yet — anything
+  in a `_name_` folder next to `_retail_`.
+- For addon updates only — **one** of these, installed and set up (signed in, game folder chosen):
+  - [CurseForge](https://www.curseforge.com/download/app) app;
+  - [WowUp](https://wowup.io/) or WowUp-CF (the CurseForge-enabled build);
+  - [Wago App](https://addons.wago.io/app) — for WeakAuras and UI packs only, see [below](#wago-app).
 
-Окно настроек открывается шестерёнкой на панели, пунктом меню или повторным запуском exe. Вкладки:
-**Общие** — папка игры (находится сама, можно указать вручную), версии игры (Retail, Classic…), язык, автозапуск;
-**Бэкап** — когда бэкапить, сколько снапшотов хранить, бэкап аддонов, ожидание выхода из игры, папка бэкапов;
-**Аддоны** — программа для обновления, расписание, «не обновлять во время игры». Изменения сохраняются сразу и
-применяются без перезапуска. Редкие параметры (например, `exclude_ext`) — в `config.toml`, ссылка на него внизу окна.
+  Backups, restore and character copying work without any of them.
 
-## Периодический бэкап без трея
+## Installation
 
-- `wow-tools watch` — то же, что трей, но в консоли (`--interval N` — вместо настроек снапшот каждые N минут).
-- `wow-tools schedule logon` — запускать трей при входе в Windows (`--headless` — `watch` без значка).
-- `wow-tools schedule interval --every 1440` — задача Планировщика: `backup` раз в N минут (по умолчанию раз в сутки).
-- `wow-tools schedule status` / `schedule remove`.
+1. Download `WoW-Tools-x.y.z.exe` from [Releases](https://github.com/Gronck2/wow-tools/releases).
+2. Put it in a permanent folder (for example `%LOCALAPPDATA%\Programs\WoW Tools\`) — autostart remembers this path.
+3. Run it. A tray icon appears; the game folder is found automatically (registry, Battle.net, common paths).
 
-Бэкапятся все установленные версии игры — Retail, Classic, Classic Era, Anniversary, PTR, беты (WoW Forever пока
-живёт в `_classic_beta_`); какие именно — выбирается в настройках. Версии ищутся в папке игры и в списке установок
-Battle.net, так что версия, поставленная в другую папку, тоже найдётся. Пока версия запущена, её снапшоты
-пропускаются (WoW пишет WTF при выходе), остальные версии бэкапятся как обычно. Хранится `keep` последних снапшотов
-каждой серии; AddOns архивируются только при изменениях.
+Windows SmartScreen may warn about an unknown publisher because the exe is not code-signed: choose
+**More info → Run anyway**. Each release lists the file's SHA-256 so you can check what you downloaded
+(`Get-FileHash .\WoW-Tools-0.1.0.exe`).
 
-## Восстановление
+Starting the exe again while it is running opens the settings window.
 
-```
-wow-tools restore                      # последний снапшот WTF и AddOns
-wow-tools restore 20261012 --kind wtf  # последний WTF за 12.10.2026 или раньше
-```
+## The tray icon and the panel
 
-Перед восстановлением текущее состояние сохраняется снапшотом `...-pre-restore`.
+The icon shows the current state:
 
-## Обновление аддонов (CurseForge, WowUp, Wago App)
+| Icon | Meaning |
+| --- | --- |
+| green | everything is fine |
+| ring | the game is running, the backup will be taken after it exits |
+| blue | working: backup, restore or addon update |
+| red | the last operation failed (hover the icon or open the panel to see why) |
+| grey | no backups yet |
 
-WoW Tools обновляет аддоны через программу, которая у вас уже стоит: CurseForge, WowUp, WowUp-CF или Wago App. Какую
-использовать — вкладка «Аддоны» в настройках; выбирается одна (две программы над одной папкой AddOns портят аддоны
-друг другу). Программа запускается без окна (CurseForge — `--minimized`, WowUp — `--hidden --quit`), ставит
-обновления и закрывается — только если её запустил WoW Tools; уже открытую он не трогает.
-Если автообновление в программе выключено, оно включается только на время этого запуска и потом выключается
-обратно. В CurseForge аддоны с ручным обновлением не трогаются, в WowUp — аддоны, которые там игнорируются.
-Wago App сами аддоны без окна обновлять не умеет (только кнопкой «Update All»; аддоны с Wago обновляет WowUp), зато,
-пока открыт, обновляет WeakAuras и UI-паки. Если выбран он, появляются два переключателя — WeakAuras и UI-паки:
-Wago App запускается свёрнутым, записывает их обновления (применяются в игре) и закрывается; выключенное
-остаётся как было.
+**Left click** opens the panel (Windows 11 style, follows the light/dark theme and the accent colour):
 
-Перед обновлением сохраняется снапшот аддонов («до обновления» на панели — откатывает только аддоны). Когда
-обновлять — периодически (каждые 30 мин … 12 ч) или по расписанию (дни и время), пока игра закрыта; вручную —
-пункт меню «Обновить аддоны» или `wow-tools update-addons`. `wow-tools status` показывает найденные программы,
-сколько аддонов каждая ведёт и какие ждут обновления (`*` — выбранная).
+- **Backup** tab: when the last backup was taken and when backups run, **Back up now**, and the latest restore
+  points of every game version with a **Restore** button (confirmed right in the row).
+- **Addons** tab: when addons were last updated, **Update addons**, and the last four update runs — what was updated
+  or what went wrong (hover a row for the full text).
+- At the top: the backups folder and the settings; at the bottom: **Start with Windows**.
 
-## Настройки между персонажами
+**Right click** opens the menu: the panel, back up now, update addons, backups folder, settings, log, autostart, exit.
+
+Notifications appear for the results of what you started yourself and for new errors.
+
+## Settings
+
+<p>
+  <img src="docs/images/settings-en.png" width="400" alt="Settings, General tab">
+  <img src="docs/images/settings-addons-en.png" width="400" alt="Settings, Addons tab">
+</p>
+
+Every change is saved at once and applied without a restart.
+
+- **General**: game folder (found automatically, can be set by hand), which game versions to back up, language,
+  start with Windows, and a link to `config.toml` for the rarely needed options.
+- **Backup**: when to back up (*after the game* closes, or *on schedule* — chosen weekdays at a set time), how many
+  snapshots to keep, the **Back up addons** and **Wait for the game to exit** switches, the backups folder.
+- **Addons**: the program to update with, **Don't update while playing**, **Update automatically**, and when —
+  *periodically* (every 30 min … 12 h) or *on schedule* (days and time).
+
+## Backups: how they work
+
+- A **snapshot** is a zip archive of a folder: `WTF` and `Interface\AddOns` are archived separately, for each game
+  version separately. Inside, paths are relative to the game version folder.
+- A snapshot is taken **only if something changed**: WoW Tools remembers a fingerprint of the folder (file paths,
+  sizes, modification times) and skips unchanged ones. Addons, which rarely change, cost almost nothing.
+- **While a game version runs, its snapshots are skipped**: WoW writes `WTF` and addon settings when you log out or
+  exit, so a copy made during play would be half old. Other versions are backed up as usual. In *after the game*
+  mode the backup is taken a few seconds after the client closes.
+- **On schedule**: if the computer was off at the scheduled time, the backup is taken when it is back on; if the game
+  was running, right after it closes. A manual backup counts as a scheduled one.
+- **Retention**: the latest `keep` snapshots (30 by default) of each series are kept, older ones are deleted.
+- `*.bak` and `*.old` files are left out (that is why a 155 MB `WTF` usually fits in ~13 MB). The list is
+  `exclude_ext` in `config.toml`.
+
+## Restoring
+
+**Restore** in the panel returns `WTF` and addons of that game version to that moment. The game version must be
+closed (others may run). Before anything is replaced, the current state is saved as a snapshot labelled
+*before restore*, so you can always go back.
+
+A restore unpacks the archive into a temporary folder next to the real one and only then swaps the folders, so an
+interrupted restore never leaves a half-written `WTF`.
+
+Points labelled *before update* hold addons only — they undo an addon update and leave settings as they are.
+
+From the command line: `wow-tools restore` (latest), `wow-tools restore 20261012` (the latest of that day or earlier),
+`--kind wtf` or `--kind addons` for one part only, `--flavor _classic_era_` for another game version.
+
+## Addon updates
+
+WoW Tools does not download addons itself. It runs the addon manager you already have, lets it do its usual update and
+closes it. This keeps the manager's own records correct and respects authors who allow downloads only through official
+clients.
+
+Only **one** program is used: two managers working on the same `AddOns` folder overwrite each other's files. If you
+have several, choose one in **Settings → Addons**; if there is just one, it is used automatically.
+
+Every run, automatic or manual:
+
+1. With **Don't update while playing** on (the default), nothing happens while any game client runs; the update waits
+   until the game is closed.
+2. An `AddOns` snapshot labelled *before update* is taken — one click in the panel undoes the update.
+3. The program is started without a window, updates, and is closed. **A program you already had open is left
+   alone** — it is not started a second time and not closed.
+4. The result goes to the update history: which addons were updated, which still wait (for example set to manual
+   updates in the program), or why it failed.
+
+If auto-update is off in the program, it is switched on just for this run and switched back afterwards (even if the
+run was cut short — that is undone the next time). Addons you set to manual or ignored in the program are not touched.
+
+### CurseForge
+
+Started with `--minimized` (to its tray, as its own autostart does). WoW Tools follows its log until the update check is
+done and nothing has been installed for a minute (10 minutes at most), then closes it.
+
+### WowUp and WowUp-CF
+
+Started with `--hidden --quit`: one silent auto-update round, then it exits by itself. WowUp only updates addons that
+have auto-update enabled; WoW Tools enables it for this run for every addon that is not ignored.
+
+> **Addons from Wago through WowUp.** Plain WowUp gets its Wago download permission from the ad shown in its window.
+> Started without a window, it gets none, and Wago refuses the download. Such addons are listed in the history with
+> this reason. Update them by opening WowUp, set a Wago key in WowUp's settings, or use CurseForge / WowUp-CF if most of your addons come from there.
+
+### Wago App
+
+The Wago App has no unattended addon update — only its *Update All* button — so as the chosen program it updates
+**WeakAuras and UI packs only**. Two switches appear when it is chosen: **WeakAuras** and **UI packs**. The app is
+started minimized, writes its updates to `AddOns\WagoAppCompanion` (WeakAuras, applied in game) and
+`AddOns\WagoUI_Storage` (UI packs), and is closed once it has been quiet for 15 seconds. A part you switched off is
+kept exactly as it was. With both off there is nothing to do and the app is not started.
+
+## Copying settings between characters
+
+Characters live in `WTF\Account\<ACCOUNT>\<Realm>\<Name>`. To copy one character's setup to others:
 
 ```
 wow-tools chars
-wow-tools copy-char --from "Tarren Mill/Groncky" --to "Азурегос/Гронки" --dry-run
+wow-tools copy-char --from "Tarren Mill/Groncky" --to "Kazzak/Groncky" --dry-run
 wow-tools copy-char --from "Tarren Mill/Groncky" --to "Kazzak/Groncky" --to "Silvermoon/Gronckowski" --parts bindings,macros,savedvars
 ```
 
-Части: `bindings`, `macros`, `chat`, `config`, `layout`, `addons` (включённые аддоны), `savedvars`
-(настройки аддонов персонажа). Если имя неоднозначно между аккаунтами — `ACCOUNT/Realm/Name`.
-Перед копированием WTF сохраняется снапшотом `...-pre-copy`.
+| Part | What | File |
+| --- | --- | --- |
+| `bindings` | key bindings | `bindings-cache.wtf` |
+| `macros` | character macros | `macros-cache.txt` |
+| `chat` | chat windows and channels | `chat-cache.txt` |
+| `config` | character CVars | `config-cache.wtf` |
+| `layout` | frame positions | `layout-local.txt` |
+| `addons` | which addons are enabled | `AddOns.txt` |
+| `savedvars` | character addon settings | `SavedVariables\*.lua` |
 
-## Язык
+Without `--parts` everything is copied. Names are case-insensitive (Cyrillic too); if a name exists on several
+accounts, write `ACCOUNT/Realm/Name`. `WTF` is saved as a *before copy* snapshot first, and the game version must be
+closed.
 
-WoW Tools говорит по-русски, по-английски, по-немецки, по-французски и по-испански: окна, уведомления, сообщения
-и командная строка (включая `--help`). Язык выбирается в настройках (вкладка «Общие»); «Как в Windows» — язык
-интерфейса Windows, а если его нет среди этих пяти — английский. В конфиге это `language = "ru"` (`en`, `de`, `fr`, `es`).
-Тексты лежат в `locales/<язык>.toml`.
+Key bindings and macros may be stored on Blizzard's servers (the `synchronizeBindings` / `synchronizeMacros` CVars),
+in which case the server copy can override the copied files on login.
 
-## Сборка и релизы
+## Command line
 
-Готовый exe — в [Releases](https://github.com/Gronck2/wow-tools/releases). Собрать самому: `cargo build --release`
-(Rust stable). Каждый пуш в `main` проверяется в GitHub Actions (формат, clippy, тесты, сборка); тег `vX.Y.Z`,
-совпадающий с версией в `Cargo.toml`, собирает exe и создаёт черновик релиза.
+`wow-tools` with no command starts the tray. Everything else is also available from a console:
+
+| Command | What it does |
+| --- | --- |
+| `init [--wow-path DIR] [--backup-dir DIR]` | create the config (the game folder is found automatically) |
+| `status` | the install found, game versions, settings, addon programs and pending updates |
+| `backup [--flavor F] [--kind wtf\|addons] [--force]` | take a snapshot (only of what changed unless `--force`) |
+| `list [--flavor F] [--kind K]` | list snapshots |
+| `restore [ID\|DATE\|latest] [--kind K] [--flavor F] [-y]` | restore, saving the current state first |
+| `chars [--flavor F]` | list characters |
+| `copy-char --from C --to C [--to C…] [--parts …] [--dry-run]` | copy settings between characters |
+| `update-addons` | update addons now through the chosen program |
+| `watch [--interval N]` | what the tray does, in a console window |
+| `schedule logon [--headless]` | start the tray at sign-in (`--headless`: `watch` without an icon) |
+| `schedule interval [--every MIN]` | a Task Scheduler task running `backup` every N minutes (a day by default) |
+| `schedule status` / `schedule remove` | show / remove autostart and the task |
+
+Common options: `--config FILE` (another config), `--log-to-file`, `-v`. `wow-tools <command> --help` explains the
+rest in the chosen language.
+
+## Files and folders
+
+| Path | What |
+| --- | --- |
+| `%APPDATA%\WoW Tools\config\config.toml` | settings |
+| `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | snapshots (folder changeable) |
+| `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | log of the tray |
+| `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | update history (last 20) |
+
+Snapshot names are `YYYYmmdd-HHMMSS[-label].zip`; they are ordinary zip files and can be opened by hand.
+
+`config.toml` also holds what the window does not show: `exclude_ext` (left-out extensions, `["bak", "old"]` by
+default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows display language).
+
+## Privacy and safety
+
+- WoW Tools makes **no network connections**. It reads and writes files on your disk and starts the addon program you
+  chose; any downloading is done by that program.
+- It never touches the game itself, does not read game memory and does not automate anything in game.
+- It writes to the game folder only when you restore, copy character settings, or an addon program updates addons —
+  and each of these takes a snapshot first.
+
+## Uninstalling
+
+1. Turn off **Start with Windows** (or run `wow-tools schedule remove`, which also removes a scheduled task).
+2. Choose **Exit** in the tray menu.
+3. Delete the exe and, if you do not need the settings and snapshots, `%APPDATA%\WoW Tools` and
+   `%LOCALAPPDATA%\WoW Tools`.
+
+## FAQ and limitations
+
+- **Restore says the game is running.** Close that game version (the Battle.net launcher may stay open).
+- **Copied bindings disappeared after login.** They are synchronised with the server; see
+  [above](#copying-settings-between-characters).
+- **The update says "No updates.", but the program shows updates.** Those addons are set to manual or ignored in
+  the program, or (WowUp) come from Wago — see the history row for the reason.
+- **Can several addon programs be used at once?** No, on purpose: they break each other's addons.
+- **Where is the game folder found?** The registry, Battle.net's install list, then the usual paths
+  (`C:\Program Files (x86)\World of Warcraft`, `X:\Games\World of Warcraft`, …). Game versions Battle.net installed in
+  other folders are found too. Otherwise set it in **Settings → General**.
+
+## Building from source
+
+```
+cargo build --release
+```
+
+Rust stable, Windows. CI (GitHub Actions) checks formatting, clippy, tests and the build on every push; a `vX.Y.Z` tag
+matching the version in `Cargo.toml` builds the exe and drafts a release. Texts are in `locales/<language>.toml`.

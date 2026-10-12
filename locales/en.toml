@@ -111,7 +111,7 @@ same = "source and target are the same: {name}"
 [autostart]
 no_exe = "could not find the path of the exe"
 schtasks_failed = "could not run schtasks"
-bad_interval = "the interval must be from 1 to 1439 minutes"
+bad_interval = "the interval must be from 1 to 1439 minutes or whole days (1440, 2880, …)"
 too_long = "the task command line is longer than {n} characters — put the exe in a shorter path"
 windows_only = "autostart is supported on Windows only"
 

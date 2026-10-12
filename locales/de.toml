@@ -111,7 +111,7 @@ same = "Quelle und Ziel sind identisch: {name}"
 [autostart]
 no_exe = "Pfad der exe konnte nicht ermittelt werden"
 schtasks_failed = "schtasks konnte nicht ausgeführt werden"
-bad_interval = "das Intervall muss zwischen 1 und 1439 Minuten liegen"
+bad_interval = "das Intervall muss zwischen 1 und 1439 Minuten liegen oder ganze Tage betragen (1440, 2880, …)"
 too_long = "die Befehlszeile der Aufgabe ist länger als {n} Zeichen – legen Sie die exe in einen kürzeren Pfad"
 windows_only = "Autostart wird nur unter Windows unterstützt"
 
