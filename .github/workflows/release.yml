@@ -1,0 +1,56 @@
+# Pushing a version tag (v1.2.3) builds the exe from that commit and creates a draft GitHub
+# release with it. Review the notes and publish the draft by hand.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Check the tag matches Cargo.toml
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            Write-Error "Tag $env:GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Tests
+        run: cargo test --release --locked
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $exe = "dist/WoW-Tools-${{ steps.version.outputs.version }}.exe"
+          Copy-Item target/release/wow-tools.exe $exe
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+          "exe=$exe" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "SHA-256: ``${{ steps.package.outputs.sha256 }}``"
+          gh release create $env:GITHUB_REF_NAME "${{ steps.package.outputs.exe }}" --draft --verify-tag `
+            --title "WoW Tools ${{ steps.version.outputs.version }}" --generate-notes --notes "$notes"

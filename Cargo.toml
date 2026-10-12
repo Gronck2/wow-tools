@@ -1,0 +1,62 @@
+[package]
+name = "wow-tools"
+version = "0.1.0"
+edition = "2024"
+description = "WoW Tools: snapshots of WTF and addons, settings between characters"
+repository = "https://github.com/Gronck2/wow-tools"
+
+[dependencies]
+anyhow = "1.0.104"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
+clap = { version = "4.6.7", features = ["derive"] }
+directories = "6.0.0"
+env_logger = "0.11.11"
+log = "0.4.34"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision"] }
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+toml = "1.1.8"
+walkdir = "2.5.0"
+zip = { version = "9.0.1", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+strip = true
+
+[target."cfg(windows)".dependencies]
+windows-numerics = "0.3"
+winreg = "0.56.0"
+
+[target."cfg(windows)".dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Imaging",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+]
+
+[target."cfg(windows)".dependencies.windows-sys]
+version = "0.61"
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Globalization",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Console",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+]
