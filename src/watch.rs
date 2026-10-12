@@ -133,10 +133,8 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
             emit(Event::Busy(Work::Addons));
             let result = app::update_addons(&ctx, false);
             match &result {
-                Ok(_) => {
-                    last_update = Some(now);
-                    updater::set_last_run(now);
-                }
+                // `update_addons` saved its start time.
+                Ok(_) => last_update = updater::last_run(),
                 Err(e) => {
                     log::error!("{}", tr!("watch.update_failed", error = format!("{e:#}")));
                     update_retry_at = Instant::now() + 3 * RETRY;
@@ -158,8 +156,7 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
                 emit(Event::Busy(Work::Addons));
                 let result = app::update_addons(&ctx, true);
                 if result.is_ok() {
-                    last_update = Some(Local::now().naive_local());
-                    updater::set_last_run(Local::now().naive_local());
+                    last_update = updater::last_run();
                 }
                 emit(Event::Addons { manual: true, result });
             }

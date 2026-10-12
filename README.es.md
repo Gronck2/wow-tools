@@ -82,7 +82,7 @@ El icono muestra el estado actual:
 
 - Pestaña **Copias**: cuándo se hizo la última copia y cuándo se hacen las copias, **Hacer copia ahora** y los últimos
   puntos de restauración de cada versión del juego con un botón **Restaurar** (se confirma en la misma fila).
-- Pestaña **Accesorios**: cuándo se actualizaron los addons por última vez, **Actualizar accesorios** y las cuatro
+- Pestaña **Accesorios**: cuándo se actualizaron los addons por última vez, **Actualizar accesorios** y las cinco
   últimas actualizaciones: qué se actualizó o qué salió mal (pasa el ratón por una fila para ver el texto completo).
 - Arriba: la carpeta de copias y la configuración; abajo: **Iniciar con Windows**.
 

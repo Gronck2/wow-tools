@@ -71,7 +71,7 @@ impl Tab {
 }
 
 /// How many update runs the "Аддоны" tab lists.
-pub const HISTORY_ROWS: usize = 4;
+pub const HISTORY_ROWS: usize = 5;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Hit {

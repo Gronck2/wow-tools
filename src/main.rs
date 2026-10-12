@@ -491,6 +491,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                 ),
             ),
             (1500, "WowUp", true, false, tr!("addons.updated", n = 1, names = "WeakAuras")),
+            (2900, "WowUp", true, false, tr!("addons.updated", n = 2, names = "Plater, OmniCD")),
         ]
         .map(|(min, app, ok, manual, text)| updater::Entry {
             time: now - Duration::minutes(min),

@@ -189,6 +189,8 @@ pub fn restore_point(ctx: &Ctx, flavor: &str, spec: &str, kind: Option<Kind>) ->
 /// Updates addons through the chosen addon manager app; first snapshots the addons of every selected
 /// flavor (when they changed since the last snapshot) so a bad update can be rolled back.
 pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
+    // One time for the run everywhere (history, "last update", the schedule): when it started.
+    let started = chrono::Local::now().naive_local();
     // Refused before anything is recorded: nothing was tried.
     if ctx.cfg.update_skip_in_game
         && let Some(game) = crate::wow::running_game()
@@ -197,8 +199,11 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
     }
     let app = crate::updater::chosen(ctx.cfg.update_app);
     let result = app.with_context(|| tr!("app.no_addon_app")).and_then(|app| run_update(ctx, app));
+    if result.is_ok() {
+        crate::updater::set_last_run(started);
+    }
     crate::updater::record(crate::updater::Entry {
-        time: chrono::Local::now().naive_local(),
+        time: started,
         app: app.map_or("—", |a| a.title()).to_string(),
         ok: result.is_ok(),
         text: match &result {

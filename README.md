@@ -78,7 +78,7 @@ The icon shows the current state:
 
 - **Backup** tab: when the last backup was taken and when backups run, **Back up now**, and the latest restore
   points of every game version with a **Restore** button (confirmed right in the row).
-- **Addons** tab: when addons were last updated, **Update addons**, and the last four update runs — what was updated
+- **Addons** tab: when addons were last updated, **Update addons**, and the last five update runs — what was updated
   or what went wrong (hover a row for the full text).
 - At the top: the backups folder and the settings; at the bottom: **Start with Windows**.
 

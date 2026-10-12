@@ -86,7 +86,7 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
 - Onglet **Sauvegarde** : l'heure de la dernière sauvegarde et quand les sauvegardes ont lieu, **Sauvegarder**, et les
   derniers points de restauration de chaque version du jeu avec un bouton **Restaurer** (confirmation directement dans
   la ligne).
-- Onglet **Addons** : la date de la dernière mise à jour des addons, **Mettre à jour les addons**, et les quatre
+- Onglet **Addons** : la date de la dernière mise à jour des addons, **Mettre à jour les addons**, et les cinq
   dernières mises à jour — ce qui a été mis à jour ou ce qui a échoué (survolez une ligne pour voir le texte complet).
 - En haut : le dossier des sauvegardes et les paramètres ; en bas : **Lancer avec Windows**.
 

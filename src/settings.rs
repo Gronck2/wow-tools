@@ -10,7 +10,9 @@ use std::ptr::{null, null_mut};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextFormat;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows_sys::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
+use windows_sys::Win32::Graphics::Gdi::{
+    BeginPaint, EndPaint, GetMonitorInfoW, InvalidateRect, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, PAINTSTRUCT,
+};
 use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_ESCAPE};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
@@ -148,9 +150,8 @@ impl Tab {
     }
 }
 
-/// The cards of a tab; the days and times only when their schedule is on (`full`: all of them,
-/// for sizing the window).
-fn rows(m: &Model, tab: Tab, full: bool) -> Vec<Row> {
+/// The cards of a tab; the days and times only when their schedule is on.
+fn rows(m: &Model, tab: Tab) -> Vec<Row> {
     let mut rows = Vec::new();
     match tab {
         Tab::General => rows.extend([
@@ -166,24 +167,24 @@ fn rows(m: &Model, tab: Tab, full: bool) -> Vec<Row> {
         ]),
         Tab::Backup => {
             rows.extend([Row::Section(tr!("settings.section_schedule")), Row::When]);
-            if full || m.cfg.backup_when == When::Schedule {
+            if m.cfg.backup_when == When::Schedule {
                 rows.extend([Row::Days, Row::Time]);
             }
             rows.extend([Row::Section(tr!("settings.section_storage")), Row::Keep, Row::Addons, Row::Game, Row::Backups]);
         }
         Tab::Addons => {
             rows.extend([Row::Section(tr!("settings.section_updates")), Row::UpdateApp]);
-            if full || m.chosen() == Some(AddonApp::Wago) {
+            if m.chosen() == Some(AddonApp::Wago) {
                 rows.extend([Row::WagoWeakAuras, Row::WagoUiPacks]);
             }
             rows.push(Row::UpdateGame);
             rows.push(Row::Updates);
-            if full || m.cfg.update_addons {
+            if m.cfg.update_addons {
                 rows.push(Row::UpdateWhen);
-                if full || m.cfg.update_when == UpdateWhen::Interval {
+                if m.cfg.update_when == UpdateWhen::Interval {
                     rows.push(Row::UpdateEvery);
                 }
-                if full || m.cfg.update_when == UpdateWhen::Schedule {
+                if m.cfg.update_when == UpdateWhen::Schedule {
                     rows.extend([Row::UpdateDays, Row::UpdateTime]);
                 }
             }
@@ -309,7 +310,7 @@ fn row_height(row: Row, m: &Model, f: &Formats) -> f32 {
 }
 
 fn layout(m: &Model, f: &Formats, tab: Tab) -> Vec<(R, Row)> {
-    place_rows(rows(m, tab, false), m, f)
+    place_rows(rows(m, tab), m, f)
 }
 
 fn place_rows(rows: Vec<Row>, m: &Model, f: &Formats) -> Vec<(R, Row)> {
@@ -335,14 +336,6 @@ fn bottom(rows: &[(R, Row)]) -> f32 {
 
 fn content_height(m: &Model, f: &Formats, tab: Tab) -> f32 {
     bottom(&layout(m, f, tab)) + FOOTER_H
-}
-
-/// Fits the tallest tab with every card shown, so switching tabs does not resize the window.
-fn window_height(m: &Model, f: &Formats) -> f32 {
-    Tab::ALL
-        .iter()
-        .map(|&tab| bottom(&place_rows(rows(m, tab, true), m, f)) + FOOTER_H)
-        .fold(0.0, f32::max)
 }
 
 enum Ctl {
@@ -1096,7 +1089,7 @@ fn open() -> gfx::Result<()> {
     let theme = gfx::theme();
     let title = tr!("settings.title", app = APP_NAME);
     let (model, fmt) = (Model::load(&path), formats()?);
-    let height = window_height(&model, &fmt);
+    let height = content_height(&model, &fmt, Tab::default());
     let (hwnd, scale) = gfx::create_window("WowToolsSettings", &title, Some(wndproc), (W, height), &theme);
     let icon = tray::app_icon();
     let window = Window {
@@ -1130,6 +1123,34 @@ pub fn refresh() {
     }
 }
 
+/// Fits the window to the cards of the open tab, so there is no empty space under them; the top
+/// stays in place. Taller than the screen's work area, it stops there and the cards scroll.
+fn fit(hwnd: HWND) {
+    let Some(want) = with_window(|w| (content_height(&w.model, &w.fmt, w.tab) * w.surface.scale).round() as i32) else {
+        return;
+    };
+    unsafe {
+        let (mut wr, mut cr): (RECT, RECT) = (zeroed(), zeroed());
+        GetWindowRect(hwnd, &mut wr);
+        GetClientRect(hwnd, &mut cr);
+        let frame = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+        let mut mi: MONITORINFO = zeroed();
+        mi.cbSize = size_of::<MONITORINFO>() as u32;
+        GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mut mi);
+        let work = mi.rcWork;
+        let h = (want + frame).min(work.bottom - work.top);
+        if h == wr.bottom - wr.top {
+            return;
+        }
+        let y = wr.top.min(work.bottom - h).max(work.top);
+        SetWindowPos(hwnd, null_mut(), wr.left, y, wr.right - wr.left, h, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    with_window(|w| {
+        w.surface.reset();
+        w.scroll = w.scroll.min(max_scroll(w));
+    });
+}
+
 fn client_height(hwnd: HWND, scale: f32) -> f32 {
     let mut rc: RECT = unsafe { zeroed() };
     unsafe { GetClientRect(hwnd, &mut rc) };
@@ -1153,6 +1174,7 @@ fn click(hwnd: HWND, hit: Hit) {
             w.scroll = 0.0;
             w.hover = None;
         });
+        fit(hwnd);
         unsafe { InvalidateRect(hwnd, null(), 0) };
         return;
     }
@@ -1167,6 +1189,8 @@ fn click(hwnd: HWND, hit: Hit) {
         let title: Vec<u16> = tr!("settings.title", app = APP_NAME).encode_utf16().chain([0]).collect();
         unsafe { SetWindowTextW(hwnd, title.as_ptr()) };
     }
+    // A change can add or remove cards (a schedule's days, the Wago switches).
+    fit(hwnd);
     unsafe { InvalidateRect(hwnd, null(), 0) };
     if let Some(action) = action {
         tray::act(action);
@@ -1289,7 +1313,9 @@ pub fn snapshot(path: &str, dark: bool, model: &Model, tab: Tab) -> gfx::Result<
         Tab::General => Some(Hit::Flavor(0)),
         _ => Some(Hit::Tab(Tab::General)),
     };
-    gfx::render_png(path, W, window_height(model, &fmt), 1.5, |p| draw(p, model, &theme, &fmt, tab, hover, 0.0))
+    gfx::render_png(path, W, content_height(model, &fmt, tab), 1.5, |p| {
+        draw(p, model, &theme, &fmt, tab, hover, 0.0)
+    })
 }
 
 #[cfg(test)]

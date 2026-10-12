@@ -84,7 +84,7 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Sicherung**: wann die letzte Sicherung erstellt wurde und wann gesichert wird, **Jetzt sichern** und die
   neuesten Wiederherstellungspunkte jeder Spielversion mit der Schaltfläche **Zurück** (bestätigt wird direkt in der
   Zeile mit **Wiederherstellen**).
-- Reiter **Addons**: wann die Addons zuletzt aktualisiert wurden, **Addons aktualisieren** und die letzten vier
+- Reiter **Addons**: wann die Addons zuletzt aktualisiert wurden, **Addons aktualisieren** und die letzten fünf
   Update-Läufe – was aktualisiert wurde oder was schiefging (für den vollständigen Text den Mauszeiger auf die Zeile
   halten).
 - Oben: der Sicherungsordner und die Einstellungen; unten: **Mit Windows starten**.
