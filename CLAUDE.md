@@ -50,7 +50,7 @@ links the MSVC C runtime statically, so the exe needs no VC++ redistributable. C
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|menu|menu-update|settings|settings-update|settings-cleanup|settings-confirm|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -77,8 +77,9 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   `updater::history`, kept in `data\addon-updates.json`, 20 max, written by `app::update_addons`); autostart switch
   under both. The height fits the longer list of the two, so switching tabs does not resize it.
   Pure `draw(view, …)`; closes on deactivate/Esc. `menu.rs`: right-click menu in the same style.
-- `settings.rs`: the settings window (a regular titled window; tabs "Общие", "Бэкап", "Аддоны" fixed at the top, the
-  cards under them scroll when taller than the screen; the window is sized for the tallest tab): game folder
+- `settings.rs`: the settings window (a regular titled window; tabs "Общие", "Бэкап", "Аддоны", "Уборка" fixed at the
+  top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
+  switches and on changes that add or remove cards, top edge kept): game folder
   (folder picker, "Авто"), flavors as chips, "when" (after game / by schedule) + weekday chips, keep stepper,
   switches, backup folder, autostart, a link to
   `config.toml` for the rest (`exclude_ext`). Every click saves the config at once. A second start of the exe
@@ -148,6 +149,20 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 - `schedule.rs`: schtasks (`backup`) / HKCU Run value "WoW Tools" (`tray`, or `watch` with `--headless`; the UI
   toggles it), both through `conhost.exe --headless` (no console flash); /TR is limited to 261 chars. Whole days
   (the 1440 default of `schedule interval`) go as `/SC DAILY`: `/SC MINUTE` stops at 1439.
+- `maintenance.rs`: game patches and cleanup. `check_patches` (watch loop, once a minute) compares each selected
+  flavor's client version (`wow::all_flavors`, from Battle.net's product.db) with `data\game-versions.json`; a new
+  version while that client is closed = patched, not started yet, so WTF + AddOns are snapshotted forced with label
+  `pre-patch` (`Event::Patch` -> balloon). First sight of a flavor is only recorded. `outdated(fl)` reads every
+  `<Addon>*.toc` of an addon folder, all `## Interface*` numbers; judged by major.minor (patch digit ignored): on
+  Retail (>= 80000) against every Retail-era number, on Classic against the same major; no number for this game =
+  not judged; `Blizzard_*` skipped. Shown in Settings -> Addons ("Совместимость") and `wow-tools outdated`.
+  `scan(flavors)` (read-only, ~0.4 s on the real 216-character WTF) / `clean(ctx, Item)`: `Orphans` = SavedVariables
+  (`.lua`, `.lua.bak`) under any `SavedVariables` folder whose addon folder is not in `Interface\AddOns` (no AddOns
+  folder = not judged; `Blizzard*` kept); `Backups` = other `.bak`/`.old` in WTF; `Logs` = `Logs\WoWCombatLog*.txt`
+  older than 7 days; `Screenshots` = moved to `Pictures\World of Warcraft\<flavor title>\<YYYY-MM>\` (never
+  overwrites, copy+remove across drives); `Cache` = `Cache` + `Errors`. Orphans/Backups take a forced `pre-cleanup`
+  WTF snapshot first; running flavors are skipped. Settings tab "Уборка" scans when opened and after each cleanup
+  (`tray::cleanups()` counter); buttons ask "Точно?" first (`Model::confirm`). `wow-tools clean [items]`.
 - `selfupdate.rs`: updates of WoW Tools itself from the GitHub releases of `CARGO_PKG_REPOSITORY` (the only network
   access of the app; README "Privacy" says so). WinHTTP (system proxy and certificates, no TLS crate); GET
   `api.github.com/repos/<repo>/releases/latest` (published releases only; 404 = none or a private repo, not an

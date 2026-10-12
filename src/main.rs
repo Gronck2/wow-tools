@@ -6,6 +6,7 @@ mod config;
 mod curseforge;
 #[cfg(windows)]
 mod gfx;
+mod maintenance;
 #[cfg(windows)]
 mod menu;
 #[cfg(windows)]
@@ -138,6 +139,14 @@ enum Cmd {
     },
     /// Update addons through the chosen app (started without a window and closed)
     UpdateAddons,
+    /// Find what can be tidied up; with items given, tidy them up
+    Clean {
+        /// What to tidy up
+        #[arg(value_parser = ["orphans", "backups", "logs", "screenshots", "cache"])]
+        items: Vec<String>,
+    },
+    /// Addons not made for the installed game version
+    Outdated,
     /// Check GitHub for a new version of WoW Tools and install it
     SelfUpdate {
         /// Only check, do not install
@@ -323,6 +332,8 @@ fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Cmd::SelfUpdate { check } => cmd_self_update(check),
+        Cmd::Clean { items } => cmd_clean(&ctx, &items),
+        Cmd::Outdated => cmd_outdated(&ctx),
         Cmd::Schedule { action } => cmd_schedule(&ctx, action),
         Cmd::UiSnapshot { out, view, dark, lang } => {
             if let Some(code) = lang {
@@ -332,6 +343,48 @@ fn run(cli: Cli) -> Result<()> {
             cmd_ui_snapshot(&out, &view, dark)
         }
     }
+}
+
+fn cmd_clean(ctx: &Ctx, items: &[String]) -> Result<()> {
+    if items.is_empty() {
+        let scan = maintenance::scan(&ctx.flavors(None)?);
+        for item in maintenance::Item::ALL {
+            let found = scan.get(item);
+            let mut line = tr!("cleanup.cli_found", n = found.files, size = snapshot::human_size(found.bytes));
+            if !found.names.is_empty() {
+                line.push_str(&format!(": {}", maintenance::names_text(&found.names, 8)));
+            }
+            println!("{:<12} {}  ({})", item.key(), line, item.title());
+        }
+        if !scan.big.is_empty() {
+            let list: Vec<String> = scan.big.iter().map(|(n, s)| format!("{n} {}", snapshot::human_size(*s))).collect();
+            println!("{}: {}", tr!("cleanup.big"), list.join(", "));
+        }
+        println!("{}", tr!("cleanup.cli_hint"));
+        return Ok(());
+    }
+    for key in items {
+        let item = maintenance::Item::from_key(key).with_context(|| key.clone())?;
+        println!("{}: {}", item.title(), maintenance::clean(ctx, item)?.replace('\n', "; "));
+    }
+    Ok(())
+}
+
+fn cmd_outdated(ctx: &Ctx) -> Result<()> {
+    for fl in ctx.flavors(None)? {
+        let Some(version) = fl.version.as_deref() else {
+            println!("{}", tr!("cleanup.cli_no_version", flavor = fl.title()));
+            continue;
+        };
+        let flavor = format!("{} {}", fl.title(), maintenance::short_version(version));
+        let names = maintenance::outdated(&fl);
+        if names.is_empty() {
+            println!("{}", tr!("cleanup.outdated_ok", flavor = flavor));
+        } else {
+            println!("{}", tr!("cleanup.outdated_sub", flavor = flavor, n = names.len(), names = names.join(", ")));
+        }
+    }
+    Ok(())
 }
 
 fn cmd_self_update(check_only: bool) -> Result<()> {
@@ -422,10 +475,35 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                     ..Default::default()
                 }
             },
+            scan: Some(maintenance::Scan {
+                items: [
+                    (
+                        maintenance::Item::Orphans,
+                        maintenance::Found::sample(14, 3_900_000, &["Bagnon", "Dominos", "TomTom", "Recount", "XPerl"]),
+                    ),
+                    (maintenance::Item::Backups, maintenance::Found::sample(1_532, 141_000_000, &[])),
+                    (maintenance::Item::Logs, maintenance::Found::sample(6, 2_300_000_000, &[])),
+                    (maintenance::Item::Screenshots, maintenance::Found::sample(48, 96_000_000, &[])),
+                    (maintenance::Item::Cache, maintenance::Found::sample(312, 410_000_000, &[])),
+                ]
+                .into(),
+                big: vec![
+                    ("Details".into(), 34_000_000),
+                    ("WeakAuras".into(), 12_500_000),
+                    ("Auctionator".into(), 8_100_000),
+                ],
+            }),
+            outdated: Some(vec![
+                ("Retail 12.1.0".into(), vec!["BugSack".into(), "Postal".into(), "SilverDragon".into()]),
+                ("Classic Era 1.15.7".into(), Vec::new()),
+            ]),
+            confirm: (view == "settings-confirm").then_some(maintenance::Item::Logs),
+            scanned_at: 0,
         };
         let tab = match view {
             "settings-backup" | "settings-exit" => settings::Tab::Backup,
             "settings-addons" | "settings-every" | "settings-one" | "settings-wago" => settings::Tab::Addons,
+            "settings-cleanup" | "settings-confirm" => settings::Tab::Cleanup,
             _ => settings::Tab::General,
         };
         return Ok(settings::snapshot(&path, dark, &model, tab)?);

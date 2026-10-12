@@ -452,6 +452,7 @@ pub fn busy_text(work: Work) -> &'static str {
         Work::Backup => tr!("panel.busy_backup"),
         Work::Addons => tr!("panel.busy_addons"),
         Work::Restore => tr!("panel.busy_restore"),
+        Work::Cleanup => tr!("panel.busy_cleanup"),
     }
 }
 

@@ -3,6 +3,7 @@
 
 use crate::app::{self, Ctx, Report};
 use crate::config::When;
+use crate::maintenance::{self, Item, Patch};
 use crate::snapshot::Kind;
 use crate::{updater, wow};
 use anyhow::Result;
@@ -26,6 +27,8 @@ pub enum Request {
         /// Only this series (the "before addon update" points); `None` = WTF and addons.
         kind: Option<Kind>,
     },
+    /// Tidy one thing up (`maintenance::clean`).
+    Cleanup(Item),
 }
 
 /// What a busy worker is doing.
@@ -35,6 +38,7 @@ pub enum Work {
     Backup,
     Addons,
     Restore,
+    Cleanup,
 }
 
 pub enum Event {
@@ -51,7 +55,13 @@ pub enum Event {
     },
     /// The game process started (`Some(name)`) or exited (`None`).
     Game(Option<String>),
+    /// Battle.net patched these flavors (snapshots taken before their first start).
+    Patch(Vec<Patch>),
+    Cleanup(Result<String>),
 }
+
+/// How often client versions are compared with the last ones seen.
+const PATCH_CHECK: Duration = Duration::from_secs(60);
 
 /// How long a scheduled snapshot waits before trying again after it could not finish
 /// (the game was running or something failed).
@@ -80,6 +90,7 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
     let mut retry_at = Instant::now();
     let mut last_update = updater::last_run();
     let mut update_retry_at = Instant::now();
+    let mut patch_check_at = Instant::now();
     loop {
         match Ctx::load(config_path, explicit_config) {
             Ok(fresh) => ctx = fresh,
@@ -95,6 +106,15 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
         if just_closed {
             // A scheduled snapshot held back by the game goes right after it.
             retry_at = Instant::now();
+        }
+
+        // A patch is caught before the first start on it, while WTF still holds the old state.
+        if Instant::now() >= patch_check_at {
+            patch_check_at = Instant::now() + PATCH_CHECK;
+            let patches = maintenance::check_patches(&ctx);
+            if !patches.is_empty() {
+                emit(Event::Patch(patches));
+            }
         }
 
         let now = Local::now().naive_local();
@@ -159,6 +179,14 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
                     last_update = updater::last_run();
                 }
                 emit(Event::Addons { manual: true, result });
+            }
+            Ok(Request::Cleanup(item)) => {
+                emit(Event::Busy(Work::Cleanup));
+                let result = maintenance::clean(&ctx, item);
+                if let Err(e) = &result {
+                    log::error!("{e:#}");
+                }
+                emit(Event::Cleanup(result));
             }
             Ok(Request::Restore { flavor, id, kind }) => {
                 emit(Event::Busy(Work::Restore));

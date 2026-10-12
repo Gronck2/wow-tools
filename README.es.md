@@ -12,6 +12,10 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
   activados, configuración de addons.
 - **Actualización de addons** con el gestor que ya usas (CurseForge, WowUp, WowUp-CF o Wago App), iniciado sin ventana,
   de forma programada y nunca mientras juegas.
+- **Parches del juego**: cuando Battle.net actualiza el juego, la configuración y los addons se guardan antes del primer
+  inicio con la nueva versión, y ves qué addons aún no están hechos para ella.
+- **Limpieza**: configuración de addons eliminados, copias `.bak` de WoW, registros de combate antiguos, capturas de
+  pantalla y la caché, con sus tamaños, en un clic.
 - Se actualiza solo: consulta GitHub una vez al día e instala una nueva versión con un clic.
 - En inglés, ruso, alemán, francés y español.
 
@@ -30,6 +34,8 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 - [Copias de seguridad: cómo funcionan](#copias-de-seguridad-cómo-funcionan)
 - [Restauración](#restauración)
 - [Actualización de addons](#actualización-de-addons)
+- [Parches del juego](#parches-del-juego)
+- [Limpieza](#limpieza)
 - [Copiar la configuración entre personajes](#copiar-la-configuración-entre-personajes)
 - [Línea de comandos](#línea-de-comandos)
 - [Archivos y carpetas](#archivos-y-carpetas)
@@ -107,7 +113,9 @@ Cada cambio se guarda al instante y se aplica sin reiniciar.
   hora fija), cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**,
   la carpeta de copias.
 - **Accesorios**: el programa con el que actualizar, **No actualizar mientras juegas**, **Actualizar automáticamente** y
-  cuándo: *Periódica* (cada 30 min … 12 h) o *Programada* (días y hora).
+  cuándo: *Periódica* (cada 30 min … 12 h) o *Programada* (días y hora); debajo, qué addons no están hechos para la
+  versión actual del juego.
+- **Limpieza**: lo que se puede ordenar en WTF y en la carpeta del juego, con tamaños; mira [Limpieza](#limpieza).
 
 ## Copias de seguridad: cómo funcionan
 
@@ -189,6 +197,43 @@ elegido, actualiza **solo WeakAuras y paquetes de interfaz**. Al elegirlo aparec
 actividad. La parte que hayas desactivado se queda exactamente como estaba. Con las dos desactivadas no hay nada que
 hacer y la aplicación no se inicia.
 
+## Parches del juego
+
+Una vez por minuto, WoW Tools compara la versión de cada cliente del juego (según la indica Battle.net) con la última
+que vio. Una versión nueva con ese juego cerrado significa que Battle.net acaba de parchearlo y el juego aún no se ha
+ejecutado con ella: el momento en que `WTF` y los addons todavía conservan su estado de antes del parche. Entonces
+WoW Tools:
+
+1. guarda `WTF` y `AddOns` como instantáneas con la etiqueta *antes del parche* (un clic en el panel las recupera si el
+   primer inicio de sesión tras el parche restablece algo);
+2. muestra una notificación con la nueva versión y los addons cuyo `.toc` no está hecho para ella (el juego los
+   mostraría como «desactualizados»).
+
+Los addons que no están hechos para la versión actual siempre se muestran al final de **Configuración → Accesorios**, y
+`wow-tools outdated` los muestra en la consola. Los addons se evalúan por versión mayor y menor (12.0 → 12.1 cuenta, un
+hotfix 12.1.0 → 12.1.5 no); un addon sin ningún número de versión para este juego (un addon solo de Classic en Retail,
+una biblioteca) no se evalúa.
+
+## Limpieza
+
+<p><img src="docs/images/settings-cleanup-es.png" width="420" alt="Configuración, pestaña Limpieza"></p>
+
+**Configuración → Limpieza** muestra lo que se puede quitar, con el número de archivos y su tamaño, para las versiones
+del juego que copias:
+
+| Tarjeta | Qué | Qué pasa |
+| --- | --- | --- |
+| Configuración de accesorios eliminados | `SavedVariables\*.lua` de addons que ya no están en `Interface\AddOns` (los archivos propios de Blizzard se quedan) | se eliminan; antes, `WTF` se guarda como instantánea *antes de limpiar* |
+| Copias de WoW (.bak, .old) | las copias que WoW hace de cada archivo de configuración al salir | se eliminan (WoW las vuelve a crear; las instantáneas nunca las incluyen) |
+| Configuraciones de accesorios más grandes | archivos de configuración de 5 MB o más | solo se muestran: los archivos inflados ralentizan la carga; límpialos en el propio addon |
+| Registros de combate de más de una semana | `Logs\WoWCombatLog*.txt` | se eliminan; los de menos de una semana se quedan, por si queda pendiente subirlos a Warcraft Logs |
+| Capturas en la carpeta del juego | `Screenshots\*` | se mueven a `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (no se sobrescribe nada); **Abrir** abre esa carpeta |
+| Caché e informes de errores | `Cache` y `Errors` | se eliminan; el juego reconstruye la caché: el remedio habitual para rarezas tras un parche |
+
+Cada botón pregunta antes **¿Seguro?**. Una versión del juego que esté abierta se omite. Desde la línea de comandos:
+`wow-tools clean` muestra la misma lista y `wow-tools clean orphans backups logs screenshots cache` (cualquiera de
+ellos) hace la limpieza.
+
 ## Copiar la configuración entre personajes
 
 Los personajes están en `WTF\Account\<ACCOUNT>\<Realm>\<Name>`. Para copiar la configuración de un personaje a otros:
@@ -234,6 +279,8 @@ Los atajos y las macros pueden guardarse en los servidores de Blizzard (CVars `s
 | `schedule logon [--headless]` | inicia la bandeja al iniciar sesión (`--headless`: `watch` sin icono) |
 | `schedule interval [--every MIN]` | una tarea del Programador de tareas que ejecuta `backup` cada N minutos (una vez al día por defecto) |
 | `schedule status` / `schedule remove` | muestra / quita el inicio automático y la tarea |
+| `outdated` | addons no hechos para la versión instalada del juego |
+| `clean [orphans\|backups\|logs\|screenshots\|cache …]` | muestra lo que se puede limpiar; con elementos, los limpia |
 | `self-update [--check]` | busca en GitHub una nueva versión de WoW Tools y la instala |
 
 Opciones comunes: `--config FILE` (otra configuración), `--log-to-file`, `-v`. `wow-tools <comando> --help` explica el
@@ -248,6 +295,7 @@ resto en el idioma elegido.
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | registro de la bandeja |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | historial de actualizaciones (las 20 últimas) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | cuándo buscó WoW Tools una nueva versión por última vez |
+| `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | las últimas versiones del juego vistas, para detectar un parche |
 
 Las instantáneas se llaman `YYYYmmdd-HHMMSS[-label].zip`; son archivos zip normales y se pueden abrir a mano.
 
@@ -262,8 +310,8 @@ defecto) y `language` (`ru`, `en`, `de`, `fr`, `es`; si no está = el idioma de 
   tus addons.
 - Los addons solo los descarga el programa de addons que hayas elegido, nunca WoW Tools.
 - Nunca toca el juego en sí, no lee la memoria del juego y no automatiza nada dentro del juego.
-- Solo escribe en la carpeta del juego cuando restauras, copias la configuración de un personaje o un programa de addons
-  actualiza los addons, y en todos estos casos crea antes una instantánea.
+- Solo escribe en la carpeta del juego cuando restauras, copias la configuración de un personaje, haces limpieza o un
+  programa de addons actualiza los addons, y todo lo que toca la configuración o los addons crea antes una instantánea.
 
 ## Actualizar WoW Tools
 

@@ -20,9 +20,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::*;
 use crate::config::{self, APP_NAME, Config, Day, UpdateWhen, When};
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
 use crate::i18n::Lang;
+use crate::maintenance::{self, Item};
 use crate::tray::{self, Action};
 use crate::updater::{self, AddonApp};
-use crate::{schedule, wow};
+use crate::{schedule, snapshot, wow};
 
 const W: f32 = 560.0;
 const PAD: f32 = 20.0;
@@ -57,6 +58,14 @@ pub struct Model {
     pub message: Option<(String, bool)>,
     /// Updates of WoW Tools itself.
     pub update: tray::SelfUpdate,
+    /// What the cleanup tab found; read when the tab opens and again after a cleanup.
+    pub scan: Option<maintenance::Scan>,
+    /// Addons not made for the client version, per flavor ("Retail 12.1.0"); read with the Addons tab.
+    pub outdated: Option<Vec<(String, Vec<String>)>>,
+    /// The cleanup button that asks "sure?" now.
+    pub confirm: Option<Item>,
+    /// `tray::cleanups()` when `scan` was read.
+    pub scanned_at: u32,
 }
 
 impl Model {
@@ -75,6 +84,10 @@ impl Model {
             last_update: crate::updater::last_run(),
             message,
             update: tray::self_update(),
+            scan: None,
+            outdated: None,
+            confirm: None,
+            scanned_at: 0,
         };
         m.find_flavors();
         m.weakauras = m.flavors.iter().any(|f| f.dir.join(r"Interface\AddOns\WeakAuras").is_dir());
@@ -96,6 +109,40 @@ impl Model {
 
     fn flavor_on(&self, name: &str) -> bool {
         self.cfg.flavors.is_empty() || self.cfg.flavors.iter().any(|f| f == name)
+    }
+
+    fn selected_flavors(&self) -> Vec<wow::Flavor> {
+        self.flavors.iter().filter(|f| self.flavor_on(&f.name)).cloned().collect()
+    }
+
+    /// Reads what `tab` shows from the disk, once: the cleanup scan, the outdated addons.
+    fn read_for(&mut self, tab: Tab) {
+        match tab {
+            Tab::Cleanup if self.scan.is_none() => {
+                self.scan = Some(maintenance::scan(&self.selected_flavors()));
+                self.scanned_at = tray::cleanups();
+            }
+            Tab::Addons if self.outdated.is_none() => {
+                let list = self
+                    .selected_flavors()
+                    .iter()
+                    .filter_map(|f| {
+                        Some((
+                            format!("{} {}", f.title(), maintenance::short_version(f.version.as_deref()?)),
+                            maintenance::outdated(f),
+                        ))
+                    })
+                    .collect();
+                self.outdated = Some(list);
+            }
+            _ => {}
+        }
+    }
+
+    /// Forgets what was read from the disk (the game folder or the versions changed).
+    fn forget_reads(&mut self) {
+        self.scan = None;
+        self.outdated = None;
     }
 }
 
@@ -127,6 +174,13 @@ enum Row {
     CheckUpdates,
     Version,
     File,
+    Outdated,
+    Orphans,
+    WtfCopies,
+    BigSettings,
+    Logs,
+    Screenshots,
+    Cache,
 }
 
 /// The pages of the window, switched by the tabs at the top.
@@ -136,17 +190,31 @@ pub enum Tab {
     General,
     Backup,
     Addons,
+    Cleanup,
 }
 
 impl Tab {
-    const ALL: [Tab; 3] = [Tab::General, Tab::Backup, Tab::Addons];
+    const ALL: [Tab; 4] = [Tab::General, Tab::Backup, Tab::Addons, Tab::Cleanup];
 
     fn label(self) -> &'static str {
         match self {
             Tab::General => tr!("settings.tab_general"),
             Tab::Backup => tr!("panel.tab_backup"),
             Tab::Addons => tr!("panel.tab_addons"),
+            Tab::Cleanup => tr!("cleanup.tab"),
         }
+    }
+}
+
+/// The cleanup a card does.
+fn clean_item(kind: Row) -> Option<Item> {
+    match kind {
+        Row::Orphans => Some(Item::Orphans),
+        Row::WtfCopies => Some(Item::Backups),
+        Row::Logs => Some(Item::Logs),
+        Row::Screenshots => Some(Item::Screenshots),
+        Row::Cache => Some(Item::Cache),
+        _ => None,
     }
 }
 
@@ -188,6 +256,14 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
                     rows.extend([Row::UpdateDays, Row::UpdateTime]);
                 }
             }
+            rows.extend([Row::Section(tr!("cleanup.section_compat")), Row::Outdated]);
+        }
+        Tab::Cleanup => {
+            rows.extend([Row::Section(tr!("cleanup.section_wtf")), Row::Orphans, Row::WtfCopies]);
+            if m.scan.as_ref().is_some_and(|s| !s.big.is_empty()) {
+                rows.push(Row::BigSettings);
+            }
+            rows.extend([Row::Section(tr!("cleanup.section_game")), Row::Logs, Row::Screenshots, Row::Cache]);
         }
     }
     rows
@@ -243,6 +319,9 @@ enum Hit {
     CheckNow,
     InstallUpdate,
     File,
+    /// First click asks "sure?", the second one cleans.
+    Clean(Item),
+    OpenScreenshots,
 }
 
 /// The chips of a card (versions, days): label, on, what a click does.
@@ -543,6 +622,22 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             }
         }
         Row::File => button(&mut out, tr!("settings.open"), Hit::File),
+        Row::Outdated | Row::BigSettings => {}
+        Row::Orphans | Row::WtfCopies | Row::Logs | Row::Screenshots | Row::Cache => {
+            let Some(item) = clean_item(kind) else { return out };
+            if kind == Row::Screenshots {
+                button(&mut out, tr!("settings.open"), Hit::OpenScreenshots);
+            }
+            if m.scan.as_ref().is_some_and(|s| s.get(item).files > 0) {
+                let label = match item {
+                    _ if m.confirm == Some(item) => tr!("cleanup.confirm"),
+                    Item::Screenshots => tr!("cleanup.move"),
+                    Item::Cache => tr!("cleanup.clear"),
+                    _ => tr!("cleanup.delete"),
+                };
+                button(&mut out, label, Hit::Clean(item));
+            }
+        }
     }
     out
 }
@@ -715,6 +810,89 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             ("\u{E946}", concat!("WoW Tools ", env!("CARGO_PKG_VERSION")), sub, error)
         }
         Row::File => ("\u{E8A5}", tr!("settings.file"), tr!("settings.file_sub").into(), false),
+        Row::Outdated => {
+            let list = m.outdated.as_deref().unwrap_or_default();
+            // Only the versions with outdated addons, so the names fit; "all fine" lists the versions.
+            let bad: Vec<String> = list
+                .iter()
+                .filter(|(_, names)| !names.is_empty())
+                .map(|(flavor, names)| {
+                    tr!(
+                        "cleanup.outdated_sub",
+                        flavor = flavor,
+                        n = names.len(),
+                        names = maintenance::names_text(names, 4)
+                    )
+                })
+                .collect();
+            let sub = if list.is_empty() {
+                tr!("cleanup.outdated_unknown").to_string()
+            } else if bad.is_empty() {
+                let flavors: Vec<&str> = list.iter().map(|(f, _)| f.as_str()).collect();
+                tr!("cleanup.outdated_all_ok", flavors = flavors.join(", "))
+            } else {
+                bad.join(" · ")
+            };
+            let any = !bad.is_empty();
+            (if any { "\u{E7BA}" } else { "\u{E73E}" }, tr!("cleanup.outdated"), sub, false)
+        }
+        Row::BigSettings => {
+            let big = m.scan.as_ref().map(|s| s.big.as_slice()).unwrap_or_default();
+            let list: Vec<String> = big
+                .iter()
+                .take(4)
+                .map(|(name, size)| format!("{name} {}", snapshot::human_size(*size)))
+                .collect();
+            ("\u{E9F9}", tr!("cleanup.big"), tr!("cleanup.big_sub", list = list.join(" · ")), false)
+        }
+        Row::Orphans | Row::WtfCopies | Row::Logs | Row::Screenshots | Row::Cache => {
+            let item = clean_item(kind).unwrap_or(Item::Cache);
+            let found = m.scan.as_ref().map(|s| s.get(item)).unwrap_or_default();
+            let size = snapshot::human_size(found.bytes);
+            let (icon, title, sub) = match item {
+                Item::Orphans => (
+                    "\u{E74D}",
+                    tr!("cleanup.orphans"),
+                    match found.names.len() {
+                        0 => tr!("cleanup.orphans_none").to_string(),
+                        n => tr!("cleanup.orphans_sub", n = n, size = size, names = maintenance::names_text(&found.names, 4)),
+                    },
+                ),
+                Item::Backups => (
+                    "\u{E8C8}",
+                    tr!("cleanup.backups"),
+                    match found.files {
+                        0 => tr!("cleanup.none").to_string(),
+                        n => tr!("cleanup.backups_sub", n = n, size = size),
+                    },
+                ),
+                Item::Logs => (
+                    "\u{E7C3}",
+                    tr!("cleanup.logs"),
+                    match found.files {
+                        0 => tr!("cleanup.logs_none").to_string(),
+                        n => tr!("cleanup.logs_sub", n = n, size = size),
+                    },
+                ),
+                Item::Screenshots => (
+                    "\u{E722}",
+                    tr!("cleanup.screenshots"),
+                    match found.files {
+                        0 => tr!("cleanup.screenshots_none").to_string(),
+                        n => tr!("cleanup.screenshots_sub", n = n, size = size),
+                    },
+                ),
+                Item::Cache => (
+                    "\u{E74C}",
+                    tr!("cleanup.cache"),
+                    match found.files {
+                        0 => tr!("cleanup.none").to_string(),
+                        _ => tr!("cleanup.cache_sub", size = size),
+                    },
+                ),
+            };
+            (icon, title, sub, false)
+        }
     }
 }
 
@@ -916,6 +1094,14 @@ fn game_root(picked: PathBuf) -> Result<PathBuf, String> {
 /// Applies a click; returns the action for the tray to run after the borrow ends.
 fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
     let mut note = None;
+    // A "sure?" lasts until the next click elsewhere.
+    if !matches!(hit, Hit::Clean(_)) {
+        m.confirm = None;
+    }
+    // Another game folder or other versions: what was read from the disk is stale.
+    if matches!(hit, Hit::Flavor(_) | Hit::WowChange | Hit::WowAuto) {
+        m.forget_reads();
+    }
     match hit {
         // Switched by `click`, nothing to save.
         Hit::Tab(_) => return None,
@@ -1040,6 +1226,15 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
         Hit::CheckNow => return Some(Action::CheckUpdate),
         Hit::InstallUpdate => return Some(Action::InstallUpdate),
         Hit::File => return Some(Action::OpenConfigFile),
+        Hit::OpenScreenshots => return Some(Action::OpenScreenshots),
+        Hit::Clean(item) if m.confirm == Some(item) => {
+            m.confirm = None;
+            return Some(Action::Clean(item));
+        }
+        Hit::Clean(item) => {
+            m.confirm = Some(item);
+            return None;
+        }
     }
     let path = tray::config_path()?;
     m.message = match m.cfg.save(&path) {
@@ -1117,8 +1312,15 @@ pub fn refresh() {
     if let Some(hwnd) = with_window(|w| {
         w.model.autostart = schedule::logon_command().is_some();
         w.model.update = tray::self_update();
+        // A cleanup finished: read the disk again.
+        if w.model.scan.is_some() && w.model.scanned_at != tray::cleanups() {
+            w.model.scan = None;
+            let tab = w.tab;
+            w.model.read_for(tab);
+        }
         w.surface.hwnd
     }) {
+        fit(hwnd);
         unsafe { InvalidateRect(hwnd, null(), 0) };
     }
 }
@@ -1173,6 +1375,8 @@ fn click(hwnd: HWND, hit: Hit) {
             w.tab = tab;
             w.scroll = 0.0;
             w.hover = None;
+            w.model.confirm = None;
+            w.model.read_for(tab);
         });
         fit(hwnd);
         unsafe { InvalidateRect(hwnd, null(), 0) };
@@ -1184,7 +1388,11 @@ fn click(hwnd: HWND, hit: Hit) {
         return;
     };
     let action = change(&mut model, hit, hwnd);
-    with_window(|w| w.model = model);
+    with_window(|w| {
+        w.model = model;
+        let tab = w.tab;
+        w.model.read_for(tab);
+    });
     if let Hit::Lang(_) = hit {
         let title: Vec<u16> = tr!("settings.title", app = APP_NAME).encode_utf16().chain([0]).collect();
         unsafe { SetWindowTextW(hwnd, title.as_ptr()) };
@@ -1209,6 +1417,10 @@ impl Model {
             last_update: None,
             message: None,
             update: tray::SelfUpdate::default(),
+            scan: None,
+            outdated: None,
+            confirm: None,
+            scanned_at: 0,
         }
     }
 }

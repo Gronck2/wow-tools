@@ -10,6 +10,10 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - **Copying settings between characters**: bindings, macros, chat windows, frame layout, enabled addons, addon settings.
 - **Addon updates** through the addon manager you already use — CurseForge, WowUp, WowUp-CF or the Wago App —
   started without a window, on a schedule, never while you are playing.
+- **Game patches**: when Battle.net updates the game, settings and addons are saved before its first start on the
+  new version, and you see which addons are not made for it yet.
+- **Cleanup**: settings of removed addons, WoW's `.bak` copies, old combat logs, screenshots and the cache — with
+  sizes, in one click.
 - Updates itself: checks GitHub once a day and installs a new version in one click.
 - English, Russian, German, French and Spanish.
 
@@ -28,6 +32,8 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - [Backups: how they work](#backups-how-they-work)
 - [Restoring](#restoring)
 - [Addon updates](#addon-updates)
+- [Game patches](#game-patches)
+- [Cleanup](#cleanup)
 - [Copying settings between characters](#copying-settings-between-characters)
 - [Command line](#command-line)
 - [Files and folders](#files-and-folders)
@@ -101,7 +107,9 @@ Every change is saved at once and applied without a restart.
 - **Backup**: when to back up (*after the game* closes, or *on schedule* — chosen weekdays at a set time), how many
   snapshots to keep, the **Back up addons** and **Wait for the game to exit** switches, the backups folder.
 - **Addons**: the program to update with, **Don't update while playing**, **Update automatically**, and when —
-  *periodically* (every 30 min … 12 h) or *on schedule* (days and time).
+  *periodically* (every 30 min … 12 h) or *on schedule* (days and time); below, which addons are not made for the
+  current game version.
+- **Cleanup**: what can be tidied up in WTF and the game folder, with sizes — see [Cleanup](#cleanup).
 
 ## Backups: how they work
 
@@ -176,6 +184,39 @@ started minimized, writes its updates to `AddOns\WagoAppCompanion` (WeakAuras, a
 `AddOns\WagoUI_Storage` (UI packs), and is closed once it has been quiet for 15 seconds. A part you switched off is
 kept exactly as it was. With both off there is nothing to do and the app is not started.
 
+## Game patches
+
+Once a minute WoW Tools compares the version of every game client (as Battle.net reports it) with the last one it
+saw. A new version while that game is closed means Battle.net has just patched it and the game has not run on it yet
+— the moment when `WTF` and the addons still hold their pre-patch state. WoW Tools then:
+
+1. saves `WTF` and `AddOns` as snapshots labelled *before patch* (one click in the panel brings them back if the first
+   login after the patch resets something);
+2. shows a notification with the new version and the addons whose `.toc` was not made for it (the game would show
+   them as "out of date").
+
+Which addons are not made for the current version is always shown at the bottom of **Settings → Addons**, and printed
+by `wow-tools outdated`. Addons are judged by major and minor version (12.0 → 12.1 counts, a 12.1.0 → 12.1.5 hotfix does
+not); an addon with no version number for this game at all (a Classic-only addon on Retail, a library) is not judged.
+
+## Cleanup
+
+<p><img src="docs/images/settings-cleanup-en.png" width="420" alt="Settings, Cleanup tab"></p>
+
+**Settings → Cleanup** shows what can go, with the number of files and their size, for the game versions you back up:
+
+| Card | What | What happens |
+| --- | --- | --- |
+| Settings of removed addons | `SavedVariables\*.lua` of addons that are no longer in `Interface\AddOns` (Blizzard's own files stay) | deleted; `WTF` is saved as a *before cleanup* snapshot first |
+| WoW's copies (.bak, .old) | the copies WoW makes of every settings file on exit | deleted (WoW makes them again; snapshots never include them) |
+| Biggest addon settings | settings files of 5 MB and more | only shown: bloated files slow loading down, clean them in the addon itself |
+| Combat logs older than a week | `Logs\WoWCombatLog*.txt` | deleted; logs younger than a week stay, in case an upload to Warcraft Logs is pending |
+| Screenshots in the game folder | `Screenshots\*` | moved to `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nothing is overwritten); **Open** opens that folder |
+| Cache and crash reports | `Cache` and `Errors` | deleted; the game rebuilds the cache — the usual cure for oddities after a patch |
+
+Every button asks **Sure?** first. A game version that is running is skipped. From the command line: `wow-tools clean`
+shows the same list, `wow-tools clean orphans backups logs screenshots cache` (any of them) tidies up.
+
 ## Copying settings between characters
 
 Characters live in `WTF\Account\<ACCOUNT>\<Realm>\<Name>`. To copy one character's setup to others:
@@ -221,6 +262,8 @@ in which case the server copy can override the copied files on login.
 | `schedule logon [--headless]` | start the tray at sign-in (`--headless`: `watch` without an icon) |
 | `schedule interval [--every MIN]` | a Task Scheduler task running `backup` every N minutes (a day by default) |
 | `schedule status` / `schedule remove` | show / remove autostart and the task |
+| `outdated` | addons not made for the installed game version |
+| `clean [orphans\|backups\|logs\|screenshots\|cache …]` | show what can be tidied up; with items, tidy them up |
 | `self-update [--check]` | check GitHub for a new version of WoW Tools and install it |
 
 Common options: `--config FILE` (another config), `--log-to-file`, `-v`. `wow-tools <command> --help` explains the
@@ -235,6 +278,7 @@ rest in the chosen language.
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | log of the tray |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | update history (last 20) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | when WoW Tools last checked for a new version |
+| `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | the game versions last seen, to notice a patch |
 
 Snapshot names are `YYYYmmdd-HHMMSS[-label].zip`; they are ordinary zip files and can be opened by hand.
 
@@ -248,8 +292,8 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
   latest release, like opening the releases page in a browser; nothing about you, your game or your addons is sent.
 - Addons are downloaded only by the addon program you chose, never by WoW Tools.
 - It never touches the game itself, does not read game memory and does not automate anything in game.
-- It writes to the game folder only when you restore, copy character settings, or an addon program updates addons —
-  and each of these takes a snapshot first.
+- It writes to the game folder only when you restore, copy character settings, tidy up, or an addon program updates
+  addons — and whatever touches settings or addons takes a snapshot first.
 
 ## Updating WoW Tools
 

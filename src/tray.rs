@@ -92,6 +92,10 @@ impl RestorePoint {
             Some(tr!("points.before_copy"))
         } else if self.id.ends_with("-pre-update") {
             Some(tr!("points.before_update"))
+        } else if self.id.ends_with("-pre-patch") {
+            Some(tr!("points.before_patch"))
+        } else if self.id.ends_with("-pre-cleanup") {
+            Some(tr!("points.before_cleanup"))
         } else {
             None
         }
@@ -121,6 +125,10 @@ pub enum Action {
     CheckUpdate,
     /// Download and install the newer WoW Tools, then restart.
     InstallUpdate,
+    /// Tidy one thing up (settings of removed addons, old combat logs, ...).
+    Clean(crate::maintenance::Item),
+    /// The folder screenshots are moved to.
+    OpenScreenshots,
     Exit,
 }
 
@@ -155,6 +163,8 @@ struct State {
     update: SelfUpdate,
     /// A new exe is in place; restart when the current job is done.
     restart_pending: bool,
+    /// Cleanups finished so far: the settings window rescans when it changes.
+    cleanups: u32,
 }
 
 static STATE: Mutex<State> = Mutex::new(State {
@@ -174,6 +184,7 @@ static STATE: Mutex<State> = Mutex::new(State {
         error: None,
     },
     restart_pending: false,
+    cleanups: 0,
 });
 static HWND_MAIN: AtomicIsize = AtomicIsize::new(0);
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
@@ -395,6 +406,11 @@ pub fn view() -> View {
     }
 }
 
+/// How many cleanups have finished (the settings window rescans when this changes).
+pub fn cleanups() -> u32 {
+    STATE.lock().unwrap().cleanups
+}
+
 /// Updates of WoW Tools itself, for the settings window.
 pub fn self_update() -> SelfUpdate {
     STATE.lock().unwrap().update.clone()
@@ -430,6 +446,13 @@ pub fn act(action: Action) {
         Action::Autostart => toggle_autostart(),
         Action::CheckUpdate => send_self(SelfRequest::Check { manual: true }),
         Action::InstallUpdate => send_self(SelfRequest::Install),
+        Action::Clean(item) => send(Request::Cleanup(item)),
+        Action::OpenScreenshots => {
+            let dir = crate::maintenance::screenshots_dir();
+            std::fs::create_dir_all(&dir)
+                .map_err(Into::into)
+                .and_then(|()| shell_open(&dir.to_string_lossy(), None))
+        }
         Action::Exit => {
             if STATE.lock().unwrap().status.phase == Phase::Busy {
                 Err(anyhow::anyhow!(tr!("tray.busy_exit")))
@@ -707,6 +730,30 @@ fn on_event(event: Event) {
                     },
                     Err(e) => Balloon {
                         title: tr!("tray.restore_failed"),
+                        text: format!("{e:#}"),
+                        error: true,
+                    },
+                });
+            }
+            Event::Patch(patches) => {
+                let text: Vec<String> = patches.iter().map(|p| p.summary()).collect();
+                st.balloon = Some(Balloon {
+                    title: tr!("patch.title"),
+                    text: text.join("\n"),
+                    error: false,
+                });
+            }
+            Event::Cleanup(result) => {
+                st.status.phase = Phase::Idle;
+                st.cleanups += 1;
+                st.balloon = Some(match result {
+                    Ok(summary) => Balloon {
+                        title: tr!("cleanup.title"),
+                        text: summary,
+                        error: false,
+                    },
+                    Err(e) => Balloon {
+                        title: tr!("cleanup.failed"),
                         text: format!("{e:#}"),
                         error: true,
                     },
