@@ -8,7 +8,7 @@ use crate::config::{self, APP_NAME, Config};
 use crate::panel::{self, View};
 use crate::snapshot::{self, Kind};
 use crate::watch::{self, Event, Request, Work};
-use crate::{menu, schedule, settings, wow};
+use crate::{menu, schedule, selfupdate, settings, wow};
 use anyhow::{Result, bail};
 use chrono::{Local, NaiveDateTime};
 use std::cell::RefCell;
@@ -35,6 +35,8 @@ const WM_TRAY: u32 = WM_APP + 1;
 const WM_STATE: u32 = WM_APP + 2;
 /// Sent by a second instance: show the settings window.
 const WM_SHOW_SETTINGS: u32 = WM_APP + 3;
+/// A new exe was installed: start it and exit (once nothing is running).
+const WM_RESTART: u32 = WM_APP + 4;
 /// Restore points the panel lists.
 const POINTS: usize = 5;
 
@@ -115,7 +117,28 @@ pub enum Action {
     SettingsChanged,
     OpenLog,
     Autostart,
+    /// Ask GitHub for a newer WoW Tools now.
+    CheckUpdate,
+    /// Download and install the newer WoW Tools, then restart.
+    InstallUpdate,
     Exit,
+}
+
+/// Updates of WoW Tools itself, as the panel, the menu and the settings show them.
+#[derive(Clone, Debug, Default)]
+pub struct SelfUpdate {
+    /// A newer release than this exe.
+    pub available: Option<selfupdate::Release>,
+    pub checked: Option<NaiveDateTime>,
+    pub checking: bool,
+    pub installing: bool,
+    /// Why the last check failed.
+    pub error: Option<String>,
+}
+
+enum SelfRequest {
+    Check { manual: bool },
+    Install,
 }
 
 struct Balloon {
@@ -129,6 +152,9 @@ struct State {
     balloon: Option<Balloon>,
     /// Last error shown as a balloon, so a repeating error does not pop up every round.
     shown_error: Option<String>,
+    update: SelfUpdate,
+    /// A new exe is in place; restart when the current job is done.
+    restart_pending: bool,
 }
 
 static STATE: Mutex<State> = Mutex::new(State {
@@ -140,6 +166,14 @@ static STATE: Mutex<State> = Mutex::new(State {
     },
     balloon: None,
     shown_error: None,
+    update: SelfUpdate {
+        available: None,
+        checked: None,
+        checking: false,
+        installing: false,
+        error: None,
+    },
+    restart_pending: false,
 });
 static HWND_MAIN: AtomicIsize = AtomicIsize::new(0);
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
@@ -148,6 +182,7 @@ static ICON: AtomicIsize = AtomicIsize::new(0);
 /// UI-thread-only data.
 struct Ui {
     requests: Sender<Request>,
+    self_requests: Sender<SelfRequest>,
     config_path: PathBuf,
     explicit_config: Option<PathBuf>,
 }
@@ -214,13 +249,30 @@ pub fn run(ctx: Ctx) -> Result<()> {
     };
     log::info!("{}", tr!("tray.started"));
 
-    STATE.lock().unwrap().status.last = ctx.last_backup();
+    selfupdate::cleanup();
+    {
+        let mut st = STATE.lock().unwrap();
+        st.status.last = ctx.last_backup();
+        st.update.available = selfupdate::available();
+        st.update.checked = selfupdate::last_check();
+        if let Some(version) = selfupdate::take_installed() {
+            st.balloon = Some(Balloon {
+                title: tr!("self_update.done_title"),
+                text: tr!("self_update.done_text", version = version),
+                error: false,
+            });
+        }
+    }
     let (tx, rx) = mpsc::channel();
     let (config_path, explicit_config) = (ctx.config_path.clone(), ctx.explicit_config.clone());
     std::thread::spawn(move || watch::run(&config_path, explicit_config.as_deref(), None, &rx, on_event));
+    let (self_tx, self_rx) = mpsc::channel();
+    let config_path = ctx.config_path.clone();
+    std::thread::spawn(move || self_update_loop(&config_path, &self_rx));
     UI.with(|ui| {
         *ui.borrow_mut() = Some(Ui {
             requests: tx,
+            self_requests: self_tx,
             config_path: ctx.config_path,
             explicit_config: ctx.explicit_config,
         })
@@ -325,8 +377,12 @@ pub fn view() -> View {
     } else {
         tr!("panel.auto_update_off").into()
     };
-    let status = STATE.lock().unwrap().status.clone();
+    let (status, self_update) = {
+        let st = STATE.lock().unwrap();
+        (st.status.clone(), st.update.clone())
+    };
     View {
+        self_update,
         update_waits_for_game: cfg.update_skip_in_game && status.game.is_some(),
         status,
         points: ctx.as_ref().map(restore_points).unwrap_or_default(),
@@ -337,6 +393,11 @@ pub fn view() -> View {
         last_update: crate::updater::last_run(),
         updates: crate::updater::history().into_iter().take(panel::HISTORY_ROWS).collect(),
     }
+}
+
+/// Updates of WoW Tools itself, for the settings window.
+pub fn self_update() -> SelfUpdate {
+    STATE.lock().unwrap().update.clone()
 }
 
 /// "каждый час" -> "Каждый час".
@@ -367,6 +428,8 @@ pub fn act(action: Action) {
         }
         Action::OpenLog => open_in_notepad(&config::default_log_path()),
         Action::Autostart => toggle_autostart(),
+        Action::CheckUpdate => send_self(SelfRequest::Check { manual: true }),
+        Action::InstallUpdate => send_self(SelfRequest::Install),
         Action::Exit => {
             if STATE.lock().unwrap().status.phase == Phase::Busy {
                 Err(anyhow::anyhow!(tr!("tray.busy_exit")))
@@ -394,9 +457,174 @@ fn send(request: Request) -> Result<()> {
     })
 }
 
+fn send_self(request: SelfRequest) -> Result<()> {
+    UI.with(|ui| match ui.borrow().as_ref() {
+        Some(ui) => ui.self_requests.send(request).map_err(|_| anyhow::anyhow!(tr!("tray.worker_gone"))),
+        None => Ok(()),
+    })
+}
+
 fn post_state() {
+    post(WM_STATE);
+}
+
+fn post(msg: u32) {
     unsafe {
-        PostMessageW(HWND_MAIN.load(Ordering::Relaxed) as HWND, WM_STATE, 0, 0);
+        PostMessageW(HWND_MAIN.load(Ordering::Relaxed) as HWND, msg, 0, 0);
+    }
+}
+
+// ---------------------------------------------------------------- updates of WoW Tools
+
+/// The thread asking GitHub for a newer WoW Tools: a minute after start, then hourly whether a
+/// daily check is due (`check_updates`), and whenever the UI asks.
+fn self_update_loop(config_path: &Path, requests: &mpsc::Receiver<SelfRequest>) {
+    let mut wait = std::time::Duration::from_secs(60);
+    loop {
+        let request = match requests.recv_timeout(wait) {
+            Ok(r) => Some(r),
+            Err(mpsc::RecvTimeoutError::Timeout) => None,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return,
+        };
+        wait = std::time::Duration::from_secs(60 * 60);
+        match request {
+            None => {
+                let on = Config::load(config_path).map_or(true, |c| c.check_updates);
+                if on && selfupdate::due(Local::now().naive_local()) {
+                    check_for_update(false);
+                }
+            }
+            Some(SelfRequest::Check { manual }) => check_for_update(manual),
+            Some(SelfRequest::Install) => install_update(),
+        }
+    }
+}
+
+fn check_for_update(manual: bool) {
+    STATE.lock().unwrap().update.checking = true;
+    post_state();
+    let result = selfupdate::check();
+    {
+        let mut st = STATE.lock().unwrap();
+        st.update.checking = false;
+        st.update.checked = selfupdate::last_check();
+        match result {
+            Ok(found) => {
+                st.update.error = None;
+                match &found {
+                    // A balloon once per version (and on every manual check).
+                    Some(r) if selfupdate::take_notify(r) || manual => {
+                        st.balloon = Some(Balloon {
+                            title: tr!("self_update.found_title"),
+                            text: tr!("self_update.found_text", version = &r.version),
+                            error: false,
+                        })
+                    }
+                    Some(_) => {}
+                    None if manual => {
+                        st.balloon = Some(Balloon {
+                            title: APP_NAME,
+                            text: tr!("self_update.up_to_date", version = selfupdate::current()),
+                            error: false,
+                        })
+                    }
+                    None => {}
+                }
+                st.update.available = found;
+            }
+            Err(e) => {
+                let msg = format!("{e:#}");
+                log::warn!("{}: {msg}", tr!("self_update.check_failed"));
+                if manual {
+                    st.balloon = Some(Balloon {
+                        title: tr!("self_update.check_failed"),
+                        text: msg.clone(),
+                        error: true,
+                    });
+                }
+                st.update.error = Some(msg);
+            }
+        }
+    }
+    post_state();
+}
+
+fn install_update() {
+    let release = {
+        let mut st = STATE.lock().unwrap();
+        let Some(r) = st.update.available.clone() else { return };
+        if st.update.installing {
+            return;
+        }
+        st.update.installing = true;
+        r
+    };
+    post_state();
+    let result = selfupdate::download(&release).and_then(|new| selfupdate::install(&new, &selfupdate::exe_path()?));
+    match result {
+        Ok(()) => {
+            selfupdate::mark_installed(&release.version);
+            log::info!("{}", tr!("self_update.installed", version = &release.version));
+            post(WM_RESTART);
+        }
+        Err(e) => {
+            log::error!("{e:#}");
+            let mut st = STATE.lock().unwrap();
+            st.update.installing = false;
+            st.balloon = Some(Balloon {
+                title: tr!("self_update.failed"),
+                text: format!("{e:#}"),
+                error: true,
+            });
+            drop(st);
+            post_state();
+        }
+    }
+}
+
+/// Starts the new exe (it waits for this process to exit) and exits; while a job runs, waits for it.
+fn restart() {
+    {
+        let mut st = STATE.lock().unwrap();
+        if st.status.phase == Phase::Busy {
+            if !st.restart_pending {
+                st.restart_pending = true;
+                st.balloon = Some(Balloon {
+                    title: tr!("self_update.done_title"),
+                    text: tr!("self_update.wait_busy").into(),
+                    error: false,
+                });
+                drop(st);
+                post_state();
+            }
+            return;
+        }
+        st.restart_pending = false;
+    }
+    let started = selfupdate::exe_path().and_then(|exe| {
+        let mut params = format!("--headless \"{}\" --log-to-file", exe.display());
+        if let Some((_, Some(cfg))) = ui_paths() {
+            params.push_str(&format!(" --config \"{}\"", cfg.display()));
+        }
+        params.push_str(&format!(" tray --wait-pid {}", std::process::id()));
+        shell_run("conhost.exe", &params, SW_HIDE)
+    });
+    match started {
+        Ok(()) => unsafe {
+            DestroyWindow(HWND_MAIN.load(Ordering::Relaxed) as HWND);
+        },
+        Err(e) => {
+            log::error!("{e:#}");
+            let mut st = STATE.lock().unwrap();
+            st.update.installing = false;
+            st.balloon = Some(Balloon {
+                title: tr!("self_update.failed"),
+                text: format!("{e:#}"),
+                error: true,
+            });
+            drop(st);
+            post_state();
+        }
     }
 }
 
@@ -485,6 +713,10 @@ fn on_event(event: Event) {
                 });
             }
         }
+        // An installed update waited for this job.
+        if st.restart_pending && st.status.phase != Phase::Busy {
+            post(WM_RESTART);
+        }
     }
     post_state();
 }
@@ -504,6 +736,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             WM_SHOW_SETTINGS => {
                 settings::show();
+                0
+            }
+            WM_RESTART => {
+                restart();
                 0
             }
             WM_STATE => {
@@ -643,6 +879,15 @@ unsafe fn make_icon((r, g, b): (u8, u8, u8), ring: bool) -> HICON {
 /// Opens a file or folder through the shell. `Command::spawn` is not used on purpose: after
 /// `FreeConsole` the inherited std handles are dead and spawning fails with os error 50.
 fn shell_open(file: &str, params: Option<&str>) -> Result<()> {
+    shell_execute(file, params, SW_SHOWNORMAL)
+}
+
+/// Starts a program with no window of its own (`conhost --headless ...`).
+fn shell_run(file: &str, params: &str, show: SHOW_WINDOW_CMD) -> Result<()> {
+    shell_execute(file, Some(params), show)
+}
+
+fn shell_execute(file: &str, params: Option<&str>, show: SHOW_WINDOW_CMD) -> Result<()> {
     let params = params.map(wide);
     let res = unsafe {
         ShellExecuteW(
@@ -651,7 +896,7 @@ fn shell_open(file: &str, params: Option<&str>) -> Result<()> {
             wide(file).as_ptr(),
             params.as_ref().map_or(null(), |p| p.as_ptr()),
             null(),
-            SW_SHOWNORMAL,
+            show,
         )
     };
     // ShellExecute reports success with a value above 32.

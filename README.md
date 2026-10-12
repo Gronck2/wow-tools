@@ -10,6 +10,7 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - **Copying settings between characters**: bindings, macros, chat windows, frame layout, enabled addons, addon settings.
 - **Addon updates** through the addon manager you already use — CurseForge, WowUp, WowUp-CF or the Wago App —
   started without a window, on a schedule, never while you are playing.
+- Updates itself: checks GitHub once a day and installs a new version in one click.
 - English, Russian, German, French and Spanish.
 
 <p>
@@ -31,6 +32,7 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - [Command line](#command-line)
 - [Files and folders](#files-and-folders)
 - [Privacy and safety](#privacy-and-safety)
+- [Updating WoW Tools](#updating-wow-tools)
 - [Uninstalling](#uninstalling)
 - [FAQ and limitations](#faq-and-limitations)
 - [Building from source](#building-from-source)
@@ -94,7 +96,8 @@ Notifications appear for the results of what you started yourself and for new er
 Every change is saved at once and applied without a restart.
 
 - **General**: game folder (found automatically, can be set by hand), which game versions to back up, language,
-  start with Windows, and a link to `config.toml` for the rarely needed options.
+  start with Windows, **Check for updates** and the current version with **Check** / **Install**, and a link to
+  `config.toml` for the rarely needed options.
 - **Backup**: when to back up (*after the game* closes, or *on schedule* — chosen weekdays at a set time), how many
   snapshots to keep, the **Back up addons** and **Wait for the game to exit** switches, the backups folder.
 - **Addons**: the program to update with, **Don't update while playing**, **Update automatically**, and when —
@@ -218,6 +221,7 @@ in which case the server copy can override the copied files on login.
 | `schedule logon [--headless]` | start the tray at sign-in (`--headless`: `watch` without an icon) |
 | `schedule interval [--every MIN]` | a Task Scheduler task running `backup` every N minutes (a day by default) |
 | `schedule status` / `schedule remove` | show / remove autostart and the task |
+| `self-update [--check]` | check GitHub for a new version of WoW Tools and install it |
 
 Common options: `--config FILE` (another config), `--log-to-file`, `-v`. `wow-tools <command> --help` explains the
 rest in the chosen language.
@@ -230,6 +234,7 @@ rest in the chosen language.
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | snapshots (folder changeable) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | log of the tray |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | update history (last 20) |
+| `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | when WoW Tools last checked for a new version |
 
 Snapshot names are `YYYYmmdd-HHMMSS[-label].zip`; they are ordinary zip files and can be opened by hand.
 
@@ -238,11 +243,31 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
 
 ## Privacy and safety
 
-- WoW Tools makes **no network connections**. It reads and writes files on your disk and starts the addon program you
-  chose; any downloading is done by that program.
+- The only connection WoW Tools makes itself is to **GitHub**, to look for a new version of WoW Tools (see
+  [Updating WoW Tools](#updating-wow-tools)) — once a day, and it can be switched off. It is a plain request for the
+  latest release, like opening the releases page in a browser; nothing about you, your game or your addons is sent.
+- Addons are downloaded only by the addon program you chose, never by WoW Tools.
 - It never touches the game itself, does not read game memory and does not automate anything in game.
 - It writes to the game folder only when you restore, copy character settings, or an addon program updates addons —
   and each of these takes a snapshot first.
+
+## Updating WoW Tools
+
+WoW Tools checks this repository's [releases](https://github.com/Gronck2/wow-tools/releases) once a day (and when you
+press **Check** in **Settings → General**). When there is a newer version:
+
+- a notification appears once;
+- the panel shows a button with the new version number next to the folder and settings icons;
+- the menu gets **Update to x.y.z**, and the settings show **Install**.
+
+One click downloads the new exe, checks it against the SHA-256 checksum GitHub publishes for the release file (a file
+that does not match is never installed), puts it in place of the current one and restarts the tray. The old exe is
+kept as `<name>.exe.old` until the next start, then removed. If a backup or an update is running, the restart waits
+for it to finish. Your settings, snapshots and autostart stay as they are.
+
+From the command line: `wow-tools self-update --check` (only check) or `wow-tools self-update` (check and install;
+restart the tray afterwards). To stop checking, turn off **Check for updates** in **Settings → General**
+(`check_updates = false` in `config.toml`).
 
 ## Uninstalling
 

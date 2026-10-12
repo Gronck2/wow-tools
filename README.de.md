@@ -12,6 +12,7 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
   Addons, Addon-Einstellungen.
 - **Addon-Updates** über den Addon-Manager, den Sie ohnehin nutzen – CurseForge, WowUp, WowUp-CF oder die Wago App –
   ohne Fenster gestartet, nach Zeitplan und nie, während Sie spielen.
+- Aktualisiert sich selbst: fragt einmal am Tag bei GitHub nach und installiert eine neue Version mit einem Klick.
 - Englisch, Russisch, Deutsch, Französisch und Spanisch.
 
 <p>
@@ -33,6 +34,7 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
 - [Befehlszeile](#befehlszeile)
 - [Dateien und Ordner](#dateien-und-ordner)
 - [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
+- [WoW Tools aktualisieren](#wow-tools-aktualisieren)
 - [Deinstallation](#deinstallation)
 - [FAQ und Einschränkungen](#faq-und-einschränkungen)
 - [Aus dem Quellcode bauen](#aus-dem-quellcode-bauen)
@@ -102,7 +104,8 @@ Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestart
 Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 
 - **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), welche Spielversionen gesichert werden,
-  Sprache, Start mit Windows und ein Link zu `config.toml` für selten benötigte Optionen.
+  Sprache, Start mit Windows, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** / **Installieren** sowie
+  ein Link zu `config.toml` für selten benötigte Optionen.
 - **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, oder *Nach Zeitplan* – an gewählten
   Wochentagen zu einer festen Uhrzeit), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und
   **Auf Spielende warten**, der Sicherungsordner.
@@ -239,6 +242,7 @@ Tastenbelegung und Makros können auf den Servern von Blizzard gespeichert sein 
 | `schedule logon [--headless]` | Infobereichssymbol bei der Anmeldung starten (`--headless`: `watch` ohne Symbol) |
 | `schedule interval [--every MIN]` | Aufgabe in der Aufgabenplanung, die `backup` alle N Minuten ausführt (standardmäßig einmal täglich) |
 | `schedule status` / `schedule remove` | Autostart und Aufgabe anzeigen / entfernen |
+| `self-update [--check]` | bei GitHub nach einer neuen Version von WoW Tools suchen und sie installieren |
 
 Allgemeine Optionen: `--config FILE` (andere Konfiguration), `--log-to-file`, `-v`. `wow-tools <command> --help`
 erklärt den Rest in der gewählten Sprache.
@@ -251,6 +255,7 @@ erklärt den Rest in der gewählten Sprache.
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | Sicherungen (Ordner änderbar) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | Protokoll des Infobereichssymbols |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | Update-Verlauf (die letzten 20) |
+| `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | wann WoW Tools zuletzt nach einer neuen Version gesucht hat |
 
 Sicherungen heißen `YYYYmmdd-HHMMSS[-label].zip`; es sind gewöhnliche Zip-Dateien, die sich auch von Hand öffnen
 lassen.
@@ -261,11 +266,33 @@ Windows).
 
 ## Datenschutz und Sicherheit
 
-- WoW Tools baut **keine Netzwerkverbindungen** auf. Es liest und schreibt Dateien auf Ihrer Festplatte und startet
-  das von Ihnen gewählte Addon-Programm; alle Downloads erledigt dieses Programm.
+- Die einzige Verbindung, die WoW Tools selbst aufbaut, geht zu **GitHub**, um nach einer neuen Version von WoW Tools
+  zu suchen (siehe [WoW Tools aktualisieren](#wow-tools-aktualisieren)) – einmal am Tag, und das lässt sich
+  ausschalten. Es ist eine einfache Abfrage des neuesten Releases, wie das Öffnen der Release-Seite im Browser; über
+  Sie, Ihr Spiel oder Ihre Addons wird nichts gesendet.
+- Addons lädt nur das von Ihnen gewählte Addon-Programm herunter, nie WoW Tools selbst.
 - Das Spiel selbst wird nie angefasst: kein Lesen des Spielspeichers, keine Automatisierung im Spiel.
 - In den Spielordner wird nur geschrieben, wenn Sie wiederherstellen, Charaktereinstellungen kopieren oder ein
   Addon-Programm Addons aktualisiert – und vor jedem dieser Vorgänge wird eine Sicherung erstellt.
+
+## WoW Tools aktualisieren
+
+WoW Tools prüft einmal am Tag die [Releases](https://github.com/Gronck2/wow-tools/releases) dieses Repositorys (und
+wenn Sie unter **Einstellungen → Allgemein** auf **Prüfen** klicken). Gibt es eine neuere Version:
+
+- erscheint einmalig eine Benachrichtigung;
+- zeigt der Bereich neben den Symbolen für Ordner und Einstellungen eine Schaltfläche mit der neuen Versionsnummer;
+- bekommt das Menü den Eintrag **Auf x.y.z aktualisieren**, und die Einstellungen zeigen **Installieren**.
+
+Ein Klick lädt die neue exe herunter, prüft sie gegen die SHA-256-Prüfsumme, die GitHub für die Release-Datei
+veröffentlicht (eine Datei, die nicht passt, wird nie installiert), ersetzt damit die aktuelle und startet das
+Infobereichssymbol neu. Die alte exe bleibt bis zum nächsten Start als `<name>.exe.old` erhalten und wird dann
+entfernt. Läuft gerade eine Sicherung oder ein Update, wartet der Neustart, bis es fertig ist. Ihre Einstellungen,
+Sicherungen und der Autostart bleiben unverändert.
+
+Über die Befehlszeile: `wow-tools self-update --check` (nur prüfen) oder `wow-tools self-update` (prüfen und
+installieren; das Infobereichssymbol danach neu starten). Um die Suche abzuschalten, deaktivieren Sie
+**Nach Updates suchen** unter **Einstellungen → Allgemein** (`check_updates = false` in `config.toml`).
 
 ## Deinstallation
 

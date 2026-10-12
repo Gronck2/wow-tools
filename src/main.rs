@@ -11,6 +11,7 @@ mod menu;
 #[cfg(windows)]
 mod panel;
 mod schedule;
+mod selfupdate;
 #[cfg(windows)]
 mod settings;
 mod snapshot;
@@ -51,7 +52,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Tray icon: background backups, restore, settings
-    Tray,
+    Tray {
+        /// Wait for this process to exit first (the tray restarting after an update)
+        #[arg(long, hide = true)]
+        wait_pid: Option<u32>,
+    },
     /// Create the config (finds the game by itself)
     Init {
         /// WoW folder (the one with _retail_, _classic_, ...)
@@ -133,6 +138,12 @@ enum Cmd {
     },
     /// Update addons through the chosen app (started without a window and closed)
     UpdateAddons,
+    /// Check GitHub for a new version of WoW Tools and install it
+    SelfUpdate {
+        /// Only check, do not install
+        #[arg(long)]
+        check: bool,
+    },
     /// Automatic start
     Schedule {
         #[command(subcommand)]
@@ -259,7 +270,7 @@ fn init_logging(cli: &Cli) -> Result<()> {
     let level = if cli.verbose { "debug" } else { "info" };
     let mut builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(level));
     // The tray has no console to write to.
-    let to_file = cli.log_to_file || matches!(cli.cmd, None | Some(Cmd::Tray));
+    let to_file = cli.log_to_file || matches!(cli.cmd, None | Some(Cmd::Tray { .. }));
     if to_file {
         let path = config::default_log_path();
         if let Some(dir) = path.parent() {
@@ -286,8 +297,13 @@ fn run(cli: Cli) -> Result<()> {
     let config_path = cli.config.clone().unwrap_or_else(config::default_config_path);
     let ctx = Ctx::load(&config_path, cli.config.as_deref())?;
 
-    match cli.cmd.unwrap_or(Cmd::Tray) {
-        Cmd::Tray => cmd_tray(ctx),
+    match cli.cmd.unwrap_or(Cmd::Tray { wait_pid: None }) {
+        Cmd::Tray { wait_pid } => {
+            if let Some(pid) = wait_pid {
+                selfupdate::wait_for_exit(pid);
+            }
+            cmd_tray(ctx)
+        }
         Cmd::Init { wow_path, backup_dir, force } => cmd_init(ctx, wow_path, backup_dir, force),
         Cmd::Status => cmd_status(&ctx),
         Cmd::Backup { flavor, kind, force } => cmd_backup(&ctx, flavor.as_deref(), kind, force),
@@ -306,6 +322,7 @@ fn run(cli: Cli) -> Result<()> {
             println!("{}", app::update_addons(&ctx, true)?);
             Ok(())
         }
+        Cmd::SelfUpdate { check } => cmd_self_update(check),
         Cmd::Schedule { action } => cmd_schedule(&ctx, action),
         Cmd::UiSnapshot { out, view, dark, lang } => {
             if let Some(code) = lang {
@@ -315,6 +332,22 @@ fn run(cli: Cli) -> Result<()> {
             cmd_ui_snapshot(&out, &view, dark)
         }
     }
+}
+
+fn cmd_self_update(check_only: bool) -> Result<()> {
+    let Some(release) = selfupdate::check()? else {
+        println!("{}", tr!("self_update.up_to_date", version = selfupdate::current()));
+        return Ok(());
+    };
+    println!("{}", tr!("self_update.cli_available", version = &release.version, url = &release.page));
+    if check_only {
+        return Ok(());
+    }
+    println!("{}", tr!("self_update.installing", version = &release.version));
+    let new = selfupdate::download(&release)?;
+    selfupdate::install(&new, &selfupdate::exe_path()?)?;
+    println!("{}", tr!("self_update.cli_installed", version = &release.version));
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -332,8 +365,18 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
     use chrono::{Duration, Local};
     use tray::{Phase, RestorePoint, Status};
     let path = out.to_string_lossy();
-    if view == "menu" {
-        return Ok(menu::snapshot(&path, dark)?);
+    // A newer release, for the views that show one.
+    let new_release = || tray::SelfUpdate {
+        available: Some(selfupdate::Release {
+            version: "0.2.0".into(),
+            page: String::new(),
+            asset: None,
+        }),
+        checked: Some(Local::now().naive_local()),
+        ..Default::default()
+    };
+    if view == "menu" || view == "menu-update" {
+        return Ok(menu::snapshot(&path, dark, (view == "menu-update").then_some("0.2.0"))?);
     }
     if view.starts_with("settings") {
         let model = settings::Model {
@@ -371,6 +414,14 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             weakauras: true,
             last_update: Some(chrono::Local::now().naive_local() - chrono::Duration::hours(20)),
             message: None,
+            update: if view == "settings-update" {
+                new_release()
+            } else {
+                tray::SelfUpdate {
+                    checked: Some(Local::now().naive_local() - Duration::hours(3)),
+                    ..Default::default()
+                }
+            },
         };
         let tab = match view {
             "settings-backup" | "settings-exit" => settings::Tab::Backup,
@@ -449,6 +500,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             manual,
         })
         .to_vec(),
+        self_update: if view.starts_with("update") { new_release() } else { Default::default() },
     };
     let mut confirm = None;
     let tab = if view.starts_with("addons") { panel::Tab::Addons } else { panel::Tab::Backup };
@@ -478,7 +530,16 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         _ => {}
     }
     let tip = (view == "addons-tip").then_some(2);
-    Ok(panel::snapshot(&path, dark, &demo, tab, view == "panel" || view == "addons", confirm, tip)?)
+    Ok(panel::snapshot(
+        &path,
+        dark,
+        &demo,
+        tab,
+        view == "panel" || view == "addons",
+        confirm,
+        tip,
+        view == "update-tip",
+    )?)
 }
 
 #[cfg(not(windows))]
@@ -722,7 +783,7 @@ mod tests {
             if !path.is_empty() && i18n::lookup(&key("about")).is_none() {
                 missing.push(key("about"));
             }
-            for arg in cmd.get_arguments() {
+            for arg in cmd.get_arguments().filter(|a| !a.is_hide_set()) {
                 let id = arg.get_id().as_str();
                 if id != "help" && id != "version" && i18n::lookup(&key(id)).is_none() {
                     missing.push(key(id));

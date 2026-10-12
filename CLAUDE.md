@@ -50,7 +50,7 @@ links the MSVC C runtime statically, so the exe needs no VC++ redistributable. C
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|menu|settings|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -146,7 +146,21 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   forbid third-party downloads (`allowModDistribution: false`) and the app's records would go stale.
 - `chars.rs`: characters at `WTF/Account/<ACC>/<Realm>/<Name>`; names are often Cyrillic, so matching uses `to_lowercase`.
 - `schedule.rs`: schtasks (`backup`) / HKCU Run value "WoW Tools" (`tray`, or `watch` with `--headless`; the UI
-  toggles it), both through `conhost.exe --headless` (no console flash); /TR is limited to 261 chars.
+  toggles it), both through `conhost.exe --headless` (no console flash); /TR is limited to 261 chars. Whole days
+  (the 1440 default of `schedule interval`) go as `/SC DAILY`: `/SC MINUTE` stops at 1439.
+- `selfupdate.rs`: updates of WoW Tools itself from the GitHub releases of `CARGO_PKG_REPOSITORY` (the only network
+  access of the app; README "Privacy" says so). WinHTTP (system proxy and certificates, no TLS crate); GET
+  `api.github.com/repos/<repo>/releases/latest` (published releases only; 404 = none or a private repo, not an
+  error). The exe asset is checked against the asset's GitHub `digest` (or the `SHA-256: ...` line release.yml writes
+  into the notes) and its size; no hash = no install. `install` renames the running exe to `<exe>.old` and copies the
+  new one in (rolled back if the copy fails); `exe_path()` caches `current_exe()` from before the rename. The tray
+  (`tray::self_update_loop`, its own thread: a minute after start, then hourly if `check_updates` and 24 h passed;
+  `data\self-update.json` keeps the last check, the version a balloon was shown for, and the version being installed
+  for a "updated" balloon in the new exe) shows it as a header button in the panel, the version row of the menu and
+  two rows in Settings → General. After `install` it posts `WM_RESTART`: waits while a job runs, then starts
+  `conhost --headless <exe> tray --wait-pid <pid>` (hidden arg: the new tray waits for the old one to exit, so the
+  single-instance mutex is free) and exits. `self-update [--check]` does the same from the console (no restart).
+  `live_github` (ignored) runs the real API and a real download against a public repo.
 
 ## Gotchas
 

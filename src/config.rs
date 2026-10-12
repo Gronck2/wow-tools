@@ -104,6 +104,8 @@ pub struct Config {
     pub exclude_ext: Vec<String>,
     /// Interface language; unset = the Windows one.
     pub language: Option<crate::i18n::Lang>,
+    /// Ask GitHub once a day for a newer WoW Tools (`selfupdate`).
+    pub check_updates: bool,
 }
 
 impl Default for Config {
@@ -129,6 +131,7 @@ impl Default for Config {
             skip_while_running: true,
             exclude_ext: vec!["bak".into(), "old".into()],
             language: None,
+            check_updates: true,
         }
     }
 }

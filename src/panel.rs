@@ -51,6 +51,8 @@ pub struct View {
     pub updates: Vec<Entry>,
     /// The game runs and updates wait for it to close (`update_skip_in_game`).
     pub update_waits_for_game: bool,
+    /// A newer WoW Tools, shown as a button in the header.
+    pub self_update: crate::tray::SelfUpdate,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -84,6 +86,8 @@ enum Hit {
     Confirm(usize),
     Cancel,
     Autostart,
+    /// The "new version" button in the header.
+    SelfUpdate,
 }
 
 /// List rows: the longer of the two tabs, so switching tabs does not resize the panel.
@@ -115,6 +119,18 @@ fn settings_rect() -> R {
         w: 32.0,
         h: 32.0,
     }
+}
+
+/// The "new version" button left of the header icons, while there is one.
+fn update_rect(v: &View, f: &Formats) -> Option<R> {
+    let release = v.self_update.available.as_ref()?;
+    let w = gfx::text_width(&f.button, &release.version) + 44.0;
+    Some(R {
+        x: folder_rect().x - 8.0 - w,
+        y: 16.0,
+        w,
+        h: 28.0,
+    })
 }
 
 fn button_rect() -> R {
@@ -192,6 +208,9 @@ fn tabs(f: &Formats) -> Vec<(R, Tab)> {
 
 fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<usize>) -> Vec<(R, Hit)> {
     let mut out = vec![(folder_rect(), Hit::Folder), (settings_rect(), Hit::Settings), (footer_rect(v), Hit::Autostart)];
+    if let Some(r) = update_rect(v, f).filter(|_| !v.self_update.installing) {
+        out.push((r, Hit::SelfUpdate));
+    }
     out.extend(tabs(f).into_iter().filter(|(_, t)| *t != tab).map(|(r, t)| (r, Hit::Tab(t))));
     if tab == Tab::Addons {
         if v.status.phase != Phase::Busy && v.update_app.is_some() && !v.update_waits_for_game {
@@ -321,6 +340,16 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
         }
         p.text(icon, &f.icon, r, t.text);
     }
+    if let (Some(r), Some(release)) = (update_rect(v, f), &v.self_update.available) {
+        let style = if v.self_update.installing {
+            Style::Disabled
+        } else {
+            Style::Accent {
+                hover: hover == Some(Hit::SelfUpdate),
+            }
+        };
+        button(p, f, r, "\u{E896}", &release.version, style, t);
+    }
     draw_tabs(p, t, f, tab, hover);
     match tab {
         Tab::Backup => draw_backup(p, v, t, f, hover, confirm),
@@ -330,6 +359,38 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
     if let (Tab::Addons, Some(Hit::History(i))) = (tab, hover) {
         draw_history_tip(p, v, t, f, i);
     }
+    if let (Some(Hit::SelfUpdate), Some(release)) = (hover, &v.self_update.available) {
+        let text = tr!("self_update.pill_tip", version = &release.version);
+        let r = R {
+            x: PAD,
+            y: TABS_Y + 4.0,
+            w: W - 2.0 * PAD,
+            h: 0.0,
+        };
+        draw_tip(p, t, f, r, &text, false);
+    }
+}
+
+/// A card with wrapped text at the top of `at` (its height is the text's).
+fn draw_tip(p: &Painter, t: &Theme, f: &Formats, at: R, text: &str, error: bool) {
+    let inner = at.w - 28.0;
+    let card = R {
+        h: gfx::text_height(&f.wrap, text, inner) + 24.0,
+        ..at
+    };
+    p.fill(card, 6.0, t.card_hover);
+    p.stroke(card, 6.0, if error { t.error } else { t.stroke }, 1.0);
+    p.text(
+        text,
+        &f.wrap,
+        R {
+            x: card.x + 14.0,
+            y: card.y + 12.0,
+            w: inner,
+            h: card.h - 24.0,
+        },
+        if error { t.error } else { t.text },
+    );
 }
 
 /// The full text of history row `i` (what was updated, what was not and why), in a card over
@@ -337,25 +398,11 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
 fn draw_history_tip(p: &Painter, v: &View, t: &Theme, f: &Formats, i: usize) {
     let Some(e) = v.updates.get(i) else { return };
     let row = row_rect(i);
-    let inner = row.w - 28.0;
-    let h = gfx::text_height(&f.wrap, &e.text, inner) + 24.0;
+    let h = gfx::text_height(&f.wrap, &e.text, row.w - 28.0) + 24.0;
     // Under the row when it fits above the footer, else over it.
     let below = row.y + row.h + 4.0;
     let y = if below + h <= divider_y(v) { below } else { (row.y - 4.0 - h).max(STATUS_Y) };
-    let card = R { y, h, ..row };
-    p.fill(card, 6.0, t.card_hover);
-    p.stroke(card, 6.0, if e.ok { t.stroke } else { t.error }, 1.0);
-    p.text(
-        &e.text,
-        &f.wrap,
-        R {
-            x: card.x + 14.0,
-            y: card.y + 12.0,
-            w: inner,
-            h: h - 24.0,
-        },
-        if e.ok { t.text } else { t.error },
-    );
+    draw_tip(p, t, f, R { y, ..row }, &e.text, !e.ok);
 }
 
 fn draw_tabs(p: &Painter, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>) {
@@ -872,6 +919,10 @@ fn click(hwnd: HWND, hit: Hit) {
             None
         }
         Hit::Autostart => Some(Action::Autostart),
+        Hit::SelfUpdate => {
+            close = true;
+            Some(Action::InstallUpdate)
+        }
         Hit::Restore(i) => {
             p.confirm = Some(i);
             None
@@ -976,11 +1027,24 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 }
 
 /// Renders the panel with `view` into a PNG, for checking the look.
-/// `tip`: hover history row `tip` (its full text shows).
-pub fn snapshot(path: &str, dark: bool, view: &View, tab: Tab, hover_button: bool, confirm: Option<usize>, tip: Option<usize>) -> gfx::Result<()> {
+/// `tip`: hover history row `tip` (its full text shows); `update_tip`: hover the new version button.
+#[allow(clippy::too_many_arguments)]
+pub fn snapshot(
+    path: &str,
+    dark: bool,
+    view: &View,
+    tab: Tab,
+    hover_button: bool,
+    confirm: Option<usize>,
+    tip: Option<usize>,
+    update_tip: bool,
+) -> gfx::Result<()> {
     let theme = gfx::theme_for(dark);
     let fmt = formats()?;
     let button = if tab == Tab::Addons { Hit::Update } else { Hit::Backup };
-    let hover = tip.map(Hit::History).or(hover_button.then_some(button));
+    let hover = tip
+        .map(Hit::History)
+        .or(update_tip.then_some(Hit::SelfUpdate))
+        .or(hover_button.then_some(button));
     gfx::render_png(path, W, height(view), 1.5, |p| draw(p, view, &theme, &fmt, tab, hover, confirm))
 }

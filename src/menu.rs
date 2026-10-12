@@ -28,6 +28,8 @@ enum Item {
     Settings,
     Log,
     Autostart,
+    /// The version row, when a newer WoW Tools is available.
+    SelfUpdate,
     Exit,
 }
 
@@ -102,10 +104,17 @@ struct State {
     autostart: bool,
     /// The addon manager updates go through, for the label.
     update_via: Option<&'static str>,
+    /// A newer WoW Tools ("0.2.0") and whether it is being installed.
+    new_version: Option<String>,
+    installing: bool,
 }
 
 fn enabled(state: &State, item: Item) -> bool {
-    !matches!(item, Item::Backup | Item::Update) || !state.busy
+    match item {
+        Item::Backup | Item::Update => !state.busy,
+        Item::SelfUpdate => state.new_version.is_some() && !state.installing,
+        _ => true,
+    }
 }
 
 fn draw(p: &Painter, t: &Theme, f: &Formats, state: &State, hover: Option<Item>) {
@@ -122,6 +131,25 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, state: &State, hover: Option<Item>)
                 0.0,
                 t.stroke,
             ),
+            Row::Version if state.new_version.is_some() => {
+                let on = enabled(state, Item::SelfUpdate);
+                if on && hover == Some(Item::SelfUpdate) {
+                    p.fill(r, 4.0, t.card_hover);
+                }
+                let fg = if on { t.accent } else { t.text2 };
+                let label = tr!("self_update.menu", version = state.new_version.as_deref().unwrap_or_default());
+                p.text("\u{E896}", &f.icon, R { x: r.x + 6.0, w: 28.0, ..r }, fg);
+                p.text(
+                    &label,
+                    &f.text,
+                    R {
+                        x: r.x + 40.0,
+                        w: r.w - 44.0,
+                        ..r
+                    },
+                    fg,
+                );
+            }
             Row::Version => {
                 let label = format!("{} {}", crate::config::APP_NAME, env!("CARGO_PKG_VERSION"));
                 p.text(
@@ -162,6 +190,8 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, state: &State, hover: Option<Item>)
                     Item::Log => ("\u{E9F9}", tr!("menu.log")),
                     Item::Autostart => ("\u{E7E8}", tr!("panel.autostart")),
                     Item::Exit => ("\u{E711}", tr!("menu.exit")),
+                    // Drawn as the version row.
+                    Item::SelfUpdate => continue,
                 };
                 p.text(
                     icon,
@@ -260,6 +290,8 @@ fn open() -> gfx::Result<()> {
                 .and_then(|p| crate::config::Config::load(&p).ok())
                 .and_then(|c| crate::updater::chosen(c.update_app))
                 .map(|a| a.title()),
+            new_version: view.self_update.available.map(|r| r.version),
+            installing: view.self_update.installing,
         },
         hover: None,
         tracking: false,
@@ -272,11 +304,12 @@ fn open() -> gfx::Result<()> {
     Ok(())
 }
 
-fn item_at(lparam: LPARAM, scale: f32) -> Option<Item> {
+fn item_at(lparam: LPARAM, scale: f32, state: &State) -> Option<Item> {
     let x = (lparam & 0xFFFF) as i16 as f32 / scale;
     let y = ((lparam >> 16) & 0xFFFF) as i16 as f32 / scale;
     layout().into_iter().find(|(r, _)| r.contains(x, y)).and_then(|(_, row)| match row {
         Row::Item(i) => Some(i),
+        Row::Version if state.new_version.is_some() => Some(Item::SelfUpdate),
         _ => None,
     })
 }
@@ -290,6 +323,7 @@ fn run(item: Item) {
         Item::Settings => Action::OpenSettings,
         Item::Log => Action::OpenLog,
         Item::Autostart => Action::Autostart,
+        Item::SelfUpdate => Action::InstallUpdate,
         Item::Exit => Action::Exit,
     };
     tray::act(action);
@@ -321,7 +355,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         TrackMouseEvent(&mut tme);
                         m.tracking = true;
                     }
-                    let h = item_at(lparam, m.surface.scale);
+                    let h = item_at(lparam, m.surface.scale, &m.state);
                     let changed = h != m.hover;
                     m.hover = h;
                     changed
@@ -340,7 +374,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 0
             }
             WM_LBUTTONUP => {
-                let picked = with_menu(|m| item_at(lparam, m.surface.scale).filter(|&i| enabled(&m.state, i))).flatten();
+                let picked = with_menu(|m| item_at(lparam, m.surface.scale, &m.state).filter(|&i| enabled(&m.state, i))).flatten();
                 if let Some(item) = picked {
                     DestroyWindow(hwnd);
                     run(item);
@@ -366,8 +400,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
     }
 }
 
-/// Renders the menu into a PNG file, for checking the look.
-pub fn snapshot(path: &str, dark: bool) -> gfx::Result<()> {
+/// Renders the menu into a PNG file, for checking the look; `new_version` shows the update row.
+pub fn snapshot(path: &str, dark: bool, new_version: Option<&str>) -> gfx::Result<()> {
     let theme = gfx::theme_for(dark);
     let fmt = formats()?;
     let state = State {
@@ -375,6 +409,8 @@ pub fn snapshot(path: &str, dark: bool) -> gfx::Result<()> {
         work: crate::watch::Work::Backup,
         autostart: true,
         update_via: Some("WowUp"),
+        new_version: new_version.map(str::to_string),
+        installing: false,
     };
     gfx::render_png(path, W, height(), 1.5, |p| draw(p, &theme, &fmt, &state, Some(Item::Backup)))
 }

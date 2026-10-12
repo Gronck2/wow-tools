@@ -53,6 +53,8 @@ pub struct Model {
     pub last_update: Option<chrono::NaiveDateTime>,
     /// A line under the cards: the last error, or a note about the last change.
     pub message: Option<(String, bool)>,
+    /// Updates of WoW Tools itself.
+    pub update: tray::SelfUpdate,
 }
 
 impl Model {
@@ -70,6 +72,7 @@ impl Model {
             weakauras: false,
             last_update: crate::updater::last_run(),
             message,
+            update: tray::self_update(),
         };
         m.find_flavors();
         m.weakauras = m.flavors.iter().any(|f| f.dir.join(r"Interface\AddOns\WeakAuras").is_dir());
@@ -119,6 +122,8 @@ enum Row {
     UpdateTime,
     Language,
     Autostart,
+    CheckUpdates,
+    Version,
     File,
 }
 
@@ -155,6 +160,8 @@ fn rows(m: &Model, tab: Tab, full: bool) -> Vec<Row> {
             Row::Section(tr!("settings.section_system")),
             Row::Language,
             Row::Autostart,
+            Row::CheckUpdates,
+            Row::Version,
             Row::File,
         ]),
         Tab::Backup => {
@@ -231,6 +238,9 @@ enum Hit {
     UpdateTimeDown,
     UpdateTimeUp,
     Autostart,
+    CheckUpdates,
+    CheckNow,
+    InstallUpdate,
     File,
 }
 
@@ -530,6 +540,15 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             Some(Hit::UpdateTimeUp),
         ),
         Row::Autostart => switch(&mut out, m.autostart, Hit::Autostart),
+        Row::CheckUpdates => switch(&mut out, m.cfg.check_updates, Hit::CheckUpdates),
+        Row::Version => {
+            let u = &m.update;
+            if u.available.is_some() && !u.installing {
+                button(&mut out, tr!("self_update.install"), Hit::InstallUpdate);
+            } else if u.available.is_none() && !u.checking {
+                button(&mut out, tr!("self_update.check_now"), Hit::CheckNow);
+            }
+        }
         Row::File => button(&mut out, tr!("settings.open"), Hit::File),
     }
     out
@@ -687,6 +706,21 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             ("\u{E774}", tr!("settings.language"), sub, false)
         }
         Row::Autostart => ("\u{E7E8}", tr!("panel.autostart"), tr!("settings.autostart_sub").into(), false),
+        Row::CheckUpdates => ("\u{E777}", tr!("self_update.check"), tr!("self_update.check_sub").into(), false),
+        Row::Version => {
+            let u = &m.update;
+            let (sub, error) = match (&u.available, &u.error) {
+                (Some(r), _) if u.installing => (tr!("self_update.installing", version = &r.version), false),
+                _ if u.checking => (tr!("self_update.checking").to_string(), false),
+                (Some(r), _) => (tr!("self_update.available", version = &r.version), false),
+                (None, Some(e)) => (tr!("self_update.check_error", error = e), true),
+                (None, None) => match u.checked {
+                    Some(t) => (tr!("self_update.latest", time = tray::format_time(t)), false),
+                    None => (tr!("self_update.never").to_string(), false),
+                },
+            };
+            ("\u{E946}", concat!("WoW Tools ", env!("CARGO_PKG_VERSION")), sub, error)
+        }
         Row::File => ("\u{E8A5}", tr!("settings.file"), tr!("settings.file_sub").into(), false),
     }
 }
@@ -1009,6 +1043,9 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
             crate::i18n::set(lang);
         }
         Hit::Autostart => return Some(Action::Autostart),
+        Hit::CheckUpdates => m.cfg.check_updates = !m.cfg.check_updates,
+        Hit::CheckNow => return Some(Action::CheckUpdate),
+        Hit::InstallUpdate => return Some(Action::InstallUpdate),
         Hit::File => return Some(Action::OpenConfigFile),
     }
     let path = tray::config_path()?;
@@ -1086,6 +1123,7 @@ fn open() -> gfx::Result<()> {
 pub fn refresh() {
     if let Some(hwnd) = with_window(|w| {
         w.model.autostart = schedule::logon_command().is_some();
+        w.model.update = tray::self_update();
         w.surface.hwnd
     }) {
         unsafe { InvalidateRect(hwnd, null(), 0) };
@@ -1146,6 +1184,7 @@ impl Model {
             weakauras: false,
             last_update: None,
             message: None,
+            update: tray::SelfUpdate::default(),
         }
     }
 }

@@ -13,6 +13,8 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
   activés, réglages des addons.
 - **Mise à jour des addons** via le gestionnaire que vous utilisez déjà — CurseForge, WowUp, WowUp-CF ou Wago App —
   lancé sans fenêtre, selon un planning, jamais pendant que vous jouez.
+- Mise à jour automatique de l'application : vérification sur GitHub une fois par jour et installation d'une nouvelle
+  version en un clic.
 - Anglais, russe, allemand, français et espagnol.
 
 <p>
@@ -34,6 +36,7 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
 - [Ligne de commande](#ligne-de-commande)
 - [Fichiers et dossiers](#fichiers-et-dossiers)
 - [Confidentialité et sécurité](#confidentialité-et-sécurité)
+- [Mettre à jour WoW Tools](#mettre-à-jour-wow-tools)
 - [Désinstallation](#désinstallation)
 - [FAQ et limites](#faq-et-limites)
 - [Compiler depuis les sources](#compiler-depuis-les-sources)
@@ -102,7 +105,8 @@ Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-
 Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 
 - **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu à sauvegarder, langue,
-  lancement avec Windows, et un lien vers `config.toml` pour les options rarement utiles.
+  lancement avec Windows, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** / **Installer**, et
+  un lien vers `config.toml` pour les options rarement utiles.
 - **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, ou *Planifié* — les jours choisis à une heure
   donnée), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la fermeture du jeu**,
   dossier des sauvegardes.
@@ -240,6 +244,7 @@ Les raccourcis clavier et les macros peuvent être stockés sur les serveurs de 
 | `schedule logon [--headless]` | lance l'icône de notification à la connexion (`--headless` : `watch` sans icône) |
 | `schedule interval [--every MIN]` | une tâche du Planificateur de tâches qui lance `backup` toutes les N minutes (une fois par jour par défaut) |
 | `schedule status` / `schedule remove` | affiche / supprime le démarrage automatique et la tâche |
+| `self-update [--check]` | cherche une nouvelle version de WoW Tools sur GitHub et l'installe |
 
 Options communes : `--config FILE` (une autre configuration), `--log-to-file`, `-v`. `wow-tools <command> --help`
 explique le reste dans la langue choisie.
@@ -252,6 +257,7 @@ explique le reste dans la langue choisie.
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | sauvegardes (dossier modifiable) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | journal de l'icône de notification |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | historique des mises à jour (20 dernières) |
+| `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | date de la dernière recherche d'une nouvelle version de WoW Tools |
 
 Les sauvegardes sont nommées `YYYYmmdd-HHMMSS[-label].zip` ; ce sont des fichiers zip ordinaires, que l'on peut ouvrir
 à la main.
@@ -261,11 +267,33 @@ défaut) et `language` (`ru`, `en`, `de`, `fr`, `es` ; absent = la langue d'affi
 
 ## Confidentialité et sécurité
 
-- WoW Tools n'établit **aucune connexion réseau**. Il lit et écrit des fichiers sur votre disque et lance le programme
-  d'addons que vous avez choisi ; tout téléchargement est fait par ce programme.
+- La seule connexion que WoW Tools établit lui-même est vers **GitHub**, pour chercher une nouvelle version de WoW
+  Tools (voir [Mettre à jour WoW Tools](#mettre-à-jour-wow-tools)) — une fois par jour, et cela peut être désactivé.
+  C'est une simple requête pour obtenir la dernière release, comme si vous ouvriez la page des releases dans un
+  navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé.
+- Les addons sont téléchargés uniquement par le programme d'addons que vous avez choisi, jamais par WoW Tools.
 - Il ne touche jamais au jeu lui-même, ne lit pas la mémoire du jeu et n'automatise rien en jeu.
 - Il n'écrit dans le dossier du jeu que lorsque vous restaurez, copiez les réglages d'un personnage, ou quand un
   programme d'addons met à jour les addons — et chacune de ces opérations crée d'abord une sauvegarde.
+
+## Mettre à jour WoW Tools
+
+WoW Tools consulte les [releases](https://github.com/Gronck2/wow-tools/releases) de ce dépôt une fois par jour (et
+quand vous cliquez sur **Vérifier** dans **Paramètres → Général**). Quand une version plus récente existe :
+
+- une notification s'affiche une fois ;
+- le panneau affiche un bouton avec le numéro de la nouvelle version, à côté des icônes du dossier et des paramètres ;
+- le menu propose **Mettre à jour vers x.y.z**, et les paramètres affichent **Installer**.
+
+Un clic télécharge le nouvel exe, le vérifie avec la somme de contrôle SHA-256 que GitHub publie pour le fichier de la
+release (un fichier qui ne correspond pas n'est jamais installé), le met à la place de l'actuel et redémarre l'icône de
+notification. L'ancien exe est conservé sous le nom `<name>.exe.old` jusqu'au prochain démarrage, puis supprimé. Si une
+sauvegarde ou une mise à jour est en cours, le redémarrage attend qu'elle se termine. Vos paramètres, vos sauvegardes
+et le démarrage automatique restent tels quels.
+
+En ligne de commande : `wow-tools self-update --check` (vérifier seulement) ou `wow-tools self-update` (vérifier et
+installer ; redémarrez ensuite l'icône de notification). Pour ne plus vérifier, désactivez **Rechercher les mises à
+jour** dans **Paramètres → Général** (`check_updates = false` dans `config.toml`).
 
 ## Désinstallation
 

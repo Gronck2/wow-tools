@@ -12,6 +12,7 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
   activados, configuración de addons.
 - **Actualización de addons** con el gestor que ya usas (CurseForge, WowUp, WowUp-CF o Wago App), iniciado sin ventana,
   de forma programada y nunca mientras juegas.
+- Se actualiza solo: consulta GitHub una vez al día e instala una nueva versión con un clic.
 - En inglés, ruso, alemán, francés y español.
 
 <p>
@@ -33,6 +34,7 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 - [Línea de comandos](#línea-de-comandos)
 - [Archivos y carpetas](#archivos-y-carpetas)
 - [Privacidad y seguridad](#privacidad-y-seguridad)
+- [Actualizar WoW Tools](#actualizar-wow-tools)
 - [Desinstalación](#desinstalación)
 - [Preguntas frecuentes y limitaciones](#preguntas-frecuentes-y-limitaciones)
 - [Compilar desde el código fuente](#compilar-desde-el-código-fuente)
@@ -99,7 +101,8 @@ Se muestran notificaciones con el resultado de lo que inicias tú mismo y con lo
 Cada cambio se guarda al instante y se aplica sin reiniciar.
 
 - **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), qué versiones del juego copiar,
-  idioma, inicio con Windows y un enlace a `config.toml` para las opciones que rara vez se necesitan.
+  idioma, inicio con Windows, **Buscar actualizaciones** y la versión actual con **Comprobar** / **Instalar**, y un
+  enlace a `config.toml` para las opciones que rara vez se necesitan.
 - **Copias**: cuándo hacer la copia (*Tras el juego*, al cerrarlo, o *Programada*: los días de la semana elegidos a una
   hora fija), cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**,
   la carpeta de copias.
@@ -231,6 +234,7 @@ Los atajos y las macros pueden guardarse en los servidores de Blizzard (CVars `s
 | `schedule logon [--headless]` | inicia la bandeja al iniciar sesión (`--headless`: `watch` sin icono) |
 | `schedule interval [--every MIN]` | una tarea del Programador de tareas que ejecuta `backup` cada N minutos (una vez al día por defecto) |
 | `schedule status` / `schedule remove` | muestra / quita el inicio automático y la tarea |
+| `self-update [--check]` | busca en GitHub una nueva versión de WoW Tools y la instala |
 
 Opciones comunes: `--config FILE` (otra configuración), `--log-to-file`, `-v`. `wow-tools <comando> --help` explica el
 resto en el idioma elegido.
@@ -243,6 +247,7 @@ resto en el idioma elegido.
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | instantáneas (la carpeta se puede cambiar) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | registro de la bandeja |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | historial de actualizaciones (las 20 últimas) |
+| `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | cuándo buscó WoW Tools una nueva versión por última vez |
 
 Las instantáneas se llaman `YYYYmmdd-HHMMSS[-label].zip`; son archivos zip normales y se pueden abrir a mano.
 
@@ -251,11 +256,32 @@ defecto) y `language` (`ru`, `en`, `de`, `fr`, `es`; si no está = el idioma de 
 
 ## Privacidad y seguridad
 
-- WoW Tools **no establece ninguna conexión de red**. Lee y escribe archivos en tu disco e inicia el programa de addons
-  que hayas elegido; cualquier descarga la hace ese programa.
+- La única conexión que WoW Tools establece por sí mismo es con **GitHub**, para buscar una nueva versión de WoW Tools
+  (mira [Actualizar WoW Tools](#actualizar-wow-tools)): una vez al día, y se puede desactivar. Es una simple consulta de
+  la última versión publicada, como abrir la página de versiones en el navegador; no se envía nada sobre ti, tu juego ni
+  tus addons.
+- Los addons solo los descarga el programa de addons que hayas elegido, nunca WoW Tools.
 - Nunca toca el juego en sí, no lee la memoria del juego y no automatiza nada dentro del juego.
 - Solo escribe en la carpeta del juego cuando restauras, copias la configuración de un personaje o un programa de addons
   actualiza los addons, y en todos estos casos crea antes una instantánea.
+
+## Actualizar WoW Tools
+
+WoW Tools consulta las [versiones publicadas](https://github.com/Gronck2/wow-tools/releases) de este repositorio una vez
+al día (y cuando pulsas **Comprobar** en **Configuración → General**). Cuando hay una versión más nueva:
+
+- aparece una notificación una sola vez;
+- el panel muestra un botón con el número de la nueva versión junto a los iconos de la carpeta y de la configuración;
+- el menú muestra **Actualizar a x.y.z** y la configuración, **Instalar**.
+
+Un clic descarga el nuevo exe, lo comprueba con la suma SHA-256 que GitHub publica para el archivo de la versión (un
+archivo que no coincide nunca se instala), lo pone en lugar del actual y reinicia la bandeja. El exe antiguo se guarda
+como `<name>.exe.old` hasta el siguiente inicio y luego se elimina. Si hay una copia o una actualización en curso, el
+reinicio espera a que termine. Tu configuración, tus instantáneas y el inicio automático quedan como estaban.
+
+Desde la línea de comandos: `wow-tools self-update --check` (solo comprobar) o `wow-tools self-update` (comprobar e
+instalar; después reinicia la bandeja). Para dejar de comprobar, desactiva **Buscar actualizaciones** en
+**Configuración → General** (`check_updates = false` en `config.toml`).
 
 ## Desinstalación
 
