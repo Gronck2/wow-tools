@@ -16,6 +16,8 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
   neuen Version gesichert, und Sie sehen, welche Addons noch nicht dafür gemacht sind.
 - **Aufräumen**: Einstellungen entfernter Addons, die `.bak`-Kopien von WoW, alte Kampflogs, Screenshots und der
   Cache – mit Größenangaben, mit einem Klick.
+- **UI-Profile**: die Oberfläche eines Charakters speichern (Tastenbelegung, Makros, Layout, Addons und ihre
+  Profile) und mit zwei Klicks einem anderen Charakter geben.
 - Aktualisiert sich selbst: fragt einmal am Tag bei GitHub nach und installiert eine neue Version mit einem Klick.
 - Englisch, Russisch, Deutsch, Französisch und Spanisch.
 
@@ -36,6 +38,7 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
 - [Addon-Updates](#addon-updates)
 - [Spiel-Patches](#spiel-patches)
 - [Aufräumen](#aufräumen)
+- [UI-Profile](#ui-profile)
 - [Einstellungen zwischen Charakteren kopieren](#einstellungen-zwischen-charakteren-kopieren)
 - [Befehlszeile](#befehlszeile)
 - [Dateien und Ordner](#dateien-und-ordner)
@@ -79,11 +82,10 @@ Das Symbol zeigt den aktuellen Zustand:
 
 | Symbol | Bedeutung |
 | --- | --- |
-| grün | alles in Ordnung |
-| Ring | das Spiel läuft, die Sicherung folgt nach dem Beenden |
-| blau | in Arbeit: Sicherung, Wiederherstellung oder Addon-Update |
-| rot | der letzte Vorgang ist fehlgeschlagen (Mauszeiger auf das Symbol halten oder den Bereich öffnen, um den Grund zu sehen) |
-| grau | noch keine Sicherungen |
+| graues Wappen | das Spiel läuft nicht |
+| goldenes Wappen | das Spiel läuft (die Sicherung folgt nach dem Beenden) |
+| blauer Punkt | in Arbeit: Sicherung, Wiederherstellung, Addon-Update, Aufräumen oder ein Profil |
+| roter Punkt | der letzte Vorgang ist fehlgeschlagen (Mauszeiger auf das Symbol halten oder den Bereich öffnen, um den Grund zu sehen) |
 
 **Linksklick** öffnet den Bereich (im Stil von Windows 11, folgt dem hellen/dunklen Design und der Akzentfarbe):
 
@@ -93,6 +95,9 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Addons**: wann die Addons zuletzt aktualisiert wurden, **Addons aktualisieren** und die letzten fünf
   Update-Läufe – was aktualisiert wurde oder was schiefging (für den vollständigen Text den Mauszeiger auf die Zeile
   halten).
+- Reiter **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben und je einer
+  Schaltfläche – siehe [Aufräumen](#aufräumen).
+- Reiter **Profile**: gespeicherte UI-Profile und **Profil speichern** — siehe [UI-Profile](#ui-profile).
 - Oben: der Sicherungsordner und die Einstellungen; unten: **Mit Windows starten**.
 
 **Rechtsklick** öffnet das Menü: Bereich, jetzt sichern, Addons aktualisieren, Sicherungsordner, Einstellungen,
@@ -109,17 +114,16 @@ Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestart
 
 Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 
-- **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), welche Spielversionen gesichert werden,
+- **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile),
   Sprache, Start mit Windows, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** / **Installieren** sowie
   ein Link zu `config.toml` für selten benötigte Optionen.
 - **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, oder *Nach Zeitplan* – an gewählten
   Wochentagen zu einer festen Uhrzeit), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und
   **Auf Spielende warten**, der Sicherungsordner.
 - **Addons**: das Programm für die Updates, **Nicht während des Spielens**, **Automatisch aktualisieren** und wann –
-  *Regelmäßig* (alle 30 Min. … 12 Std.) oder *Nach Zeitplan* (Tage und Uhrzeit); darunter, welche Addons nicht für
-  die aktuelle Spielversion gemacht sind.
-- **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben – siehe
-  [Aufräumen](#aufräumen).
+  *Regelmäßig* (alle 30 Min. … 12 Std.) oder *Nach Zeitplan* (Tage und Uhrzeit); darunter jedes Addon, das nicht
+  für die aktuelle Spielversion gemacht ist (siehe [Spiel-Patches](#spiel-patches)).
+- **Screenshots**: wohin das Aufräumen Screenshots verschiebt und wie es sie sortiert (siehe [Aufräumen](#aufräumen)).
 
 ## Sicherungen: so funktionieren sie
 
@@ -148,8 +152,13 @@ Bezeichnung *vor Wiederherstellung* gespeichert – Sie können also jederzeit z
 Die Wiederherstellung entpackt das Archiv in einen temporären Ordner neben dem echten und tauscht erst dann die Ordner
 aus. Eine unterbrochene Wiederherstellung hinterlässt daher nie ein halb geschriebenes `WTF`.
 
-Punkte mit der Bezeichnung *vor Update* enthalten nur Addons – sie machen ein Addon-Update rückgängig und lassen die
-Einstellungen unverändert.
+Die `AddOns`-Sicherungen *vor Update* zeigt der Bereich nicht: `wow-tools list --kind addons` listet sie,
+`wow-tools restore <id> --kind addons` macht ein Addon-Update rückgängig und lässt die Einstellungen unverändert.
+
+Vor dem Aufräumen, einem UI-Profil oder dem Kopieren von Einstellungen wird WTF ebenfalls gesichert (*vor Aufräumen*,
+*vor Profil*, *vor Kopieren*). Das ist ein Sicherheitsnetz: Der Bereich zeigt davon nur die *vor Aufräumen*; mehrere solche
+Aktionen innerhalb von 10 Minuten deckt die eine vor der ersten ab. `wow-tools list --kind wtf` zeigt sie,
+`wow-tools restore <id> --kind wtf` stellt eine wieder her.
 
 Über die Befehlszeile: `wow-tools restore` (neueste), `wow-tools restore 20261012` (die neueste dieses Tages oder
 davor), `--kind wtf` oder `--kind addons` für nur einen Teil, `--flavor _classic_era_` für eine andere Spielversion.
@@ -168,8 +177,8 @@ Bei jedem Lauf, automatisch oder manuell:
 
 1. Ist **Nicht während des Spielens** an (Standard), passiert nichts, solange ein Spielclient läuft; das Update wartet,
    bis das Spiel geschlossen ist.
-2. Eine `AddOns`-Sicherung mit der Bezeichnung *vor Update* wird erstellt – ein Klick im Bereich macht das Update
-   rückgängig.
+2. Eine `AddOns`-Sicherung mit der Bezeichnung *vor Update* wird erstellt – `wow-tools restore <id> --kind addons`
+   macht das Update rückgängig.
 3. Das Programm wird ohne Fenster gestartet, aktualisiert und wird geschlossen. **Ein Programm, das Sie bereits
    geöffnet hatten, bleibt unangetastet** – es wird weder ein zweites Mal gestartet noch geschlossen.
 4. Das Ergebnis landet im Update-Verlauf: welche Addons aktualisiert wurden, welche noch warten (zum Beispiel weil sie
@@ -217,30 +226,81 @@ macht WoW Tools Folgendes:
 2. Es zeigt eine Benachrichtigung mit der neuen Version und den Addons, deren `.toc` nicht dafür gemacht ist (das Spiel
    würde sie als „veraltet“ anzeigen).
 
-Welche Addons nicht für die aktuelle Version gemacht sind, steht immer unten unter **Einstellungen → Addons** und wird
-von `wow-tools outdated` ausgegeben. Addons werden nach Haupt- und Nebenversion beurteilt (12.0 → 12.1 zählt, ein
+Welche Addons nicht für die aktuelle Version gemacht sind, steht immer vollständig unten unter **Einstellungen →
+Addons** (die Karte wird gelb, solange es welche gibt) und wird von `wow-tools outdated` ausgegeben. Addons werden nach Haupt- und Nebenversion beurteilt (12.0 → 12.1 zählt, ein
 Hotfix 12.1.0 → 12.1.5 nicht); ein Addon ganz ohne Versionsnummer für dieses Spiel (ein reines Classic-Addon in
 Retail, eine Bibliothek) wird nicht beurteilt.
 
 ## Aufräumen
 
-<p><img src="docs/images/settings-cleanup-de.png" width="420" alt="Einstellungen, Reiter „Aufräumen“"></p>
+<p><img src="docs/images/cleanup-de.png" width="360" alt="Bereich, Reiter „Aufräumen“"></p>
 
-**Einstellungen → Aufräumen** zeigt, was weg kann, mit Anzahl der Dateien und ihrer Größe, für die Spielversionen,
-die Sie sichern:
+Der Reiter **Aufräumen** im Bereich zeigt, was weg kann, mit Anzahl der Dateien und ihrer Größe, für die
+Spielversionen, die Sie sichern. Die Liste wird bei jedem Öffnen des Reiters und nach jedem Aufräumen neu eingelesen;
+halten Sie den Mauszeiger auf eine Zeile, um zu sehen, worum es geht. Die Listen-Schaltfläche bei *Entfernte Addons*
+und *Größte Addon-Einstellungen* öffnet die vollständige Liste mit Größen direkt über dem Reiter
+(Mausrad zum Blättern, schließen mit ✕ oder Esc).
 
-| Karte | Was | Was passiert |
+| Zeile | Was | Was passiert |
 | --- | --- | --- |
-| Einstellungen entfernter Addons | `SavedVariables\*.lua` von Addons, die nicht mehr in `Interface\AddOns` liegen (Blizzards eigene Dateien bleiben) | gelöscht; `WTF` wird vorher als Sicherung *vor Aufräumen* gespeichert |
-| Kopien von WoW (.bak, .old) | die Kopien, die WoW beim Beenden von jeder Einstellungsdatei anlegt | gelöscht (WoW legt sie neu an; Sicherungen enthalten sie nie) |
+| Entfernte Addons | `SavedVariables\*.lua` von Addons, die nicht mehr in `Interface\AddOns` liegen (Blizzards eigene Dateien bleiben) | gelöscht; `WTF` wird vorher als Sicherung *vor Aufräumen* gespeichert |
+| .bak- und .old-Kopien | die Kopien, die WoW beim Beenden von jeder Einstellungsdatei anlegt | gelöscht (WoW legt sie neu an; Sicherungen enthalten sie nie) |
 | Größte Addon-Einstellungen | Einstellungsdateien ab 5 MB | nur angezeigt: aufgeblähte Dateien verlangsamen das Laden, räumen Sie sie im Addon selbst auf |
-| Kampflogs älter als eine Woche | `Logs\WoWCombatLog*.txt` | gelöscht; Logs, die jünger als eine Woche sind, bleiben, falls ein Upload zu Warcraft Logs noch aussteht |
-| Screenshots im Spielordner | `Screenshots\*` | verschoben nach `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nichts wird überschrieben); **Öffnen** öffnet diesen Ordner |
-| Cache und Absturzberichte | `Cache` und `Errors` | gelöscht; das Spiel baut den Cache neu auf – das übliche Mittel gegen Merkwürdigkeiten nach einem Patch |
+| Alte Kampflogs | `Logs\WoWCombatLog*.txt` | gelöscht; Logs, die jünger als eine Woche sind, bleiben, falls ein Upload zu Warcraft Logs noch aussteht |
+| Screenshots | `Screenshots\*` | verschoben, standardmäßig nach `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nichts wird überschrieben); das Ordnersymbol öffnet diesen Ordner |
+| Cache und Fehler | `Cache` und `Errors` | gelöscht; das Spiel baut den Cache neu auf – das übliche Mittel gegen Merkwürdigkeiten nach einem Patch |
 
-Jede Schaltfläche fragt vorher **Sicher?**. Eine laufende Spielversion wird übersprungen. Über die Befehlszeile:
+Der Reiter **Screenshots** der Einstellungen legt fest, wohin sie kommen und wie sie sortiert werden: Ordner
+**Nach Tag**, **Nach Monat**, **Nach Jahr** oder **Ohne Ordner** (das Datum stammt aus dem Dateinamen von WoW,
+`WoWScrnShot_MMDDYY_HHMMSS`), und **Ein Ordner je Spielversion** an oder aus. Nach Charakter sortieren geht nicht: WoW
+schreibt nicht mit, wer einen Screenshot gemacht hat.
+
+Jede Schaltfläche fragt vorher **Sicher?**. Während es läuft, dreht sich ein Symbol
+statt der Schaltfläche, das Ergebnis steht danach in der Zeile. Nur der Cache einer laufenden Spielversion wartet, bis
+sie geschlossen ist; alles andere wird auch während des Spiels aufgeräumt (diese Dateien hält das Spiel nicht offen). Über die
+Befehlszeile:
 `wow-tools clean` zeigt dieselbe Liste, `wow-tools clean orphans backups logs screenshots cache` (beliebige davon)
 räumt auf.
+
+## UI-Profile
+
+<p><img src="docs/images/profiles-de.png" width="360" alt="Bereich, Reiter „Profile“"></p>
+
+Ein Profil ist alles, was die Oberfläche eines Charakters ausmacht, unter seinem Namen gespeichert: Im Reiter
+**Profile** des Bereichs zeigt **Profil speichern → Wählen…** deine Charaktere (zuletzt gespielte zuerst).
+**Anwenden…** bei einem Profil fragt, welcher Charakter es bekommt, dann **Anwenden** in der Zeile. Fahre über ein
+Profil, um zu sehen, was es enthält; der Papierkorb löscht es. Hat sich am Charakter seit seinem letzten Profil
+nichts geändert, wird kein neues gespeichert (die Zeile sagt es).
+In der Charakterliste einfach tippen, um nach Name oder Realm zu suchen (Enter wählt den ersten, Esc leert die
+Suche). Solange die Spielversion des Profils läuft, ist **Anwenden…** aus: Das Spiel würde die Einstellungen beim
+Beenden überschreiben.
+
+Die Charakterlisten zeigen nur Charaktere, die der Account jetzt hat: Ordner gelöschter, umbenannter oder
+transferierter Charaktere bleiben in `WTF`, daher vergleicht WoW Tools sie mit der Charakterliste des Spiels
+(`character-list-order.txt`, nur GUIDs) und den Namen, die Addons zu diesen GUIDs speichern (BigWigs,
+WorldQuestTracker, AllTheThings, RCLootCouncil…). Ein Realm mit einem seitdem nicht gespielten Charakter wird nicht
+gefiltert: geraten wird nichts.
+
+Was in ein Profil kommt:
+
+- alle Dateien des Charakterordners `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: Tastenbelegung, Makros, Chat,
+  Bearbeitungsmodus-Layout, Klickbelegungen, aktivierte Addons, die eigenen Addon-Einstellungen des Charakters
+  (`SavedVariables`);
+- bei Addons, die ihre Einstellungen accountweit als Profile speichern (ElvUI, BigWigs, Clique, TomTom und andere
+  auf AceDB-Basis): welches Profil der Charakter nutzt und dessen Inhalt.
+
+Beim Anwenden werden die Dateien kopiert und diese Addons des Zielcharakters auf dasselbe Profil umgeschaltet. Auf
+demselben Account teilen sich die beiden Charaktere es danach: eine Änderung an ElvUI beim einen zeigt sich auch beim
+anderen, wie bei einem gemeinsamen Profil im Spiel. Auf einem anderen Account wird das Profil dort hinzugefügt; gibt
+es dort schon ein anderes Profil dieses Namens, bekommt die Kopie den Namen des Quellcharakters, sodass sich auf jenem
+Account nichts ändert. Ein Addon, das auf dem Zielaccount nie lief, bleibt unberührt und wird im Ergebnis genannt. Die
+Spielversion des Profils muss geschlossen sein; vorher wird WTF *vor Profil* gesichert (siehe
+[Wiederherstellen](#wiederherstellen)).
+
+Tastenbelegung und Makros können auf den Servern von Blizzard liegen (siehe Ende des nächsten Abschnitts).
+
+Über die Befehlszeile: `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
+`wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.
 
 ## Einstellungen zwischen Charakteren kopieren
 
@@ -283,6 +343,8 @@ Tastenbelegung und Makros können auf den Servern von Blizzard gespeichert sein 
 | `restore [ID\|DATE\|latest] [--kind K] [--flavor F] [-y]` | wiederherstellen, vorher den aktuellen Stand sichern |
 | `chars [--flavor F]` | Charaktere auflisten |
 | `copy-char --from C --to C [--to C…] [--parts …] [--dry-run]` | Einstellungen zwischen Charakteren kopieren |
+| `profile save C [--flavor F]` / `profile list` | UI-Profil eines Charakters speichern / Profile anzeigen |
+| `profile apply N --to C` / `profile delete N` | Profil N (aus der Liste) auf einen Charakter übertragen / löschen |
 | `update-addons` | Addons jetzt über das gewählte Programm aktualisieren |
 | `watch [--interval N]` | das, was das Infobereichssymbol tut, in einem Konsolenfenster |
 | `schedule logon [--headless]` | Infobereichssymbol bei der Anmeldung starten (`--headless`: `watch` ohne Symbol) |
@@ -301,6 +363,7 @@ erklärt den Rest in der gewählten Sprache.
 | --- | --- |
 | `%APPDATA%\WoW Tools\config\config.toml` | Einstellungen |
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | Sicherungen (Ordner änderbar) |
+| `%LOCALAPPDATA%\WoW Tools\data\backups\profiles\<version>\*.zip` | UI-Profile (im Sicherungsordner) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | Protokoll des Infobereichssymbols |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | Update-Verlauf (die letzten 20) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | wann WoW Tools zuletzt nach einer neuen Version gesucht hat |

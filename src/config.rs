@@ -28,6 +28,22 @@ pub enum UpdateWhen {
     Schedule,
 }
 
+/// How the cleanup files moved screenshots: a folder per year, month or day of the shot, or none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShotsBy {
+    Year,
+    #[default]
+    Month,
+    Day,
+    /// All in one folder.
+    None,
+}
+
+impl ShotsBy {
+    pub const ALL: [ShotsBy; 4] = [ShotsBy::Day, ShotsBy::Month, ShotsBy::Year, ShotsBy::None];
+}
+
 /// Choices of the "update every" stepper, in minutes.
 pub const UPDATE_EVERY: &[u64] = &[30, 60, 120, 180, 360, 720];
 
@@ -106,6 +122,12 @@ pub struct Config {
     pub language: Option<crate::i18n::Lang>,
     /// Ask GitHub once a day for a newer WoW Tools (`selfupdate`).
     pub check_updates: bool,
+    /// Where the cleanup moves screenshots; unset = `Pictures\World of Warcraft`.
+    pub screenshots_dir: Option<PathBuf>,
+    /// Date folders under it.
+    pub screenshots_by: ShotsBy,
+    /// A folder per game version ("Retail", "Classic Era") above the date folders.
+    pub screenshots_per_flavor: bool,
 }
 
 impl Default for Config {
@@ -132,6 +154,9 @@ impl Default for Config {
             exclude_ext: vec!["bak".into(), "old".into()],
             language: None,
             check_updates: true,
+            screenshots_dir: None,
+            screenshots_by: ShotsBy::Month,
+            screenshots_per_flavor: true,
         }
     }
 }

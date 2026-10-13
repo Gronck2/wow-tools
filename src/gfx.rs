@@ -248,6 +248,60 @@ pub struct Painter<'a> {
 }
 
 impl Painter<'_> {
+    /// Draws an icon (only for `ui-snapshot`: it makes a WIC factory on every call).
+    pub fn icon(&self, icon: HICON, r: R) {
+        use windows::Win32::Graphics::Imaging::*;
+        use windows::Win32::System::Com::*;
+        use windows_sys::Win32::Graphics::Gdi::{
+            BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC,
+        };
+        unsafe {
+            // The icon's 32-bit pixels, top-down.
+            let mut ii: ICONINFO = zeroed();
+            GetIconInfo(icon, &mut ii);
+            let mut bm: BITMAP = zeroed();
+            GetObjectW(ii.hbmColor, size_of::<BITMAP>() as i32, &mut bm as *mut _ as _);
+            let (w, h) = (bm.bmWidth, bm.bmHeight);
+            let mut bi: BITMAPINFO = zeroed();
+            bi.bmiHeader.biSize = size_of::<BITMAPINFOHEADER>() as u32;
+            bi.bmiHeader.biWidth = w;
+            bi.bmiHeader.biHeight = -h;
+            bi.bmiHeader.biPlanes = 1;
+            bi.bmiHeader.biBitCount = 32;
+            bi.bmiHeader.biCompression = BI_RGB;
+            let mut px = vec![0u8; (w * h * 4) as usize];
+            let dc = GetDC(null_mut());
+            GetDIBits(dc, ii.hbmColor, 0, h as u32, px.as_mut_ptr() as _, &mut bi, DIB_RGB_COLORS);
+            ReleaseDC(null_mut(), dc);
+            DeleteObject(ii.hbmColor);
+            DeleteObject(ii.hbmMask);
+            let Ok(wic) = CoCreateInstance::<_, IWICImagingFactory>(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER) else {
+                return;
+            };
+            let Ok(src) = wic.CreateBitmapFromMemory(w as u32, h as u32, &GUID_WICPixelFormat32bppBGRA, (w * 4) as u32, &px) else {
+                return;
+            };
+            let Ok(conv) = wic.CreateFormatConverter() else { return };
+            if conv
+                .Initialize(
+                    &src,
+                    &GUID_WICPixelFormat32bppPBGRA,
+                    WICBitmapDitherTypeNone,
+                    None,
+                    0.0,
+                    WICBitmapPaletteTypeCustom,
+                )
+                .is_err()
+            {
+                return;
+            }
+            if let Ok(bmp) = self.rt.CreateBitmapFromWicBitmap(&conv, None) {
+                self.rt
+                    .DrawBitmap(&bmp, Some(&r.d2d()), 1.0, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, None);
+            }
+        }
+    }
+
     pub fn clear(&self, c: D2D1_COLOR_F) {
         unsafe { self.rt.Clear(Some(&c)) }
     }

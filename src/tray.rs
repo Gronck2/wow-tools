@@ -6,9 +6,10 @@
 use crate::app::Ctx;
 use crate::config::{self, APP_NAME, Config};
 use crate::panel::{self, View};
+use crate::profiles::{self, CharEntry, Profile};
 use crate::snapshot::{self, Kind};
 use crate::watch::{self, Event, Request, Work};
-use crate::{menu, schedule, selfupdate, settings, wow};
+use crate::{maintenance, menu, schedule, selfupdate, settings, wow};
 use anyhow::{Result, bail};
 use chrono::{Local, NaiveDateTime};
 use std::cell::RefCell;
@@ -21,7 +22,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Sender};
 use windows_sys::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, WPARAM};
-use windows_sys::Win32::Graphics::Gdi::{BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateBitmap, CreateDIBSection, DIB_RGB_COLORS, DeleteObject};
+use windows_sys::Win32::Graphics::Gdi::{
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateBitmap, CreateDIBSection, DIB_RGB_COLORS, DeleteObject, GetDC, GetDIBits, ReleaseDC,
+};
 use windows_sys::Win32::System::Console::{FreeConsole, GetConsoleProcessList};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::CreateMutexW;
@@ -37,6 +40,8 @@ const WM_STATE: u32 = WM_APP + 2;
 const WM_SHOW_SETTINGS: u32 = WM_APP + 3;
 /// A new exe was installed: start it and exit (once nothing is running).
 const WM_RESTART: u32 = WM_APP + 4;
+/// Read the cleanup tab again (posted by the worker thread; the config paths live on the UI thread).
+const WM_RESCAN: u32 = WM_APP + 5;
 /// Restore points the panel lists.
 const POINTS: usize = 5;
 
@@ -96,6 +101,8 @@ impl RestorePoint {
             Some(tr!("points.before_patch"))
         } else if self.id.ends_with("-pre-cleanup") {
             Some(tr!("points.before_cleanup"))
+        } else if self.id.ends_with("-pre-profile") {
+            Some(tr!("points.before_profile"))
         } else {
             None
         }
@@ -126,9 +133,15 @@ pub enum Action {
     /// Download and install the newer WoW Tools, then restart.
     InstallUpdate,
     /// Tidy one thing up (settings of removed addons, old combat logs, ...).
-    Clean(crate::maintenance::Item),
+    Clean(maintenance::Item),
     /// The folder screenshots are moved to.
     OpenScreenshots,
+    SaveProfile(CharEntry),
+    ApplyProfile {
+        profile: Profile,
+        target: CharEntry,
+    },
+    DeleteProfile(Profile),
     Exit,
 }
 
@@ -163,8 +176,33 @@ struct State {
     update: SelfUpdate,
     /// A new exe is in place; restart when the current job is done.
     restart_pending: bool,
-    /// Cleanups finished so far: the settings window rescans when it changes.
-    cleanups: u32,
+    /// What the cleanup tab shows; read in the background (`rescan`).
+    scan: Option<maintenance::Scan>,
+    scanning: bool,
+    /// The cleanup running now.
+    cleaning: Option<maintenance::Item>,
+    /// How the last cleanup went, shown in its row of the panel: (item, summary, ok).
+    cleaned: Option<(maintenance::Item, String, bool)>,
+    /// Characters to pick for profiles, last played first; read with the cleanup scan.
+    chars: Option<Vec<CharEntry>>,
+    /// The profile job running now, and how the last one went (shown in its row).
+    profile_job: Option<ProfileJob>,
+    profile_done: Option<(ProfileJob, String, Tone)>,
+}
+
+/// How a job ended, as its row shows it: done (green), nothing done but worth a look (warning), failed (red).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Tone {
+    Ok,
+    Notice,
+    Error,
+}
+
+/// What a profile job is about: where the panel shows its spinner and result.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProfileJob {
+    Save,
+    Apply(PathBuf),
 }
 
 static STATE: Mutex<State> = Mutex::new(State {
@@ -184,7 +222,13 @@ static STATE: Mutex<State> = Mutex::new(State {
         error: None,
     },
     restart_pending: false,
-    cleanups: 0,
+    scan: None,
+    scanning: false,
+    cleaning: None,
+    cleaned: None,
+    chars: None,
+    profile_job: None,
+    profile_done: None,
 });
 static HWND_MAIN: AtomicIsize = AtomicIsize::new(0);
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
@@ -312,15 +356,25 @@ pub fn config_path() -> Option<PathBuf> {
     ui_paths().map(|(path, _)| path)
 }
 
-/// The green tray icon, for the title bar and taskbar button of windows. Made once, never freed.
+/// The app icon, for the title bar and taskbar button of windows. Loaded once, never freed.
 pub fn app_icon() -> HICON {
     static APP_ICON: AtomicIsize = AtomicIsize::new(0);
     let mut icon = APP_ICON.load(Ordering::Relaxed);
     if icon == 0 {
-        icon = unsafe { make_icon((0x3B, 0xA5, 0x5D), false) } as isize;
+        icon = load_icon(ICON_APP, unsafe { GetSystemMetrics(SM_CXICON) }) as isize;
         APP_ICON.store(icon, Ordering::Relaxed);
     }
     icon as HICON
+}
+
+/// Icons in the exe (`wow-tools.rc`): the app (gold, also the tray while a game runs) and the
+/// tray while none does (grey).
+const ICON_APP: u16 = 1;
+const ICON_IDLE: u16 = 2;
+
+/// Icon `id` of the exe at `size` pixels (the closest of the sizes in the .ico, scaled).
+fn load_icon(id: u16, size: i32) -> HICON {
+    unsafe { LoadImageW(GetModuleHandleW(null()), id as usize as *const u16, IMAGE_ICON, size, size, LR_DEFAULTCOLOR) as HICON }
 }
 
 fn load_ctx() -> Option<Ctx> {
@@ -349,15 +403,13 @@ fn restore_points(ctx: &Ctx) -> Vec<RestorePoint> {
                 running,
                 kind,
             };
-            let full = wtf
+            // Backups and the state before a cleanup; the safety nets before a profile or a copy
+            // (`app::is_safety`) and the addons saved before an update are not listed.
+            let mut list: Vec<RestorePoint> = wtf
                 .iter()
-                .map(|s| point(&s.id, s.created, s.size, snapshot::select(&addons, Some(&s.id)).map(|a| a.size), None));
-            // Addons saved before an update are a point of their own: they roll back only the addons.
-            let before_update = addons
-                .iter()
-                .filter(|a| a.id.ends_with("-pre-update"))
-                .map(|a| point(&a.id, a.created, 0, Some(a.size), Some(Kind::Addons)));
-            let mut list: Vec<RestorePoint> = full.chain(before_update).collect();
+                .filter(|s| !crate::app::is_safety(&s.id) || s.id.ends_with("-pre-cleanup"))
+                .map(|s| point(&s.id, s.created, s.size, snapshot::select(&addons, Some(&s.id)).map(|a| a.size), None))
+                .collect();
             list.sort_by_key(|p| std::cmp::Reverse(p.created));
             list.truncate(POINTS);
             list
@@ -388,10 +440,10 @@ pub fn view() -> View {
     } else {
         tr!("panel.auto_update_off").into()
     };
-    let (status, self_update) = {
-        let st = STATE.lock().unwrap();
-        (st.status.clone(), st.update.clone())
-    };
+    let st = STATE.lock().unwrap();
+    let (status, self_update, scan, cleaning, cleaned) = (st.status.clone(), st.update.clone(), st.scan.clone(), st.cleaning, st.cleaned.clone());
+    let (chars, profile_job, profile_done) = (st.chars.clone(), st.profile_job.clone(), st.profile_done.clone());
+    drop(st);
     View {
         self_update,
         update_waits_for_game: cfg.update_skip_in_game && status.game.is_some(),
@@ -403,12 +455,64 @@ pub fn view() -> View {
         update_text,
         last_update: crate::updater::last_run(),
         updates: crate::updater::history().into_iter().take(panel::HISTORY_ROWS).collect(),
+        scan,
+        cleaning,
+        cleaned,
+        profiles: ctx.as_ref().map(|c| profiles::list(&profiles::root(c))).unwrap_or_default(),
+        chars,
+        profile_job,
+        profile_done,
+        shots_dir: maintenance::screenshots_dir(&cfg),
+        running: ctx.as_ref().and_then(|c| c.flavors(None).ok()).map_or_else(Vec::new, |flavors| {
+            let games = wow::running_games();
+            flavors
+                .into_iter()
+                .filter(|fl| wow::running_in(&games, fl).is_some())
+                .map(|fl| fl.name)
+                .collect()
+        }),
     }
 }
 
-/// How many cleanups have finished (the settings window rescans when this changes).
-pub fn cleanups() -> u32 {
-    STATE.lock().unwrap().cleanups
+/// Reads what the cleanup tab shows again, on a thread of its own (it takes a moment on a big WTF).
+/// UI thread only.
+pub fn rescan() {
+    {
+        let mut st = STATE.lock().unwrap();
+        if st.scanning {
+            return;
+        }
+        st.scanning = true;
+    }
+    let Some(ctx) = load_ctx() else {
+        STATE.lock().unwrap().scanning = false;
+        return;
+    };
+    std::thread::spawn(move || {
+        let flavors = ctx.flavors(None).unwrap_or_default();
+        let scan = maintenance::scan(&flavors);
+        let chars = profiles::characters(&flavors);
+        {
+            let mut st = STATE.lock().unwrap();
+            st.scan = Some(scan);
+            st.chars = Some(chars);
+            st.scanning = false;
+        }
+        post_state();
+    });
+}
+
+/// Drops how the last cleanup and profile job went (the panel shows it until it closes).
+pub fn forget_results() {
+    let mut st = STATE.lock().unwrap();
+    st.cleaned = None;
+    st.profile_done = None;
+}
+
+fn start_profile_job(job: ProfileJob) {
+    let mut st = STATE.lock().unwrap();
+    st.profile_job = Some(job);
+    st.profile_done = None;
 }
 
 /// Updates of WoW Tools itself, for the settings window.
@@ -446,9 +550,31 @@ pub fn act(action: Action) {
         Action::Autostart => toggle_autostart(),
         Action::CheckUpdate => send_self(SelfRequest::Check { manual: true }),
         Action::InstallUpdate => send_self(SelfRequest::Install),
-        Action::Clean(item) => send(Request::Cleanup(item)),
+        Action::Clean(item) => {
+            {
+                let mut st = STATE.lock().unwrap();
+                st.cleaning = Some(item);
+                st.cleaned = None;
+            }
+            send(Request::Cleanup(item))
+        }
+        Action::SaveProfile(entry) => {
+            start_profile_job(ProfileJob::Save);
+            send(Request::SaveProfile {
+                flavor: entry.flavor,
+                character: entry.character,
+            })
+        }
+        Action::ApplyProfile { profile, target } => {
+            start_profile_job(ProfileJob::Apply(profile.path.clone()));
+            send(Request::ApplyProfile {
+                profile,
+                target: target.character,
+            })
+        }
+        Action::DeleteProfile(profile) => profiles::delete(&profile).map(|()| post_state()),
         Action::OpenScreenshots => {
-            let dir = crate::maintenance::screenshots_dir();
+            let dir = maintenance::screenshots_dir(&load_ctx().map_or_else(Config::default, |c| c.cfg));
             std::fs::create_dir_all(&dir)
                 .map_err(Into::into)
                 .and_then(|()| shell_open(&dir.to_string_lossy(), None))
@@ -654,6 +780,7 @@ fn restart() {
 // ---------------------------------------------------------------- worker events
 
 fn on_event(event: Event) {
+    let mut rescan_after = false;
     {
         let mut st = STATE.lock().unwrap();
         match event {
@@ -743,9 +870,32 @@ fn on_event(event: Event) {
                     error: false,
                 });
             }
+            Event::Profile { result, notice } => {
+                st.status.phase = Phase::Idle;
+                st.profile_done = st.profile_job.take().map(|job| match &result {
+                    Ok(summary) => (job, summary.clone(), if notice { Tone::Notice } else { Tone::Ok }),
+                    Err(e) => (job, format!("{e:#}"), Tone::Error),
+                });
+                st.balloon = Some(match result {
+                    Ok(summary) => Balloon {
+                        title: tr!("profiles.title"),
+                        text: summary,
+                        error: false,
+                    },
+                    Err(e) => Balloon {
+                        title: tr!("profiles.failed"),
+                        text: format!("{e:#}"),
+                        error: true,
+                    },
+                });
+            }
             Event::Cleanup(result) => {
                 st.status.phase = Phase::Idle;
-                st.cleanups += 1;
+                rescan_after = true;
+                st.cleaned = st.cleaning.take().map(|item| match &result {
+                    Ok(summary) => (item, summary.clone(), true),
+                    Err(e) => (item, format!("{e:#}"), false),
+                });
                 st.balloon = Some(match result {
                     Ok(summary) => Balloon {
                         title: tr!("cleanup.title"),
@@ -764,6 +914,10 @@ fn on_event(event: Event) {
         if st.restart_pending && st.status.phase != Phase::Busy {
             post(WM_RESTART);
         }
+    }
+    // The cleanup tab shows what is left.
+    if rescan_after {
+        post(WM_RESCAN);
     }
     post_state();
 }
@@ -787,6 +941,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             WM_RESTART => {
                 restart();
+                0
+            }
+            WM_RESCAN => {
+                rescan();
                 0
             }
             WM_STATE => {
@@ -830,21 +988,21 @@ fn tooltip(s: &Status) -> String {
 }
 
 unsafe fn update_tray(hwnd: HWND, action: u32) {
-    let (color, ring, tip, balloon) = {
+    let (id, badge, tip, balloon) = {
         let mut st = STATE.lock().unwrap();
         let s = &st.status;
-        let color = match (&s.phase, s.last) {
-            (Phase::Busy, _) => (0x3B, 0x82, 0xF6),
-            (Phase::Error(_), _) => (0xE5, 0x48, 0x4D),
-            (Phase::Idle, Some(_)) => (0x3B, 0xA5, 0x5D),
-            (Phase::Idle, None) => (0x90, 0x90, 0x90),
+        // Gold while the game runs, grey otherwise; a dot for work (blue) or a failure (red).
+        let id = if s.game.is_some() { ICON_APP } else { ICON_IDLE };
+        let badge = match s.phase {
+            Phase::Busy => Some((0x3B, 0x82, 0xF6)),
+            Phase::Error(_) => Some((0xE5, 0x48, 0x4D)),
+            Phase::Idle => None,
         };
-        let ring = s.phase == Phase::Idle && s.game.is_some();
         let tip = tooltip(s);
-        (color, ring, tip, st.balloon.take())
+        (id, badge, tip, st.balloon.take())
     };
     unsafe {
-        let icon = make_icon(color, ring);
+        let icon = tray_icon(id, badge, GetSystemMetrics(SM_CXSMICON));
         let mut nid: NOTIFYICONDATAW = zeroed();
         nid.cbSize = size_of::<NOTIFYICONDATAW>() as u32;
         nid.hWnd = hwnd;
@@ -877,36 +1035,48 @@ unsafe fn remove_tray(hwnd: HWND) {
     }
 }
 
-/// A round 32x32 icon; `ring` leaves the middle empty.
-unsafe fn make_icon((r, g, b): (u8, u8, u8), ring: bool) -> HICON {
-    const S: i32 = 32;
+/// Tray icon `id` at the small icon size, with a dot of color `badge` in the lower right corner.
+unsafe fn tray_icon(id: u16, badge: Option<(u8, u8, u8)>, s: i32) -> HICON {
     unsafe {
+        let base = load_icon(id, s);
+        let Some((r, g, b)) = badge else { return base };
+        // The icon's pixels (32-bit with alpha), top-down.
+        let mut ii: ICONINFO = zeroed();
+        GetIconInfo(base, &mut ii);
         let mut bi: BITMAPINFO = zeroed();
         bi.bmiHeader.biSize = size_of::<BITMAPINFOHEADER>() as u32;
-        bi.bmiHeader.biWidth = S;
-        bi.bmiHeader.biHeight = -S;
+        bi.bmiHeader.biWidth = s;
+        bi.bmiHeader.biHeight = -s;
         bi.bmiHeader.biPlanes = 1;
         bi.bmiHeader.biBitCount = 32;
         bi.bmiHeader.biCompression = BI_RGB;
         let mut bits = null_mut();
         let color_bmp = CreateDIBSection(null_mut(), &bi, DIB_RGB_COLORS, &mut bits, null_mut(), 0);
-        let px = std::slice::from_raw_parts_mut(bits as *mut u32, (S * S) as usize);
-        let center = (S as f32 - 1.0) / 2.0;
-        for y in 0..S {
-            for x in 0..S {
-                let (dx, dy) = (x as f32 - center, y as f32 - center);
-                let d = (dx * dx + dy * dy).sqrt();
-                let mut alpha = (14.5 - d).clamp(0.0, 1.0);
-                if ring {
-                    alpha *= (d - 8.5).clamp(0.0, 1.0);
+        let px = std::slice::from_raw_parts_mut(bits as *mut u32, (s * s) as usize);
+        let dc = GetDC(null_mut());
+        GetDIBits(dc, ii.hbmColor, 0, s as u32, bits, &mut bi, DIB_RGB_COLORS);
+        ReleaseDC(null_mut(), dc);
+        DeleteObject(ii.hbmColor);
+        DeleteObject(ii.hbmMask);
+        DestroyIcon(base);
+        // A dark rim, then the dot, each blended over what is there.
+        let radius = s as f32 * 0.24;
+        let (cx, cy) = (s as f32 - radius - 1.0, s as f32 - radius - 1.0);
+        for y in 0..s {
+            for x in 0..s {
+                let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+                let p = &mut px[(y * s + x) as usize];
+                for (rad, (cr, cg, cb)) in [(radius + 1.2, (0x20, 0x20, 0x20)), (radius, (r, g, b))] {
+                    let a = (rad - d + 0.5).clamp(0.0, 1.0);
+                    if a > 0.0 {
+                        *p = over(*p, (cr, cg, cb), a);
+                    }
                 }
-                let a = (alpha * 255.0) as u32;
-                let pm = |v: u8| v as u32 * a / 255;
-                px[(y * S + x) as usize] = (a << 24) | (pm(r) << 16) | (pm(g) << 8) | pm(b);
             }
         }
-        let mask_bits = vec![0u8; (S * S / 8) as usize];
-        let mask_bmp = CreateBitmap(S, S, 1, 1, mask_bits.as_ptr() as _);
+        // Rows of a monochrome bitmap are padded to 16 bits.
+        let mask_bits = vec![0u8; ((s + 15) / 16 * 2 * s) as usize];
+        let mask_bmp = CreateBitmap(s, s, 1, 1, mask_bits.as_ptr() as _);
         let ii = ICONINFO {
             fIcon: 1,
             xHotspot: 0,
@@ -919,6 +1089,26 @@ unsafe fn make_icon((r, g, b): (u8, u8, u8), ring: bool) -> HICON {
         DeleteObject(mask_bmp);
         icon
     }
+}
+
+/// The tray icon at `size` px: no game, game running, busy, failed (for `ui-snapshot`).
+pub fn demo_icons(size: i32) -> [HICON; 4] {
+    let (busy, error) = (Some((0x3B, 0x82, 0xF6)), Some((0xE5, 0x48, 0x4D)));
+    unsafe {
+        [
+            tray_icon(ICON_IDLE, None, size),
+            tray_icon(ICON_APP, None, size),
+            tray_icon(ICON_IDLE, busy, size),
+            tray_icon(ICON_APP, error, size),
+        ]
+    }
+}
+
+/// `(r, g, b)` at coverage `a` over the ARGB pixel `p`.
+fn over(p: u32, (r, g, b): (u8, u8, u8), a: f32) -> u32 {
+    let mix = |top: u8, shift: u32| ((top as f32 * a + ((p >> shift) & 0xFF) as f32 * (1.0 - a)).round() as u32) << shift;
+    let alpha = ((a * 255.0 + ((p >> 24) & 0xFF) as f32 * (1.0 - a)).round() as u32).min(255) << 24;
+    alpha | mix(r, 16) | mix(g, 8) | mix(b, 0)
 }
 
 // ---------------------------------------------------------------- actions

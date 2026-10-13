@@ -6,11 +6,13 @@ mod config;
 mod curseforge;
 #[cfg(windows)]
 mod gfx;
+mod lua;
 mod maintenance;
 #[cfg(windows)]
 mod menu;
 #[cfg(windows)]
 mod panel;
+mod profiles;
 mod schedule;
 mod selfupdate;
 #[cfg(windows)]
@@ -28,7 +30,7 @@ use anyhow::{Context, Result, bail};
 use app::Ctx;
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use config::Config;
-use snapshot::{Kind, Outcome};
+use snapshot::Kind;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -153,6 +155,11 @@ enum Cmd {
         #[arg(long)]
         check: bool,
     },
+    /// UI profiles: a character's interface saved under a name, to put on another character
+    Profile {
+        #[command(subcommand)]
+        action: ProfileCmd,
+    },
     /// Automatic start
     Schedule {
         #[command(subcommand)]
@@ -162,7 +169,7 @@ enum Cmd {
     #[command(hide = true)]
     UiSnapshot {
         out: PathBuf,
-        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, menu, settings, settings-backup, settings-exit, settings-addons, settings-every, settings-one or settings-wago
+        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, menu, settings, settings-backup, settings-exit, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
         #[arg(default_value = "panel")]
         view: String,
         #[arg(long)]
@@ -170,6 +177,33 @@ enum Cmd {
         /// Interface language: ru, en, de, fr, es
         #[arg(long)]
         lang: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProfileCmd {
+    /// Save a character's interface as a profile
+    Save {
+        /// Character: Realm/Name or ACCOUNT/Realm/Name
+        character: String,
+        /// Game version: _retail_, _classic_, ...
+        #[arg(long)]
+        flavor: Option<String>,
+    },
+    /// List saved profiles
+    List,
+    /// Put a profile on a character (game closed; WTF is saved first)
+    Apply {
+        /// Profile number from `profile list`
+        profile: usize,
+        /// Character: Realm/Name or ACCOUNT/Realm/Name
+        #[arg(long)]
+        to: String,
+    },
+    /// Delete a profile
+    Delete {
+        /// Profile number from `profile list`
+        profile: usize,
     },
 }
 
@@ -334,6 +368,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::SelfUpdate { check } => cmd_self_update(check),
         Cmd::Clean { items } => cmd_clean(&ctx, &items),
         Cmd::Outdated => cmd_outdated(&ctx),
+        Cmd::Profile { action } => cmd_profile(&ctx, action),
         Cmd::Schedule { action } => cmd_schedule(&ctx, action),
         Cmd::UiSnapshot { out, view, dark, lang } => {
             if let Some(code) = lang {
@@ -413,6 +448,29 @@ fn cmd_tray(_: Ctx) -> Result<()> {
     bail!(tr!("out.tray_windows_only"))
 }
 
+/// Removed addons of the cleanup demo, biggest first.
+#[cfg(windows)]
+const ORPHANS: [(&str, u64); 18] = [
+    ("XPerl", 2_100_000),
+    ("Recount", 1_900_000),
+    ("Skada", 1_400_000),
+    ("AtlasLoot", 1_100_000),
+    ("Gatherer", 800_000),
+    ("Bagnon", 600_000),
+    ("Grid2", 420_000),
+    ("MikScrollingBattleText", 380_000),
+    ("Bartender4", 300_000),
+    ("Prat-3.0", 210_000),
+    ("Dominos", 150_000),
+    ("Quartz", 120_000),
+    ("Omen", 90_000),
+    ("Clique", 70_000),
+    ("TomTom", 50_000),
+    ("Mapster", 40_000),
+    ("OmniCC", 30_000),
+    ("Postal", 20_000),
+];
+
 #[cfg(windows)]
 fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> {
     use chrono::{Duration, Local};
@@ -428,6 +486,43 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         checked: Some(Local::now().naive_local()),
         ..Default::default()
     };
+    if view == "tray-icons" {
+        // Each state at the tray sizes of 100-200 % scaling, over a light and a dark taskbar.
+        let sizes = [16, 20, 24, 32];
+        return Ok(gfx::render_png(&path, 200.0, 250.0, 1.0, |p| {
+            for (row, dark) in [false, true].into_iter().enumerate() {
+                let bg = if dark {
+                    gfx::col(0x20, 0x20, 0x20, 1.0)
+                } else {
+                    gfx::col(0xEE, 0xEE, 0xEE, 1.0)
+                };
+                let y0 = row as f32 * 125.0;
+                p.fill(
+                    gfx::R {
+                        x: 0.0,
+                        y: y0,
+                        w: 200.0,
+                        h: 125.0,
+                    },
+                    0.0,
+                    bg,
+                );
+                let mut y = y0 + 4.0;
+                for size in sizes {
+                    for (i, icon) in tray::demo_icons(size).into_iter().enumerate() {
+                        let r = gfx::R {
+                            x: 8.0 + i as f32 * 46.0,
+                            y,
+                            w: size as f32,
+                            h: size as f32,
+                        };
+                        p.icon(icon, r);
+                    }
+                    y += size as f32 + 6.0;
+                }
+            }
+        })?);
+    }
     if view == "menu" || view == "menu-update" {
         return Ok(menu::snapshot(&path, dark, (view == "menu-update").then_some("0.2.0"))?);
     }
@@ -475,35 +570,20 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                     ..Default::default()
                 }
             },
-            scan: Some(maintenance::Scan {
-                items: [
-                    (
-                        maintenance::Item::Orphans,
-                        maintenance::Found::sample(14, 3_900_000, &["Bagnon", "Dominos", "TomTom", "Recount", "XPerl"]),
-                    ),
-                    (maintenance::Item::Backups, maintenance::Found::sample(1_532, 141_000_000, &[])),
-                    (maintenance::Item::Logs, maintenance::Found::sample(6, 2_300_000_000, &[])),
-                    (maintenance::Item::Screenshots, maintenance::Found::sample(48, 96_000_000, &[])),
-                    (maintenance::Item::Cache, maintenance::Found::sample(312, 410_000_000, &[])),
-                ]
-                .into(),
-                big: vec![
-                    ("Details".into(), 34_000_000),
-                    ("WeakAuras".into(), 12_500_000),
-                    ("Auctionator".into(), 8_100_000),
-                ],
-            }),
             outdated: Some(vec![
-                ("Retail 12.1.0".into(), vec!["BugSack".into(), "Postal".into(), "SilverDragon".into()]),
+                (
+                    "Retail 12.1.0".into(),
+                    ["Auctionator", "BugSack", "Postal", "Rematch", "SilverDragon", "TomCats", "WeakAuras Options"]
+                        .map(String::from)
+                        .to_vec(),
+                ),
                 ("Classic Era 1.15.7".into(), Vec::new()),
             ]),
-            confirm: (view == "settings-confirm").then_some(maintenance::Item::Logs),
-            scanned_at: 0,
         };
         let tab = match view {
             "settings-backup" | "settings-exit" => settings::Tab::Backup,
             "settings-addons" | "settings-every" | "settings-one" | "settings-wago" => settings::Tab::Addons,
-            "settings-cleanup" | "settings-confirm" => settings::Tab::Cleanup,
+            "settings-screenshots" => settings::Tab::Screenshots,
             _ => settings::Tab::General,
         };
         return Ok(settings::snapshot(&path, dark, &model, tab)?);
@@ -528,10 +608,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         },
         points: vec![
             point("_retail_", 0, "", Some(75_300_000)),
-            RestorePoint {
-                kind: Some(Kind::Addons),
-                ..point("_retail_", 1, "-pre-update", Some(71_800_000))
-            },
+            point("_retail_", 1, "-pre-cleanup", Some(75_300_000)),
             point("_classic_era_", 2, "", Some(21_800_000)),
             point("_retail_", 3, "-pre-restore", Some(75_300_000)),
             point("_retail_", 50, "", None),
@@ -580,11 +657,142 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         })
         .to_vec(),
         self_update: if view.starts_with("update") { new_release() } else { Default::default() },
+        scan: (view != "cleanup-scanning").then(|| maintenance::Scan {
+            items: [
+                (
+                    maintenance::Item::Orphans,
+                    maintenance::Found::sample(41, 9_800_000, &ORPHANS.map(|(name, _)| name)),
+                ),
+                (maintenance::Item::Backups, maintenance::Found::sample(1_532, 141_000_000, &[])),
+                (maintenance::Item::Logs, maintenance::Found::sample(6, 2_300_000_000, &[])),
+                (maintenance::Item::Screenshots, maintenance::Found::sample(48, 96_000_000, &[])),
+                (maintenance::Item::Cache, maintenance::Found::sample(312, 410_000_000, &[])),
+            ]
+            .into(),
+            big: vec![
+                ("Details".into(), 34_000_000),
+                ("WeakAuras".into(), 12_500_000),
+                ("Auctionator".into(), 8_100_000),
+            ],
+            orphans: ORPHANS.iter().map(|&(name, size)| (name.to_string(), size)).collect(),
+        }),
+        cleaning: (view == "cleanup-busy").then_some(maintenance::Item::Cache),
+        cleaned: (view == "cleanup-done").then(|| (maintenance::Item::Orphans, tr!("cleanup.removed", n = 41, size = "9.8 MB"), true)),
+        shots_dir: maintenance::screenshots_dir(&Config::default()),
+        running: if view == "profiles-game" { vec!["_retail_".into()] } else { Vec::new() },
+        profiles: if view == "profiles-empty" {
+            Vec::new()
+        } else {
+            [
+                ("Gronckk", "Tarren Mill", 0, 13),
+                ("Gronckpriest", "Azuregos", 26, 9),
+                ("Groncky", "Tarren Mill", 30, 12),
+                ("Amenomi", "Draenor", 200, 4),
+                ("Mistweaver", "Kazzak", 400, 0),
+                ("Gronckdk", "Silvermoon", 900, 11),
+            ]
+            .map(|(name, realm, hours, addons)| profiles::Profile {
+                path: format!("{name}-{realm}.zip").into(),
+                meta: profiles::Meta {
+                    flavor: "_retail_".into(),
+                    account: "132678446#1".into(),
+                    realm: realm.into(),
+                    name: name.into(),
+                    created: now - Duration::hours(hours),
+                    files: 28,
+                    hash: String::new(),
+                    addons: [
+                        "BigWigs",
+                        "Clique",
+                        "ElvUI",
+                        "HandyNotes",
+                        "Paste",
+                        "TomTom",
+                        "WorldQuestTracker",
+                        "Details",
+                        "Plater",
+                        "OmniCD",
+                        "MRT",
+                        "Bartender4",
+                        "Masque",
+                    ][..addons]
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                },
+            })
+            .to_vec()
+        },
+        chars: Some(
+            [
+                ("Gronckk", "Tarren Mill"),
+                ("Groncky", "Tarren Mill"),
+                ("Gronckpriest", "Azuregos"),
+                ("Gronklock", "Azuregos"),
+                ("Grumpyfluff", "Tarren Mill"),
+                ("Amenomi", "Draenor"),
+                ("Groncy", "Tarren Mill"),
+                ("Mistweaver", "Kazzak"),
+                ("Gronckdk", "Silvermoon"),
+                ("Gronkshaman", "Gordunni"),
+                ("Gronckhunt", "Tarren Mill"),
+                ("Gronckdh", "Kazzak"),
+                ("Gronckmage", "Silvermoon"),
+                ("Gronkwar", "Howling Fjord"),
+                ("Gronckevo", "Draenor"),
+            ]
+            .iter()
+            .enumerate()
+            .map(|(i, &(name, realm))| profiles::CharEntry {
+                flavor: "_retail_".into(),
+                character: chars::Character {
+                    account: "132678446#1".into(),
+                    realm: realm.into(),
+                    name: name.into(),
+                    dir: Default::default(),
+                },
+                // Played a few hours apart, then days apart.
+                played: Some(now - Duration::hours(if i < 4 { i as i64 * 3 } else { i as i64 * 40 })),
+            })
+            .collect(),
+        ),
+        profile_job: match view {
+            "profiles-busy" => Some(tray::ProfileJob::Apply("Groncky-Tarren Mill.zip".into())),
+            _ => None,
+        },
+        profile_done: match view {
+            "profiles-done" => Some((
+                tray::ProfileJob::Save,
+                tr!("profiles.saved", name = "Gronckk (Tarren Mill)", files = 28, addons = 13),
+                tray::Tone::Ok,
+            )),
+            "profiles-same" => Some((
+                tray::ProfileJob::Save,
+                tr!("profiles.unchanged", time = profiles::short_time(now - Duration::minutes(10))),
+                tray::Tone::Notice,
+            )),
+            _ => None,
+        },
     };
     let mut confirm = None;
-    let tab = if view.starts_with("addons") { panel::Tab::Addons } else { panel::Tab::Backup };
+    let tab = match view {
+        v if v.starts_with("addons") => panel::Tab::Addons,
+        v if v.starts_with("cleanup") => panel::Tab::Cleanup,
+        v if v.starts_with("profiles") => panel::Tab::Profiles,
+        _ => panel::Tab::Backup,
+    };
     match view {
         "busy" => demo.status.phase = Phase::Busy,
+        "cleanup-busy" => {
+            demo.status.phase = Phase::Busy;
+            demo.status.work = watch::Work::Cleanup;
+        }
+        "cleanup-confirm" => confirm = Some(panel::Confirm::Clean(maintenance::Item::Logs)),
+        "profiles-confirm" => confirm = Some(panel::Confirm::ApplyProfile(0, 1)),
+        "profiles-busy" => {
+            demo.status.phase = Phase::Busy;
+            demo.status.work = watch::Work::Profile;
+        }
         "addons-busy" | "busy-addons" => {
             demo.status.phase = Phase::Busy;
             demo.status.work = watch::Work::Addons;
@@ -600,7 +808,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             }
         }
         "error" => demo.status.phase = Phase::Error(format!("_retail_ WTF: {} (os error 5)", tr!("snapshot.remove_failed", path = "Config.wtf"))),
-        "confirm" => confirm = Some(1),
+        "confirm" => confirm = Some(panel::Confirm::Restore(1)),
         "empty" => {
             demo.points.clear();
             demo.status.last = None;
@@ -608,16 +816,32 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         }
         _ => {}
     }
-    let tip = (view == "addons-tip").then_some(2);
+    let tip = match view {
+        "addons-tip" => Some(2),
+        "cleanup-tip" => Some(1),
+        "profiles-tip" | "profiles-game" => Some(0),
+        _ => None,
+    };
     Ok(panel::snapshot(
         &path,
         dark,
         &demo,
         tab,
-        view == "panel" || view == "addons",
+        view == "panel" || view == "addons" || view == "cleanup" || view == "profiles",
         confirm,
         tip,
         view == "update-tip",
+        match view {
+            "cleanup-list" => Some(panel::SheetList::Clean(maintenance::List::Orphans)),
+            "profiles-pick" => Some(panel::SheetList::SaveFrom),
+            "profiles-apply" | "profiles-search" => Some(panel::SheetList::ApplyTo(0)),
+            _ => None,
+        }
+        .map(|list| panel::Sheet {
+            list,
+            first: 0,
+            search: if view == "profiles-search" { "tar".into() } else { String::new() },
+        }),
     )?)
 }
 
@@ -782,8 +1006,8 @@ fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], fl
     let targets = to.iter().map(|t| chars::find(&list, t)).collect::<Result<Vec<_>>>()?;
     let parts = if parts.is_empty() { &chars::Part::ALL[..] } else { parts };
 
-    if !dry_run && let Outcome::Created(pre) = ctx.store().backup(&fl, Kind::Wtf, true, Some("pre-copy"))? {
-        log::info!("{}", tr!("out.pre_copy_saved", id = pre.id));
+    if !dry_run && let Some(id) = app::safety_snapshot(ctx, &fl, "pre-copy")? {
+        log::info!("{}", tr!("out.pre_copy_saved", id = id));
     }
     for dst in targets {
         let done = chars::copy(src, dst, parts, dry_run)?;
@@ -796,6 +1020,51 @@ fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], fl
         for f in done {
             println!("  {f}");
         }
+    }
+    Ok(())
+}
+
+fn cmd_profile(ctx: &Ctx, action: ProfileCmd) -> Result<()> {
+    let pick = |n: usize| -> Result<profiles::Profile> {
+        let list = profiles::list(&profiles::root(ctx));
+        n.checked_sub(1)
+            .and_then(|i| list.get(i).cloned())
+            .with_context(|| tr!("profiles.no_such", n = n, count = list.len()))
+    };
+    match action {
+        ProfileCmd::Save { character, flavor } => {
+            let fl = ctx.single_flavor(flavor.as_deref())?;
+            let list = chars::list(&fl.wtf_dir());
+            let summary = profiles::save(ctx, &fl, chars::find(&list, &character)?)?.summary;
+            println!("{summary}");
+        }
+        ProfileCmd::List => {
+            let list = profiles::list(&profiles::root(ctx));
+            if list.is_empty() {
+                println!("{}", tr!("profiles.none"));
+            }
+            for (i, p) in list.iter().enumerate() {
+                let m = &p.meta;
+                println!(
+                    "{}. {} — {}, {}, {}",
+                    i + 1,
+                    p.title(),
+                    wow::flavor_title(&m.flavor),
+                    m.created.format("%Y-%m-%d %H:%M"),
+                    tr!("profiles.contents", files = m.files, addons = m.addons.len())
+                );
+                if !m.addons.is_empty() {
+                    println!("   {}", m.addons.join(", "));
+                }
+            }
+        }
+        ProfileCmd::Apply { profile, to } => {
+            let profile = pick(profile)?;
+            let fl = ctx.single_flavor(Some(&profile.meta.flavor))?;
+            let list = chars::list(&fl.wtf_dir());
+            println!("{}", profiles::apply(ctx, &fl, &profile, chars::find(&list, &to)?)?);
+        }
+        ProfileCmd::Delete { profile } => profiles::delete(&pick(profile)?)?,
     }
     Ok(())
 }

@@ -1,6 +1,6 @@
 [package]
 name = "wow-tools"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "WoW Tools: snapshots of WTF and addons, settings between characters"
 repository = "https://github.com/Gronck2/wow-tools"
@@ -62,3 +62,6 @@ features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ]
+
+[build-dependencies]
+embed-resource = "3.0.12"

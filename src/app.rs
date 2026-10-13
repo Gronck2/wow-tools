@@ -136,6 +136,36 @@ pub fn backup_all(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bo
 }
 
 /// Fails while the client of `fl` runs: it would overwrite the files on exit.
+/// Labels of the snapshots taken right before an action changes WTF. They are a safety net: the
+/// panel lists only the ones before a cleanup.
+const SAFETY: [&str; 3] = ["pre-cleanup", "pre-profile", "pre-copy"];
+
+/// How long a safety snapshot covers the actions after it.
+const SAFETY_REUSE_MIN: i64 = 10;
+
+pub fn is_safety(id: &str) -> bool {
+    SAFETY.iter().any(|label| id.ends_with(&format!("-{label}")))
+}
+
+/// Saves `fl`'s WTF (label `label`, one of `SAFETY`) before an action changes it, unless the
+/// newest snapshot already is such a safety net from the last few minutes: it holds the state
+/// before the whole series, so going back to it undoes all of it. Returns the new snapshot's id.
+pub fn safety_snapshot(ctx: &Ctx, fl: &Flavor, label: &str) -> Result<Option<String>> {
+    let store = ctx.store();
+    let recent = chrono::Local::now().naive_local() - chrono::Duration::minutes(SAFETY_REUSE_MIN);
+    if let Some(last) = store.list(fl, Kind::Wtf)?.last()
+        && is_safety(&last.id)
+        && last.created >= recent
+    {
+        log::info!("{}", tr!("app.safety_reused", flavor = fl.title(), id = &last.id));
+        return Ok(None);
+    }
+    Ok(match store.backup(fl, Kind::Wtf, true, Some(label))? {
+        Outcome::Created(s) => Some(s.id),
+        _ => None,
+    })
+}
+
 pub fn ensure_game_closed(fl: &Flavor) -> Result<()> {
     if let Some(p) = wow::running_in(&wow::running_games(), fl) {
         bail!(tr!("app.close_game", game = p, flavor = fl.title()));

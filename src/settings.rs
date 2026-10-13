@@ -17,13 +17,13 @@ use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_ESCAPE};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
-use crate::config::{self, APP_NAME, Config, Day, UpdateWhen, When};
+use crate::config::{self, APP_NAME, Config, Day, ShotsBy, UpdateWhen, When};
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
 use crate::i18n::Lang;
-use crate::maintenance::{self, Item};
+use crate::maintenance;
 use crate::tray::{self, Action};
 use crate::updater::{self, AddonApp};
-use crate::{schedule, snapshot, wow};
+use crate::{schedule, wow};
 
 const W: f32 = 560.0;
 const PAD: f32 = 20.0;
@@ -58,14 +58,8 @@ pub struct Model {
     pub message: Option<(String, bool)>,
     /// Updates of WoW Tools itself.
     pub update: tray::SelfUpdate,
-    /// What the cleanup tab found; read when the tab opens and again after a cleanup.
-    pub scan: Option<maintenance::Scan>,
     /// Addons not made for the client version, per flavor ("Retail 12.1.0"); read with the Addons tab.
     pub outdated: Option<Vec<(String, Vec<String>)>>,
-    /// The cleanup button that asks "sure?" now.
-    pub confirm: Option<Item>,
-    /// `tray::cleanups()` when `scan` was read.
-    pub scanned_at: u32,
 }
 
 impl Model {
@@ -84,10 +78,7 @@ impl Model {
             last_update: crate::updater::last_run(),
             message,
             update: tray::self_update(),
-            scan: None,
             outdated: None,
-            confirm: None,
-            scanned_at: 0,
         };
         m.find_flavors();
         m.weakauras = m.flavors.iter().any(|f| f.dir.join(r"Interface\AddOns\WeakAuras").is_dir());
@@ -115,13 +106,9 @@ impl Model {
         self.flavors.iter().filter(|f| self.flavor_on(&f.name)).cloned().collect()
     }
 
-    /// Reads what `tab` shows from the disk, once: the cleanup scan, the outdated addons.
+    /// Reads what `tab` shows from the disk, once: the outdated addons.
     fn read_for(&mut self, tab: Tab) {
         match tab {
-            Tab::Cleanup if self.scan.is_none() => {
-                self.scan = Some(maintenance::scan(&self.selected_flavors()));
-                self.scanned_at = tray::cleanups();
-            }
             Tab::Addons if self.outdated.is_none() => {
                 let list = self
                     .selected_flavors()
@@ -141,7 +128,6 @@ impl Model {
 
     /// Forgets what was read from the disk (the game folder or the versions changed).
     fn forget_reads(&mut self) {
-        self.scan = None;
         self.outdated = None;
     }
 }
@@ -175,12 +161,9 @@ enum Row {
     Version,
     File,
     Outdated,
-    Orphans,
-    WtfCopies,
-    BigSettings,
-    Logs,
-    Screenshots,
-    Cache,
+    ShotsDir,
+    ShotsBy,
+    ShotsFlavor,
 }
 
 /// The pages of the window, switched by the tabs at the top.
@@ -190,31 +173,19 @@ pub enum Tab {
     General,
     Backup,
     Addons,
-    Cleanup,
+    Screenshots,
 }
 
 impl Tab {
-    const ALL: [Tab; 4] = [Tab::General, Tab::Backup, Tab::Addons, Tab::Cleanup];
+    const ALL: [Tab; 4] = [Tab::General, Tab::Backup, Tab::Addons, Tab::Screenshots];
 
     fn label(self) -> &'static str {
         match self {
             Tab::General => tr!("settings.tab_general"),
             Tab::Backup => tr!("panel.tab_backup"),
             Tab::Addons => tr!("panel.tab_addons"),
-            Tab::Cleanup => tr!("cleanup.tab"),
+            Tab::Screenshots => tr!("settings.tab_screenshots"),
         }
-    }
-}
-
-/// The cleanup a card does.
-fn clean_item(kind: Row) -> Option<Item> {
-    match kind {
-        Row::Orphans => Some(Item::Orphans),
-        Row::WtfCopies => Some(Item::Backups),
-        Row::Logs => Some(Item::Logs),
-        Row::Screenshots => Some(Item::Screenshots),
-        Row::Cache => Some(Item::Cache),
-        _ => None,
     }
 }
 
@@ -258,13 +229,7 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
             }
             rows.extend([Row::Section(tr!("cleanup.section_compat")), Row::Outdated]);
         }
-        Tab::Cleanup => {
-            rows.extend([Row::Section(tr!("cleanup.section_wtf")), Row::Orphans, Row::WtfCopies]);
-            if m.scan.as_ref().is_some_and(|s| !s.big.is_empty()) {
-                rows.push(Row::BigSettings);
-            }
-            rows.extend([Row::Section(tr!("cleanup.section_game")), Row::Logs, Row::Screenshots, Row::Cache]);
-        }
+        Tab::Screenshots => rows.extend([Row::Section(tr!("settings.section_screenshots")), Row::ShotsDir, Row::ShotsBy, Row::ShotsFlavor]),
     }
     rows
 }
@@ -319,9 +284,11 @@ enum Hit {
     CheckNow,
     InstallUpdate,
     File,
-    /// First click asks "sure?", the second one cleans.
-    Clean(Item),
-    OpenScreenshots,
+    ShotsChange,
+    /// Back to `PicturesWorld of Warcraft`.
+    ShotsAuto,
+    ShotsBy(ShotsBy),
+    ShotsFlavor,
 }
 
 /// The chips of a card (versions, days): label, on, what a click does.
@@ -345,6 +312,10 @@ fn chip_items(kind: Row, m: &Model) -> Vec<(String, bool, Hit)> {
                     .iter()
                     .map(|&l| (l.native().to_string(), m.cfg.language == Some(l), Hit::Lang(Some(l)))),
             )
+            .collect(),
+        Row::ShotsBy => ShotsBy::ALL
+            .iter()
+            .map(|&b| (shots_by_label(b).to_string(), m.cfg.screenshots_by == b, Hit::ShotsBy(b)))
             .collect(),
         Row::UpdateDays => Day::ALL
             .iter()
@@ -375,7 +346,7 @@ fn chips(r: R, kind: Row, m: &Model, f: &Formats) -> Vec<(R, String, bool, Hit)>
 fn row_height(row: Row, m: &Model, f: &Formats) -> f32 {
     match row {
         Row::Section(_) => SECTION_H,
-        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language => {
+        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy => {
             let probe = R {
                 x: PAD,
                 y: 0.0,
@@ -384,8 +355,48 @@ fn row_height(row: Row, m: &Model, f: &Formats) -> f32 {
             };
             chips(probe, row, m, f).last().map_or(ROW_H, |(c, ..)| c.y + c.h + 16.0)
         }
+        Row::Outdated => match outdated_blocks(m) {
+            blocks if blocks.is_empty() => ROW_H,
+            blocks => BLOCKS_Y + blocks_height(&blocks, f) + 8.0,
+        },
         _ => ROW_H,
     }
+}
+
+/// How a paragraph of the outdated card looks.
+#[derive(Clone, Copy)]
+enum Tone {
+    Warn,
+    Text,
+    Faint,
+}
+
+/// Where the paragraphs of the outdated card start, under its title.
+const BLOCKS_Y: f32 = 34.0;
+const BLOCK_GAP: f32 = 6.0;
+const BLOCK_W: f32 = W - 2.0 * PAD - 56.0 - 16.0;
+
+/// The outdated card spelled out under its title: for every game version with such addons a
+/// heading and all their names, then the versions without any and a note. Empty when none is outdated.
+fn outdated_blocks(m: &Model) -> Vec<(String, Tone)> {
+    let list = m.outdated.as_deref().unwrap_or_default();
+    if list.iter().all(|(_, names)| names.is_empty()) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (flavor, names) in list.iter().filter(|(_, names)| !names.is_empty()) {
+        out.push((tr!("cleanup.outdated_head", flavor = flavor, n = names.len()), Tone::Warn));
+        out.push((names.join(", "), Tone::Text));
+    }
+    for (flavor, _) in list.iter().filter(|(_, names)| names.is_empty()) {
+        out.push((tr!("cleanup.outdated_ok", flavor = flavor), Tone::Faint));
+    }
+    out.push((tr!("cleanup.outdated_note").to_string(), Tone::Faint));
+    out
+}
+
+fn blocks_height(blocks: &[(String, Tone)], f: &Formats) -> f32 {
+    blocks.iter().map(|(s, _)| gfx::text_height(&f.wrap, s, BLOCK_W) + BLOCK_GAP).sum()
 }
 
 fn layout(m: &Model, f: &Formats, tab: Tab) -> Vec<(R, Row)> {
@@ -467,6 +478,15 @@ fn shift_time(t: chrono::NaiveTime, minutes: i64) -> chrono::NaiveTime {
 }
 
 /// The value of the "update every" stepper: "30 min", "2 h".
+fn shots_by_label(by: ShotsBy) -> &'static str {
+    match by {
+        ShotsBy::Year => tr!("settings.shots_by_year"),
+        ShotsBy::Month => tr!("settings.shots_by_month"),
+        ShotsBy::Day => tr!("settings.shots_by_day"),
+        ShotsBy::None => tr!("settings.shots_by_none"),
+    }
+}
+
 fn every_label(minutes: u64) -> String {
     if minutes >= 60 && minutes.is_multiple_of(60) {
         tr!("settings.hours", n = minutes / 60)
@@ -550,7 +570,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
                 button(&mut out, tr!("settings.auto"), Hit::WowAuto);
             }
         }
-        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language => {
+        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy => {
             for (r, label, on, hit) in chips(row, kind, m, f) {
                 out.push(Control {
                     r,
@@ -622,22 +642,14 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             }
         }
         Row::File => button(&mut out, tr!("settings.open"), Hit::File),
-        Row::Outdated | Row::BigSettings => {}
-        Row::Orphans | Row::WtfCopies | Row::Logs | Row::Screenshots | Row::Cache => {
-            let Some(item) = clean_item(kind) else { return out };
-            if kind == Row::Screenshots {
-                button(&mut out, tr!("settings.open"), Hit::OpenScreenshots);
-            }
-            if m.scan.as_ref().is_some_and(|s| s.get(item).files > 0) {
-                let label = match item {
-                    _ if m.confirm == Some(item) => tr!("cleanup.confirm"),
-                    Item::Screenshots => tr!("cleanup.move"),
-                    Item::Cache => tr!("cleanup.clear"),
-                    _ => tr!("cleanup.delete"),
-                };
-                button(&mut out, label, Hit::Clean(item));
+        Row::ShotsDir => {
+            button(&mut out, tr!("settings.change"), Hit::ShotsChange);
+            if m.cfg.screenshots_dir.is_some() {
+                button(&mut out, tr!("settings.auto"), Hit::ShotsAuto);
             }
         }
+        Row::ShotsFlavor => switch(&mut out, m.cfg.screenshots_per_flavor, Hit::ShotsFlavor),
+        Row::Outdated => {}
     }
     out
 }
@@ -671,6 +683,7 @@ struct Formats {
     section: IDWriteTextFormat,
     title: IDWriteTextFormat,
     sub: IDWriteTextFormat,
+    wrap: IDWriteTextFormat,
     path: IDWriteTextFormat,
     button: IDWriteTextFormat,
     value: IDWriteTextFormat,
@@ -686,6 +699,7 @@ fn formats() -> gfx::Result<Formats> {
         section: gfx::text_format(&dw, gfx::UI_FONT, 14.0, true, Align::Left)?,
         title: gfx::text_format(&dw, gfx::UI_FONT, 14.0, false, Align::Left)?,
         sub: gfx::text_format(&dw, gfx::UI_FONT, 12.0, false, Align::Left)?,
+        wrap: gfx::wrap_format(&dw, 12.0)?,
         path: gfx::path_format(&dw, 12.0)?,
         button: gfx::text_format(&dw, gfx::UI_FONT, 13.0, false, Align::Center)?,
         value: gfx::text_format(&dw, gfx::UI_FONT, 14.0, false, Align::Center)?,
@@ -810,88 +824,20 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             ("\u{E946}", concat!("WoW Tools ", env!("CARGO_PKG_VERSION")), sub, error)
         }
         Row::File => ("\u{E8A5}", tr!("settings.file"), tr!("settings.file_sub").into(), false),
+        Row::ShotsDir => ("\u{E722}", tr!("settings.shots_dir"), path_text(&maintenance::screenshots_dir(&m.cfg)), false),
+        Row::ShotsBy => ("\u{E787}", tr!("settings.shots_by"), tr!("settings.shots_by_sub").into(), false),
+        Row::ShotsFlavor => ("\u{E8F1}", tr!("settings.shots_flavor"), tr!("settings.shots_flavor_sub").into(), false),
         Row::Outdated => {
+            // With outdated addons the card lists them in full (`outdated_blocks`) instead.
             let list = m.outdated.as_deref().unwrap_or_default();
-            // Only the versions with outdated addons, so the names fit; "all fine" lists the versions.
-            let bad: Vec<String> = list
-                .iter()
-                .filter(|(_, names)| !names.is_empty())
-                .map(|(flavor, names)| {
-                    tr!(
-                        "cleanup.outdated_sub",
-                        flavor = flavor,
-                        n = names.len(),
-                        names = maintenance::names_text(names, 4)
-                    )
-                })
-                .collect();
             let sub = if list.is_empty() {
                 tr!("cleanup.outdated_unknown").to_string()
-            } else if bad.is_empty() {
+            } else {
                 let flavors: Vec<&str> = list.iter().map(|(f, _)| f.as_str()).collect();
                 tr!("cleanup.outdated_all_ok", flavors = flavors.join(", "))
-            } else {
-                bad.join(" · ")
             };
-            let any = !bad.is_empty();
-            (if any { "\u{E7BA}" } else { "\u{E73E}" }, tr!("cleanup.outdated"), sub, false)
-        }
-        Row::BigSettings => {
-            let big = m.scan.as_ref().map(|s| s.big.as_slice()).unwrap_or_default();
-            let list: Vec<String> = big
-                .iter()
-                .take(4)
-                .map(|(name, size)| format!("{name} {}", snapshot::human_size(*size)))
-                .collect();
-            ("\u{E9F9}", tr!("cleanup.big"), tr!("cleanup.big_sub", list = list.join(" · ")), false)
-        }
-        Row::Orphans | Row::WtfCopies | Row::Logs | Row::Screenshots | Row::Cache => {
-            let item = clean_item(kind).unwrap_or(Item::Cache);
-            let found = m.scan.as_ref().map(|s| s.get(item)).unwrap_or_default();
-            let size = snapshot::human_size(found.bytes);
-            let (icon, title, sub) = match item {
-                Item::Orphans => (
-                    "\u{E74D}",
-                    tr!("cleanup.orphans"),
-                    match found.names.len() {
-                        0 => tr!("cleanup.orphans_none").to_string(),
-                        n => tr!("cleanup.orphans_sub", n = n, size = size, names = maintenance::names_text(&found.names, 4)),
-                    },
-                ),
-                Item::Backups => (
-                    "\u{E8C8}",
-                    tr!("cleanup.backups"),
-                    match found.files {
-                        0 => tr!("cleanup.none").to_string(),
-                        n => tr!("cleanup.backups_sub", n = n, size = size),
-                    },
-                ),
-                Item::Logs => (
-                    "\u{E7C3}",
-                    tr!("cleanup.logs"),
-                    match found.files {
-                        0 => tr!("cleanup.logs_none").to_string(),
-                        n => tr!("cleanup.logs_sub", n = n, size = size),
-                    },
-                ),
-                Item::Screenshots => (
-                    "\u{E722}",
-                    tr!("cleanup.screenshots"),
-                    match found.files {
-                        0 => tr!("cleanup.screenshots_none").to_string(),
-                        n => tr!("cleanup.screenshots_sub", n = n, size = size),
-                    },
-                ),
-                Item::Cache => (
-                    "\u{E74C}",
-                    tr!("cleanup.cache"),
-                    match found.files {
-                        0 => tr!("cleanup.none").to_string(),
-                        _ => tr!("cleanup.cache_sub", size = size),
-                    },
-                ),
-            };
-            (icon, title, sub, false)
+            let icon = if outdated_blocks(m).is_empty() { "\u{E73E}" } else { "\u{E7BA}" };
+            (icon, tr!("cleanup.outdated"), sub, false)
         }
     }
 }
@@ -917,7 +863,9 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
         let ctls = controls(r, kind, m, f);
         let card_hover = ctls.iter().any(|c| matches!(c.ctl, Ctl::Card) && c.hit.is_some() && c.hit == hover);
         p.fill(r, 6.0, if card_hover { t.card_hover } else { t.card });
-        p.stroke(r, 6.0, t.stroke, 1.0);
+        let blocks = if kind == Row::Outdated { outdated_blocks(m) } else { Vec::new() };
+        // Outdated addons are a warning, like an error in the panel.
+        p.stroke(r, 6.0, if blocks.is_empty() { t.stroke } else { t.warn }, 1.0);
 
         let (icon, title, sub, sub_error) = texts(kind, m);
         p.text(
@@ -929,7 +877,7 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
                 h: ROW_H,
                 ..r
             },
-            t.text,
+            if blocks.is_empty() { t.text } else { t.warn },
         );
         // Text runs up to the leftmost control.
         let text_x = r.x + 56.0;
@@ -950,9 +898,27 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
             },
             t.text,
         );
+        if !blocks.is_empty() {
+            let mut y = r.y + BLOCKS_Y;
+            for (s, tone) in &blocks {
+                let h = gfx::text_height(&f.wrap, s, BLOCK_W);
+                let color = match tone {
+                    Tone::Warn => t.warn,
+                    Tone::Text => t.text,
+                    Tone::Faint => t.text2,
+                };
+                p.text(s, &f.wrap, R { x: text_x, y, w: BLOCK_W, h }, color);
+                y += h + BLOCK_GAP;
+            }
+            continue;
+        }
         p.text(
             &sub,
-            if matches!(kind, Row::Wow | Row::Backups) { &f.path } else { &f.sub },
+            if matches!(kind, Row::Wow | Row::Backups | Row::ShotsDir) {
+                &f.path
+            } else {
+                &f.sub
+            },
             R {
                 x: text_x,
                 y: r.y + 32.0,
@@ -1094,10 +1060,6 @@ fn game_root(picked: PathBuf) -> Result<PathBuf, String> {
 /// Applies a click; returns the action for the tray to run after the borrow ends.
 fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
     let mut note = None;
-    // A "sure?" lasts until the next click elsewhere.
-    if !matches!(hit, Hit::Clean(_)) {
-        m.confirm = None;
-    }
     // Another game folder or other versions: what was read from the disk is stale.
     if matches!(hit, Hit::Flavor(_) | Hit::WowChange | Hit::WowAuto) {
         m.forget_reads();
@@ -1226,15 +1188,17 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
         Hit::CheckNow => return Some(Action::CheckUpdate),
         Hit::InstallUpdate => return Some(Action::InstallUpdate),
         Hit::File => return Some(Action::OpenConfigFile),
-        Hit::OpenScreenshots => return Some(Action::OpenScreenshots),
-        Hit::Clean(item) if m.confirm == Some(item) => {
-            m.confirm = None;
-            return Some(Action::Clean(item));
+        Hit::ShotsChange => {
+            let cur = maintenance::screenshots_dir(&m.cfg);
+            let picked = gfx::pick_folder(hwnd, tr!("settings.pick_screenshots"), Some(&cur))?;
+            if picked == cur {
+                return None;
+            }
+            m.cfg.screenshots_dir = Some(picked);
         }
-        Hit::Clean(item) => {
-            m.confirm = Some(item);
-            return None;
-        }
+        Hit::ShotsAuto => m.cfg.screenshots_dir = None,
+        Hit::ShotsBy(by) => m.cfg.screenshots_by = by,
+        Hit::ShotsFlavor => m.cfg.screenshots_per_flavor = !m.cfg.screenshots_per_flavor,
     }
     let path = tray::config_path()?;
     m.message = match m.cfg.save(&path) {
@@ -1312,12 +1276,6 @@ pub fn refresh() {
     if let Some(hwnd) = with_window(|w| {
         w.model.autostart = schedule::logon_command().is_some();
         w.model.update = tray::self_update();
-        // A cleanup finished: read the disk again.
-        if w.model.scan.is_some() && w.model.scanned_at != tray::cleanups() {
-            w.model.scan = None;
-            let tab = w.tab;
-            w.model.read_for(tab);
-        }
         w.surface.hwnd
     }) {
         fit(hwnd);
@@ -1375,7 +1333,6 @@ fn click(hwnd: HWND, hit: Hit) {
             w.tab = tab;
             w.scroll = 0.0;
             w.hover = None;
-            w.model.confirm = None;
             w.model.read_for(tab);
         });
         fit(hwnd);
@@ -1417,10 +1374,7 @@ impl Model {
             last_update: None,
             message: None,
             update: tray::SelfUpdate::default(),
-            scan: None,
             outdated: None,
-            confirm: None,
-            scanned_at: 0,
         }
     }
 }

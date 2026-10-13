@@ -14,6 +14,8 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
   new version, and you see which addons are not made for it yet.
 - **Cleanup**: settings of removed addons, WoW's `.bak` copies, old combat logs, screenshots and the cache — with
   sizes, in one click.
+- **UI profiles**: save a character's interface (bindings, macros, layout, addons and their profiles) and put it
+  on another character in two clicks.
 - Updates itself: checks GitHub once a day and installs a new version in one click.
 - English, Russian, German, French and Spanish.
 
@@ -34,6 +36,7 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - [Addon updates](#addon-updates)
 - [Game patches](#game-patches)
 - [Cleanup](#cleanup)
+- [UI profiles](#ui-profiles)
 - [Copying settings between characters](#copying-settings-between-characters)
 - [Command line](#command-line)
 - [Files and folders](#files-and-folders)
@@ -74,11 +77,10 @@ The icon shows the current state:
 
 | Icon | Meaning |
 | --- | --- |
-| green | everything is fine |
-| ring | the game is running, the backup will be taken after it exits |
-| blue | working: backup, restore or addon update |
-| red | the last operation failed (hover the icon or open the panel to see why) |
-| grey | no backups yet |
+| grey emblem | the game is not running |
+| gold emblem | the game is running (the backup will be taken after it exits) |
+| blue dot | working: backup, restore, addon update, cleanup or a profile |
+| red dot | the last operation failed (hover the icon or open the panel to see why) |
 
 **Left click** opens the panel (Windows 11 style, follows the light/dark theme and the accent colour):
 
@@ -86,6 +88,9 @@ The icon shows the current state:
   points of every game version with a **Restore** button (confirmed right in the row).
 - **Addons** tab: when addons were last updated, **Update addons**, and the last five update runs — what was updated
   or what went wrong (hover a row for the full text).
+- **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
+  [Cleanup](#cleanup).
+- **Profiles** tab: saved UI profiles and **Save a profile** — see [UI profiles](#ui-profiles).
 - At the top: the backups folder and the settings; at the bottom: **Start with Windows**.
 
 **Right click** opens the menu: the panel, back up now, update addons, backups folder, settings, log, autostart, exit.
@@ -101,15 +106,15 @@ Notifications appear for the results of what you started yourself and for new er
 
 Every change is saved at once and applied without a restart.
 
-- **General**: game folder (found automatically, can be set by hand), which game versions to back up, language,
+- **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), language,
   start with Windows, **Check for updates** and the current version with **Check** / **Install**, and a link to
   `config.toml` for the rarely needed options.
 - **Backup**: when to back up (*after the game* closes, or *on schedule* — chosen weekdays at a set time), how many
   snapshots to keep, the **Back up addons** and **Wait for the game to exit** switches, the backups folder.
 - **Addons**: the program to update with, **Don't update while playing**, **Update automatically**, and when —
-  *periodically* (every 30 min … 12 h) or *on schedule* (days and time); below, which addons are not made for the
-  current game version.
-- **Cleanup**: what can be tidied up in WTF and the game folder, with sizes — see [Cleanup](#cleanup).
+  *periodically* (every 30 min … 12 h) or *on schedule* (days and time); below, every addon that is not made for the
+  current game version (see [Game patches](#game-patches)).
+- **Screenshots**: where the cleanup moves screenshots and how it sorts them (see [Cleanup](#cleanup)).
 
 ## Backups: how they work
 
@@ -135,7 +140,12 @@ closed (others may run). Before anything is replaced, the current state is saved
 A restore unpacks the archive into a temporary folder next to the real one and only then swaps the folders, so an
 interrupted restore never leaves a half-written `WTF`.
 
-Points labelled *before update* hold addons only — they undo an addon update and leave settings as they are.
+The `AddOns` snapshots taken *before update* are not listed in the panel: `wow-tools list --kind addons` shows them,
+`wow-tools restore <id> --kind addons` undoes an addon update and leaves settings as they are.
+
+Before a cleanup, a UI profile or a settings copy a WTF snapshot is taken too (*before cleanup*, *before profile*,
+*before copy*). It is a safety net: the panel lists only the ones *before cleanup*; several such actions within 10 minutes share the one
+taken before the first. `wow-tools list --kind wtf` shows them, `wow-tools restore <id> --kind wtf` brings one back.
 
 From the command line: `wow-tools restore` (latest), `wow-tools restore 20261012` (the latest of that day or earlier),
 `--kind wtf` or `--kind addons` for one part only, `--flavor _classic_era_` for another game version.
@@ -153,7 +163,7 @@ Every run, automatic or manual:
 
 1. With **Don't update while playing** on (the default), nothing happens while any game client runs; the update waits
    until the game is closed.
-2. An `AddOns` snapshot labelled *before update* is taken — one click in the panel undoes the update.
+2. An `AddOns` snapshot labelled *before update* is taken — `wow-tools restore <id> --kind addons` undoes the update.
 3. The program is started without a window, updates, and is closed. **A program you already had open is left
    alone** — it is not started a second time and not closed.
 4. The result goes to the update history: which addons were updated, which still wait (for example set to manual
@@ -195,27 +205,71 @@ saw. A new version while that game is closed means Battle.net has just patched i
 2. shows a notification with the new version and the addons whose `.toc` was not made for it (the game would show
    them as "out of date").
 
-Which addons are not made for the current version is always shown at the bottom of **Settings → Addons**, and printed
-by `wow-tools outdated`. Addons are judged by major and minor version (12.0 → 12.1 counts, a 12.1.0 → 12.1.5 hotfix does
-not); an addon with no version number for this game at all (a Classic-only addon on Retail, a library) is not judged.
+Which addons are not made for the current version is always listed in full at the bottom of **Settings → Addons** (the
+card turns yellow while there are any), and printed by `wow-tools outdated`. Addons are judged by major and minor
+version (12.0 → 12.1 counts, a 12.1.0 → 12.1.5 hotfix does not); an addon with no version number for this game at all (a Classic-only addon on Retail, a library) is not judged.
 
 ## Cleanup
 
-<p><img src="docs/images/settings-cleanup-en.png" width="420" alt="Settings, Cleanup tab"></p>
+<p><img src="docs/images/cleanup-en.png" width="360" alt="Panel, Cleanup tab"></p>
 
-**Settings → Cleanup** shows what can go, with the number of files and their size, for the game versions you back up:
+The **Cleanup** tab of the panel shows what can go, with the number of files and their size, for the game versions you
+back up. It is read again every time you open the tab and after every cleanup; hover a row for what it is about. The list
+button of *Removed addons* and of *Biggest addon settings* opens the full list, with sizes, over the tab
+(scroll with the wheel, close with ✕ or Esc).
 
-| Card | What | What happens |
+| Row | What | What happens |
 | --- | --- | --- |
-| Settings of removed addons | `SavedVariables\*.lua` of addons that are no longer in `Interface\AddOns` (Blizzard's own files stay) | deleted; `WTF` is saved as a *before cleanup* snapshot first |
-| WoW's copies (.bak, .old) | the copies WoW makes of every settings file on exit | deleted (WoW makes them again; snapshots never include them) |
+| Removed addons | `SavedVariables\*.lua` of addons that are no longer in `Interface\AddOns` (Blizzard's own files stay) | deleted; `WTF` is saved as a *before cleanup* snapshot first |
+| .bak and .old copies | the copies WoW makes of every settings file on exit | deleted (WoW makes them again; snapshots never include them) |
 | Biggest addon settings | settings files of 5 MB and more | only shown: bloated files slow loading down, clean them in the addon itself |
-| Combat logs older than a week | `Logs\WoWCombatLog*.txt` | deleted; logs younger than a week stay, in case an upload to Warcraft Logs is pending |
-| Screenshots in the game folder | `Screenshots\*` | moved to `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nothing is overwritten); **Open** opens that folder |
-| Cache and crash reports | `Cache` and `Errors` | deleted; the game rebuilds the cache — the usual cure for oddities after a patch |
+| Old combat logs | `Logs\WoWCombatLog*.txt` | deleted; logs younger than a week stay, in case an upload to Warcraft Logs is pending |
+| Screenshots | `Screenshots\*` | moved, by default to `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nothing is overwritten); the folder icon opens that folder |
+| Cache and errors | `Cache` and `Errors` | deleted; the game rebuilds the cache — the usual cure for oddities after a patch |
 
-Every button asks **Sure?** first. A game version that is running is skipped. From the command line: `wow-tools clean`
+The **Screenshots** tab of the settings sets where they go and how they are sorted: folders **By day**, **By month**,
+**By year** or **No folders** (the date comes from WoW's file name, `WoWScrnShot_MMDDYY_HHMMSS`), and **A folder per
+game version** on or off. Sorting by character is not possible: WoW does not write who took a screenshot.
+
+Every button asks **Sure?** first. While it works, a spinner stands in for the button, and the result shows in the row. Only the cache
+of a running game version waits for it to close; everything else is tidied up while you play (the game does not hold
+those files). From the command line: `wow-tools clean`
 shows the same list, `wow-tools clean orphans backups logs screenshots cache` (any of them) tidies up.
+
+## UI profiles
+
+<p><img src="docs/images/profiles-en.png" width="360" alt="Panel, Profiles tab"></p>
+
+A profile is everything that makes a character's interface, saved under its name: in the panel's **Profiles** tab,
+**Save a profile → Choose…** lists your characters (recently played first). **Apply…** on a profile asks which
+character to put it on, then **Apply** in the row. Hover a profile to see what it holds; the bin deletes it. If nothing of the character changed since its last
+profile, a new one is not saved (the row says so).
+In the character list just type to search by name or realm (Enter picks the first one, Esc clears the search).
+While the profile's game version runs, **Apply…** is off: the game would rewrite the settings when it exits.
+
+The character lists show only characters the account has now: folders of deleted, renamed or transferred characters
+stay in `WTF`, so WoW Tools compares them with the game's character list (`character-list-order.txt`, GUIDs only) and
+the names addons keep for those GUIDs (BigWigs, WorldQuestTracker, AllTheThings, RCLootCouncil...). A realm with a
+character not played since then is not filtered: nothing there is hidden by guess.
+
+What goes into a profile:
+
+- every file of the character's folder `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: bindings, macros, chat, edit mode
+  layout, click bindings, enabled addons, the character's own addon settings (`SavedVariables`);
+- for addons that keep their settings account-wide as profiles (ElvUI, BigWigs, Clique, TomTom and others built on
+  AceDB): which profile the character uses, and that profile's contents.
+
+Applying copies the files and switches those addons of the target character to the same profile. On the same account
+the two characters then share it: a change in ElvUI on one shows on the other, as with a shared profile in the game.
+On another account the profile is added there; if that account already has a different profile of that name, the
+copy gets the source character's name, so nothing of the other account changes. An addon that never ran on the target
+account is left alone and named in the result. The game version of the profile must be closed; a WTF snapshot
+*before profile* is taken first (see [Restoring](#restoring)).
+
+Bindings and macros may be stored on Blizzard's servers (see the end of the next section).
+
+From the command line: `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
+`wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.
 
 ## Copying settings between characters
 
@@ -257,6 +311,8 @@ in which case the server copy can override the copied files on login.
 | `restore [ID\|DATE\|latest] [--kind K] [--flavor F] [-y]` | restore, saving the current state first |
 | `chars [--flavor F]` | list characters |
 | `copy-char --from C --to C [--to C…] [--parts …] [--dry-run]` | copy settings between characters |
+| `profile save C [--flavor F]` / `profile list` | save a character's UI profile / list the profiles |
+| `profile apply N --to C` / `profile delete N` | put profile N (from the list) on a character / delete it |
 | `update-addons` | update addons now through the chosen program |
 | `watch [--interval N]` | what the tray does, in a console window |
 | `schedule logon [--headless]` | start the tray at sign-in (`--headless`: `watch` without an icon) |
@@ -275,6 +331,7 @@ rest in the chosen language.
 | --- | --- |
 | `%APPDATA%\WoW Tools\config\config.toml` | settings |
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | snapshots (folder changeable) |
+| `%LOCALAPPDATA%\WoW Tools\data\backups\profiles\<version>\*.zip` | UI profiles (in the backups folder) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | log of the tray |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | update history (last 20) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | when WoW Tools last checked for a new version |

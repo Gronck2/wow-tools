@@ -17,6 +17,8 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
   lancement sur la nouvelle version, et vous voyez quels addons ne sont pas encore faits pour elle.
 - **Nettoyage** : réglages d'addons supprimés, copies `.bak` de WoW, vieux journaux de combat, captures d'écran et
   cache — avec leur taille, en un clic.
+- **Profils d'interface** : enregistrez l'interface d'un personnage (raccourcis, macros, disposition, addons et
+  leurs profils) et appliquez-la à un autre personnage en deux clics.
 - Mise à jour automatique de l'application : vérification sur GitHub une fois par jour et installation d'une nouvelle
   version en un clic.
 - Anglais, russe, allemand, français et espagnol.
@@ -38,6 +40,7 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
 - [Mise à jour des addons](#mise-à-jour-des-addons)
 - [Patchs du jeu](#patchs-du-jeu)
 - [Nettoyage](#nettoyage)
+- [Profils d'interface](#profils-dinterface)
 - [Copier les réglages entre personnages](#copier-les-réglages-entre-personnages)
 - [Ligne de commande](#ligne-de-commande)
 - [Fichiers et dossiers](#fichiers-et-dossiers)
@@ -81,11 +84,10 @@ L'icône indique l'état actuel :
 
 | Icône | Signification |
 | --- | --- |
-| verte | tout va bien |
-| anneau | le jeu est lancé, la sauvegarde se fera après sa fermeture |
-| bleue | travail en cours : sauvegarde, restauration ou mise à jour des addons |
-| rouge | la dernière opération a échoué (survolez l'icône ou ouvrez le panneau pour savoir pourquoi) |
-| grise | aucune sauvegarde pour l'instant |
+| emblème gris | le jeu n'est pas lancé |
+| emblème doré | le jeu est lancé (la sauvegarde se fera après sa fermeture) |
+| point bleu | travail en cours : sauvegarde, restauration, mise à jour des addons, nettoyage ou profil |
+| point rouge | la dernière opération a échoué (survolez l'icône ou ouvrez le panneau pour savoir pourquoi) |
 
 Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/sombre et la couleur d'accentuation) :
 
@@ -94,6 +96,10 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
   la ligne).
 - Onglet **Addons** : la date de la dernière mise à jour des addons, **Mettre à jour les addons**, et les cinq
   dernières mises à jour — ce qui a été mis à jour ou ce qui a échoué (survolez une ligne pour voir le texte complet).
+- Onglet **Nettoyage** : ce qui peut être rangé dans WTF et le dossier du jeu, avec les tailles et un bouton pour
+  chaque élément — voir [Nettoyage](#nettoyage).
+- Onglet **Profils** : les profils d'interface enregistrés et **Enregistrer un profil** — voir
+  [Profils d'interface](#profils-dinterface).
 - En haut : le dossier des sauvegardes et les paramètres ; en bas : **Lancer avec Windows**.
 
 Le **clic droit** ouvre le menu : le panneau, sauvegarder, mettre à jour les addons, dossier des sauvegardes,
@@ -110,16 +116,16 @@ Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-
 
 Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 
-- **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu à sauvegarder, langue,
+- **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), langue,
   lancement avec Windows, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** / **Installer**, et
   un lien vers `config.toml` pour les options rarement utiles.
 - **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, ou *Planifié* — les jours choisis à une heure
   donnée), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la fermeture du jeu**,
   dossier des sauvegardes.
 - **Addons** : le programme de mise à jour, **Pas de mise à jour en jeu**, **Mise à jour automatique**, et quand —
-  *Périodique* (toutes les 30 min … 12 h) ou *Planifié* (jours et heure) ; en dessous, les addons qui ne sont pas
-  faits pour la version actuelle du jeu.
-- **Nettoyage** : ce qui peut être rangé dans WTF et le dossier du jeu, avec les tailles — voir [Nettoyage](#nettoyage).
+  *Périodique* (toutes les 30 min … 12 h) ou *Planifié* (jours et heure) ; en dessous, tous les addons qui ne sont pas
+  faits pour la version actuelle du jeu (voir [Patchs du jeu](#patchs-du-jeu)).
+- **Captures** : où le nettoyage déplace les captures d'écran et comment il les classe (voir [Nettoyage](#nettoyage)).
 
 ## Fonctionnement des sauvegardes
 
@@ -148,8 +154,13 @@ sauvegarde étiquetée *avant restauration* : vous pouvez toujours revenir en ar
 La restauration extrait l'archive dans un dossier temporaire à côté du vrai, puis échange les dossiers : une
 restauration interrompue ne laisse jamais un `WTF` à moitié écrit.
 
-Les points étiquetés *avant mise à jour* ne contiennent que les addons — ils annulent une mise à jour des addons et
-laissent les réglages tels quels.
+Les sauvegardes de `AddOns` *avant mise à jour* ne sont pas listées dans le panneau : `wow-tools list --kind addons`
+les affiche, `wow-tools restore <id> --kind addons` annule une mise à jour des addons sans toucher aux réglages.
+
+Avant un nettoyage, un profil d'interface ou une copie de réglages, WTF est aussi sauvegardé (*avant nettoyage*,
+*avant profil*, *avant copie*). C'est un filet de sécurité : le panneau n'en liste que celles *avant nettoyage* ; plusieurs de ces
+actions en 10 minutes partagent celle faite avant la première. `wow-tools list --kind wtf` les affiche,
+`wow-tools restore <id> --kind wtf` en restaure une.
 
 En ligne de commande : `wow-tools restore` (la plus récente), `wow-tools restore 20261012` (la plus récente de ce jour
 ou d'avant), `--kind wtf` ou `--kind addons` pour une seule partie, `--flavor _classic_era_` pour une autre version du
@@ -169,8 +180,8 @@ qu'un, il est utilisé automatiquement.
 
 1. Avec **Pas de mise à jour en jeu** activé (par défaut), rien ne se passe tant qu'un client du jeu tourne ; la mise
    à jour attend la fermeture du jeu.
-2. Une sauvegarde de `AddOns` étiquetée *avant mise à jour* est créée — un clic dans le panneau suffit à annuler la
-   mise à jour.
+2. Une sauvegarde de `AddOns` étiquetée *avant mise à jour* est créée — `wow-tools restore <id> --kind addons`
+   annule la mise à jour.
 3. Le programme est lancé sans fenêtre, fait la mise à jour, puis est fermé. **Un programme que vous aviez déjà ouvert
    n'est pas touché** — il n'est ni relancé, ni fermé.
 4. Le résultat va dans l'historique des mises à jour : les addons mis à jour, ceux qui attendent encore (par exemple
@@ -218,30 +229,79 @@ WoW Tools alors :
 2. affiche une notification avec la nouvelle version et les addons dont le `.toc` n'a pas été fait pour elle (le jeu
    les afficherait comme « périmés »).
 
-Les addons qui ne sont pas faits pour la version actuelle sont toujours affichés en bas de **Paramètres → Addons**, et
-listés par `wow-tools outdated`. Les addons sont jugés sur la version majeure et mineure (12.0 → 12.1 compte, un
+Les addons qui ne sont pas faits pour la version actuelle sont toujours listés en entier en bas de **Paramètres → Addons**
+(la carte devient jaune tant qu'il y en a), et affichés par `wow-tools outdated`. Les addons sont jugés sur la version majeure et mineure (12.0 → 12.1 compte, un
 correctif 12.1.0 → 12.1.5 non) ; un addon sans aucun numéro de version pour ce jeu (un addon uniquement Classic sur
 Retail, une bibliothèque) n'est pas jugé.
 
 ## Nettoyage
 
-<p><img src="docs/images/settings-cleanup-fr.png" width="420" alt="Paramètres, onglet Nettoyage"></p>
+<p><img src="docs/images/cleanup-fr.png" width="360" alt="Panneau, onglet Nettoyage"></p>
 
-**Paramètres → Nettoyage** montre ce qui peut partir, avec le nombre de fichiers et leur taille, pour les versions du
-jeu que vous sauvegardez :
+L'onglet **Nettoyage** du panneau montre ce qui peut partir, avec le nombre de fichiers et leur taille, pour les
+versions du jeu que vous sauvegardez. La liste est relue à chaque ouverture de l'onglet et après chaque nettoyage ;
+survolez une ligne pour savoir de quoi il s'agit. Le bouton liste de *Addons supprimés* et de *Plus gros réglages*
+ouvre la liste complète, avec les tailles, par-dessus l'onglet (molette pour défiler, ✕ ou Échap pour
+fermer).
 
-| Carte | Contenu | Ce qui se passe |
+| Ligne | Contenu | Ce qui se passe |
 | --- | --- | --- |
-| Réglages d'addons supprimés | `SavedVariables\*.lua` des addons qui ne sont plus dans `Interface\AddOns` (les fichiers de Blizzard restent) | supprimés ; `WTF` est d'abord enregistré dans une sauvegarde *avant nettoyage* |
-| Copies de WoW (.bak, .old) | les copies que WoW fait de chaque fichier de réglages en quittant | supprimées (WoW les recrée ; les sauvegardes ne les incluent jamais) |
-| Plus gros réglages d'addons | fichiers de réglages de 5 Mo et plus | seulement affichés : les fichiers trop gros ralentissent le chargement, nettoyez-les dans l'addon lui-même |
-| Journaux de combat de plus d'une semaine | `Logs\WoWCombatLog*.txt` | supprimés ; les journaux de moins d'une semaine restent, au cas où un envoi vers Warcraft Logs serait en attente |
-| Captures d'écran dans le dossier du jeu | `Screenshots\*` | déplacées vers `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (« Images » dans l'Explorateur ; rien n'est écrasé) ; **Ouvrir** ouvre ce dossier |
-| Cache et rapports de plantage | `Cache` et `Errors` | supprimés ; le jeu reconstruit le cache — le remède habituel aux bizarreries après un patch |
+| Addons supprimés | `SavedVariables\*.lua` des addons qui ne sont plus dans `Interface\AddOns` (les fichiers de Blizzard restent) | supprimés ; `WTF` est d'abord enregistré dans une sauvegarde *avant nettoyage* |
+| Copies .bak et .old | les copies que WoW fait de chaque fichier de réglages en quittant | supprimées (WoW les recrée ; les sauvegardes ne les incluent jamais) |
+| Plus gros réglages | fichiers de réglages de 5 Mo et plus | seulement affichés : les fichiers trop gros ralentissent le chargement, nettoyez-les dans l'addon lui-même |
+| Vieux journaux de combat | `Logs\WoWCombatLog*.txt` | supprimés ; les journaux de moins d'une semaine restent, au cas où un envoi vers Warcraft Logs serait en attente |
+| Captures d'écran | `Screenshots\*` | déplacées, par défaut vers `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (« Images » dans l'Explorateur ; rien n'est écrasé) ; l'icône de dossier ouvre ce dossier |
+| Cache et erreurs | `Cache` et `Errors` | supprimés ; le jeu reconstruit le cache — le remède habituel aux bizarreries après un patch |
 
-Chaque bouton demande d'abord **Sûr ?**. Une version du jeu en cours d'exécution est ignorée. En ligne de commande :
+L'onglet **Captures** des paramètres règle où elles vont et comment elles sont classées :
+dossiers **Par jour**, **Par mois**, **Par année** ou **Sans dossiers** (la date vient du nom de fichier de WoW,
+`WoWScrnShot_MMDDYY_HHMMSS`), et **Un dossier par version du jeu** activé ou non. Classer par personnage est
+impossible : WoW n'écrit pas qui a pris la capture.
+
+Chaque bouton demande d'abord **Sûr ?**. Pendant le travail, une roue tourne à la place
+du bouton, puis le résultat s'affiche dans la ligne. Seul le cache d'une version du jeu lancée attend sa fermeture ; le
+reste se range même en jouant (le jeu ne garde pas ces fichiers ouverts). En ligne de commande :
 `wow-tools clean` affiche la même liste, `wow-tools clean orphans backups logs screenshots cache` (au choix) fait le
 ménage.
+
+## Profils d'interface
+
+<p><img src="docs/images/profiles-fr.png" width="360" alt="Panneau, onglet Profils"></p>
+
+Un profil, c'est tout ce qui fait l'interface d'un personnage, enregistré sous son nom : dans l'onglet **Profils** du
+panneau, **Enregistrer un profil → Choisir…** liste vos personnages (les plus récemment joués en premier).
+**Appliquer…** sur un profil demande à quel personnage l'appliquer, puis **Appliquer** dans la ligne. Survolez un
+profil pour voir ce qu'il contient ; la corbeille le supprime. Si rien n'a changé pour le personnage depuis son
+dernier profil, aucun nouveau n'est enregistré (la ligne l'indique).
+Dans la liste des personnages, tapez simplement pour chercher un nom ou un royaume (Entrée choisit le premier, Échap
+efface la recherche). Tant que la version du jeu du profil tourne, **Appliquer…** est désactivé : le jeu réécrirait
+les réglages en quittant.
+
+Les listes de personnages ne montrent que ceux que le compte a maintenant : les dossiers des personnages supprimés,
+renommés ou transférés restent dans `WTF`, donc WoW Tools les compare à la liste des personnages du jeu
+(`character-list-order.txt`, GUID seulement) et aux noms que les addons gardent pour ces GUID (BigWigs,
+WorldQuestTracker, AllTheThings, RCLootCouncil…). Un royaume avec un personnage pas joué depuis n'est pas filtré :
+rien n'est caché au hasard.
+
+Ce que contient un profil :
+
+- tous les fichiers du dossier du personnage `WTF\Account\<ACCOUNT>\<Realm>\<Name>` : raccourcis, macros, discussion,
+  disposition du mode édition, raccourcis de clic, addons activés, réglages d'addons propres au personnage
+  (`SavedVariables`) ;
+- pour les addons qui gardent leurs réglages au niveau du compte sous forme de profils (ElvUI, BigWigs, Clique, TomTom
+  et d'autres basés sur AceDB) : le profil qu'utilise le personnage et son contenu.
+
+L'application copie les fichiers et bascule ces addons du personnage cible sur le même profil. Sur le même compte,
+les deux personnages le partagent ensuite : un changement d'ElvUI sur l'un se voit sur l'autre, comme avec un profil
+partagé dans le jeu. Sur un autre compte, le profil y est ajouté ; si ce compte a déjà un autre profil de ce nom, la
+copie prend le nom du personnage source, et rien ne change sur cet autre compte. Un addon qui n'a jamais tourné sur le
+compte cible n'est pas touché et il est cité dans le résultat. La version du jeu du profil doit être fermée ; une
+sauvegarde de WTF *avant profil* est faite d'abord (voir [Restauration](#restauration)).
+
+Les raccourcis et les macros peuvent être stockés sur les serveurs de Blizzard (voir la fin de la section suivante).
+
+En ligne de commande : `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
+`wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.
 
 ## Copier les réglages entre personnages
 
@@ -284,6 +344,8 @@ Les raccourcis clavier et les macros peuvent être stockés sur les serveurs de 
 | `restore [ID\|DATE\|latest] [--kind K] [--flavor F] [-y]` | restaure, en enregistrant d'abord l'état actuel |
 | `chars [--flavor F]` | liste les personnages |
 | `copy-char --from C --to C [--to C…] [--parts …] [--dry-run]` | copie les réglages entre personnages |
+| `profile save C [--flavor F]` / `profile list` | enregistre le profil d'interface d'un personnage / liste les profils |
+| `profile apply N --to C` / `profile delete N` | applique le profil N (de la liste) à un personnage / le supprime |
 | `update-addons` | met à jour les addons maintenant via le programme choisi |
 | `watch [--interval N]` | ce que fait l'icône de notification, dans une fenêtre de console |
 | `schedule logon [--headless]` | lance l'icône de notification à la connexion (`--headless` : `watch` sans icône) |
@@ -302,6 +364,7 @@ explique le reste dans la langue choisie.
 | --- | --- |
 | `%APPDATA%\WoW Tools\config\config.toml` | paramètres |
 | `%LOCALAPPDATA%\WoW Tools\data\backups\<version>\wtf\*.zip`, `...\addons\*.zip` | sauvegardes (dossier modifiable) |
+| `%LOCALAPPDATA%\WoW Tools\data\backups\profiles\<version>\*.zip` | profils d'interface (dans le dossier des sauvegardes) |
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | journal de l'icône de notification |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | historique des mises à jour (20 dernières) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | date de la dernière recherche d'une nouvelle version de WoW Tools |

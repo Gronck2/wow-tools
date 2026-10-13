@@ -1,0 +1,4 @@
+// The exe's own icon (Explorer, taskbar, the game running in the tray) and the tray icon while no
+// game runs. The ids are read by `tray::load_icon`.
+1 ICON "assets/wow-tools.ico"
+2 ICON "assets/tray-idle.ico"

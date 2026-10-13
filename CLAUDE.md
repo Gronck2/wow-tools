@@ -50,7 +50,7 @@ links the MSVC C runtime statically, so the exe needs no VC++ redistributable. C
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|menu|menu-update|settings|settings-update|settings-cleanup|settings-confirm|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -66,18 +66,29 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   snapshots count. If the game held it back or it failed, retried after 10 min or right when the game closes;
   `watch --interval N` is a plain timer instead. `Request` channel (backup now,
   restore) and `Event` callback. Used by `watch` (no requests) and by the tray worker thread.
-- `tray.rs`: hidden window, single-instance mutex, runtime-drawn icon whose color is the state, `TaskbarCreated`
+- `tray.rs`: hidden window, single-instance mutex, tray icon from the exe's resources (`build.rs` +
+  `wow-tools.rc` embed `assets\wow-tools.ico`, the gold app icon = a game runs, and `assets\tray-idle.ico`, grey)
+  with a dot drawn on for busy (blue) / failed (red) (`tray_icon`; `ui-snapshot tray-icons` shows them), `TaskbarCreated`
   re-add, balloons for manual results and new errors. `view()` builds what the panel/menu show; `act(Action)` runs
   their clicks. A double-click start frees its own console (`GetConsoleProcessList == 1`); after that,
   `Command::spawn` with inherited stdio fails with os error 50, so files are opened with `ShellExecuteW`.
 - `gfx.rs`: Direct2D/DirectWrite helpers shared by the UI, modeled on RGBTray (`C:\test\Accs\src\ui.rs`): system
   theme + accent, `R` geometry in DIPs, `text_format`/`text_width`, `Painter`, `Surface`, `create_popup`, `render_png`.
 - `panel.rs`: left-click flyout with tabs (remembered while the tray runs): "Бэкап" (status card, backup button, restore
-  points with inline confirm) and "Аддоны" (last update, "update now", the last `HISTORY_ROWS` runs from
-  `updater::history`, kept in `data\addon-updates.json`, 20 max, written by `app::update_addons`); autostart switch
-  under both. The height fits the longer list of the two, so switching tabs does not resize it.
+  points with inline confirm), "Аддоны" (last update, "update now", the last `HISTORY_ROWS` runs from
+  `updater::history`, kept in `data\addon-updates.json`, 20 max, written by `app::update_addons`), "Уборка"
+  (`cleanup_lines`: a row per `maintenance::Item` whose button asks "Точно?" in place (`Confirm::Clean`), the biggest
+  settings, hover = what a row is about; long lists (orphans, biggest settings) open from a list button as a `Sheet`
+  over the tab (wheel scrolls by rows, ✕/Esc closes); `View::scan` comes from `tray::rescan`, a background read started when the
+  tab opens and after every cleanup) and "Профили" (a "save" card whose button opens the characters as a `Sheet`
+  (`SheetList::SaveFrom`, last played first, `View::chars` read with the cleanup scan; typing goes to `Sheet::search`
+  via `WM_CHAR`, Enter picks the first, Esc clears it), saved profiles with "Применить…" (off with a tip while
+  `View::running` has the profile's flavor: `Hit::ApplyBlocked`)
+  (pick list `ApplyTo`, then "sure?" in the row: `Confirm::ApplyProfile`) and delete; jobs run in the worker
+  (`Request::SaveProfile`/`ApplyProfile`), spinner and result in the row); autostart switch under all. The height fits the tallest tab, so switching tabs
+  does not resize it.
   Pure `draw(view, …)`; closes on deactivate/Esc. `menu.rs`: right-click menu in the same style.
-- `settings.rs`: the settings window (a regular titled window; tabs "Общие", "Бэкап", "Аддоны", "Уборка" fixed at the
+- `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game + system only), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
   top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
   switches and on changes that add or remove cards, top edge kept): game folder
   (folder picker, "Авто"), flavors as chips, "when" (after game / by schedule) + weekday chips, keep stepper,
@@ -132,7 +143,7 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   and no install lines for 60 s (10 min cap), then closes it (taskkill, then /F) — only if we started it; an already
   open app is left alone. `agent\GameInstances\AddonGameInstance.json` before/after gives the updated addons
   (`installedFile.id` per `addonID`) and the outdated ones (`latestFile.id` differs). `app::update_addons` first takes
-  an addons snapshot labelled `pre-update`; the panel lists those as addons-only restore points. The update runs on
+  an addons snapshot labelled `pre-update` (not listed in the panel; `restore <id> --kind addons`). The update runs on
   its own schedule (`update_addons`, `update_when`: `schedule` = `update_days`/`update_time`, or `interval` = every
   `update_every` minutes since the last run; game closed) (`update_skip_in_game`, on by default: also refuses a manual
   run while a client runs, before anything is recorded; the panel button is off then); the last run is in `data\addon-update.last`.
@@ -146,6 +157,18 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   is respected and reported. Downloading `latestFile.downloadUrl` ourselves was rejected: authors of some addons
   forbid third-party downloads (`allowModDistribution: false`) and the app's records would go stale.
 - `chars.rs`: characters at `WTF/Account/<ACC>/<Realm>/<Name>`; names are often Cyrillic, so matching uses `to_lowercase`.
+- `profiles.rs`: UI profiles, zips in `<backup_dir>\profiles\<flavor>\` (`profile.json` meta, `addons.json`, `character/`
+  files): every file of the character folder (no `cache.md5`) + its `SavedVariables\*.lua`, and for AceDB addons (account
+  `SavedVariables` with `["profileKeys"]`) the profile the character uses + its table (and the namespaces'). `apply`
+  (flavor closed, `pre-profile` WTF snapshot) copies the files and sets `profileKeys["Name - Realm"]` to that profile:
+  shared on the same account; elsewhere added, as "<name> (<source key>)" when a different one of that name exists.
+  `edit-mode-cache-character.txt` starts with the Edit Mode layout per specialization slot (6 numbers, 0/1 = presets);
+  slots the source never used get its layout (`fill_layout_slots`), else other specs fall back to the default.
+  `characters` (the panel's pick lists) leaves out folders of characters that are gone (`Roster`): the account's
+  `character-list-order.txt` has the current GUIDs (`<realm id>-<hex>`), names come from addon SavedVariables keyed by
+  `["Player-<guid>"]` with a `name` (and `realm`, else from the realm id or the only matching folder). Hidden only
+  when sure: the realm's GUIDs are all named, or the realm is not on the list while every listed realm is known.
+  `lua.rs` reads and edits SavedVariables text in place (keeps the rest byte for byte). `wow-tools profile`.
 - `schedule.rs`: schtasks (`backup`) / HKCU Run value "WoW Tools" (`tray`, or `watch` with `--headless`; the UI
   toggles it), both through `conhost.exe --headless` (no console flash); /TR is limited to 261 chars. Whole days
   (the 1440 default of `schedule interval`) go as `/SC DAILY`: `/SC MINUTE` stops at 1439.
@@ -155,14 +178,19 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   `pre-patch` (`Event::Patch` -> balloon). First sight of a flavor is only recorded. `outdated(fl)` reads every
   `<Addon>*.toc` of an addon folder, all `## Interface*` numbers; judged by major.minor (patch digit ignored): on
   Retail (>= 80000) against every Retail-era number, on Classic against the same major; no number for this game =
-  not judged; `Blizzard_*` skipped. Shown in Settings -> Addons ("Совместимость") and `wow-tools outdated`.
+  not judged; `Blizzard_*` skipped. Shown in full in Settings -> Addons ("Совместимость", `outdated_blocks`: the card
+  grows and turns `warn`-colored) and `wow-tools outdated`.
   `scan(flavors)` (read-only, ~0.4 s on the real 216-character WTF) / `clean(ctx, Item)`: `Orphans` = SavedVariables
   (`.lua`, `.lua.bak`) under any `SavedVariables` folder whose addon folder is not in `Interface\AddOns` (no AddOns
   folder = not judged; `Blizzard*` kept); `Backups` = other `.bak`/`.old` in WTF; `Logs` = `Logs\WoWCombatLog*.txt`
-  older than 7 days; `Screenshots` = moved to `Pictures\World of Warcraft\<flavor title>\<YYYY-MM>\` (never
-  overwrites, copy+remove across drives); `Cache` = `Cache` + `Errors`. Orphans/Backups take a forced `pre-cleanup`
-  WTF snapshot first; running flavors are skipped. Settings tab "Уборка" scans when opened and after each cleanup
-  (`tray::cleanups()` counter); buttons ask "Точно?" first (`Model::confirm`). `wow-tools clean [items]`.
+  older than 7 days; `Screenshots` = moved to `screenshots_dir(cfg)` (default `Pictures\World of Warcraft`),
+  `<flavor title>\` if `screenshots_per_flavor`, a date folder per `ShotsBy` (date from `WoWScrnShot_MMDDYY_HHMMSS`,
+  else mtime; never overwrites, copy+remove across drives); `Cache` = `Cache` + `Errors`. Orphans take a `pre-cleanup` WTF
+  snapshot first (`.bak`/`.old` are not in snapshots, so Backups need none); only the cache of a running flavor is skipped (`Item::needs_closed_game`: orphans belong to
+  addons the game has not loaded, `.bak` copies are made again on exit, logs and screenshots are never read back).
+  The panel shows a spinner in place of the button while it runs and the result (`tray` `cleaned`) in the row until
+  it closes (balloons are hidden while a fullscreen game runs). Shown in the panel's "Уборка" tab (cleanup is actions, not
+  settings). `wow-tools clean [items]`.
 - `selfupdate.rs`: updates of WoW Tools itself from the GitHub releases of `CARGO_PKG_REPOSITORY` (the only network
   access of the app; README "Privacy" says so). WinHTTP (system proxy and certificates, no TLS crate); GET
   `api.github.com/repos/<repo>/releases/latest` (published releases only; 404 = none or a private repo, not an
@@ -181,5 +209,7 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 
 - WoW writes WTF and SavedVariables on logout/exit, so snapshots of the running flavor are skipped and `restore`/`copy-char`
   of it refuse to run (other flavors go on). The panel lists the newest points of all flavors, each flavor at least once.
+  Safety snapshots (`app::safety_snapshot`: `pre-cleanup`, `pre-profile`, `pre-copy`): only `pre-cleanup` is listed, and one taken in
+  the last 10 minutes that is still the newest covers the next action (no new one).
   `.bak`/`.old` are excluded (that is why a 155 MB WTF zips to ~13 MB).
 - Keybinds and macros may be server-synced (`synchronizeBindings`/`synchronizeMacros`), which can override copied files.

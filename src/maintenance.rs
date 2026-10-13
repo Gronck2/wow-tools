@@ -7,14 +7,17 @@
 //!   whose `.toc` was not made for the new version (`outdated`).
 //! - Cleanup (`scan` / `clean`): settings of addons that are no longer installed, WoW's own
 //!   `.bak`/`.old` copies in WTF, combat logs older than a week, screenshots (moved out of the
-//!   game folder into Pictures, by month) and the `Cache`/`Errors` folders. Removing anything from
-//!   WTF takes a `pre-cleanup` snapshot first; a running flavor is left alone.
+//!   game folder into Pictures, by date: `config::ShotsBy`) and the `Cache`/`Errors` folders. Removing
+//!   anything from WTF takes a `pre-cleanup` snapshot first. Only the cache of a running flavor is left
+//!   alone: the rest are files the game does not hold open (orphaned settings belong to addons it has
+//!   not loaded; it rewrites its own copies on exit anyway).
 
-use crate::app::Ctx;
+use crate::app::{self, Ctx};
+use crate::config::{Config, ShotsBy};
 use crate::snapshot::{self, Kind, Outcome};
 use crate::wow::{self, Flavor};
 use anyhow::{Result, bail};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -217,7 +220,7 @@ pub enum Item {
     Backups,
     /// Combat logs older than a week.
     Logs,
-    /// Screenshots, moved to Pictures by month.
+    /// Screenshots, moved to Pictures (`screenshots_dir`).
     Screenshots,
     /// `Cache` and `Errors` (crash reports); the game rebuilds the cache.
     Cache,
@@ -250,9 +253,17 @@ impl Item {
         }
     }
 
-    /// Changes WTF: a snapshot comes first.
+    /// Changes what a WTF snapshot holds: one comes first. (`.bak`/`.old` copies are not in
+    /// snapshots, so removing them needs none.)
     fn touches_wtf(self) -> bool {
-        matches!(self, Item::Orphans | Item::Backups)
+        self == Item::Orphans
+    }
+
+    /// Files the game holds open: left alone in a running flavor. Everything else goes while it
+    /// runs: orphaned settings belong to addons it has not loaded, `.bak` copies are made again on
+    /// exit, old logs and screenshots are never read back.
+    fn needs_closed_game(self) -> bool {
+        self == Item::Cache
     }
 }
 
@@ -284,6 +295,8 @@ pub struct Scan {
     pub items: BTreeMap<Item, Found>,
     /// The biggest addon settings files ("Details 34 MB"), biggest first; only shown.
     pub big: Vec<(String, u64)>,
+    /// Addons whose settings are orphans, with their size, biggest first.
+    pub orphans: Vec<(String, u64)>,
 }
 
 impl Scan {
@@ -292,8 +305,28 @@ impl Scan {
     }
 }
 
-/// Where screenshots go: `Pictures\World of Warcraft\<flavor>\<YYYY-MM>`.
-pub fn screenshots_dir() -> PathBuf {
+/// The lists of the cleanup tab too long for a row, opened over it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum List {
+    Orphans,
+    Big,
+}
+
+impl Scan {
+    /// The entries of a list: name and size, biggest first.
+    pub fn list(&self, list: List) -> &[(String, u64)] {
+        match list {
+            List::Orphans => &self.orphans,
+            List::Big => &self.big,
+        }
+    }
+}
+
+/// Where screenshots go: `screenshots_dir` of the config, or `Pictures\World of Warcraft`.
+pub fn screenshots_dir(cfg: &Config) -> PathBuf {
+    if let Some(dir) = &cfg.screenshots_dir {
+        return dir.clone();
+    }
     let pictures = directories::UserDirs::new()
         .and_then(|d| d.picture_dir().map(Path::to_path_buf))
         .unwrap_or_else(|| crate::config::data_dir().join("Screenshots"));
@@ -341,7 +374,7 @@ fn add(found: &mut Found, path: PathBuf) {
 pub fn scan(flavors: &[Flavor]) -> Scan {
     let mut scan = Scan::default();
     let now = SystemTime::now();
-    let mut orphan_names = BTreeSet::new();
+    let mut orphan_sizes: BTreeMap<String, u64> = BTreeMap::new();
     let mut big: BTreeMap<String, u64> = BTreeMap::new();
     for fl in flavors {
         // WTF: addon settings and WoW's copies of them.
@@ -358,7 +391,7 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
             match (addon, &addons) {
                 // Settings of an addon that is not installed (Blizzard's own UI keeps its files).
                 (Some(name), Some(installed)) if !installed.contains(&name.to_lowercase()) && !name.to_lowercase().starts_with("blizzard") => {
-                    orphan_names.insert(name.to_string());
+                    *orphan_sizes.entry(name.to_string()).or_default() += size_of(e.path());
                     add(scan.items.entry(Item::Orphans).or_default(), e.into_path());
                 }
                 _ if lower.ends_with(".bak") || lower.ends_with(".old") => add(scan.items.entry(Item::Backups).or_default(), e.into_path()),
@@ -400,31 +433,45 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
         }
     }
     if let Some(f) = scan.items.get_mut(&Item::Orphans) {
-        f.names = orphan_names.into_iter().collect();
+        f.names = orphan_sizes.keys().cloned().collect();
     }
     let mut big: Vec<(String, u64)> = big.into_iter().filter(|(_, s)| *s >= BIG_SV).collect();
     big.sort_by_key(|(_, s)| std::cmp::Reverse(*s));
     scan.big = big;
+    let mut orphans: Vec<(String, u64)> = orphan_sizes.into_iter().collect();
+    orphans.sort_by_key(|(_, s)| std::cmp::Reverse(*s));
+    scan.orphans = orphans;
     scan
 }
 
-/// Does `item` for every flavor whose client is closed; returns a summary.
+/// Does `item` for every flavor it may touch now (`Item::needs_closed_game`); returns a summary.
 pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
     let flavors = ctx.flavors(None)?;
     let games = wow::running_games();
-    let (closed, running): (Vec<Flavor>, Vec<Flavor>) = flavors.into_iter().partition(|fl| wow::running_in(&games, fl).is_none());
+    let (closed, running): (Vec<Flavor>, Vec<Flavor>) = flavors
+        .into_iter()
+        .partition(|fl| !item.needs_closed_game() || wow::running_in(&games, fl).is_none());
     if closed.is_empty() {
         bail!(tr!("cleanup.game_running"));
     }
+    let skipped = |s: &mut String| {
+        if !running.is_empty() {
+            let titles: Vec<String> = running.iter().map(Flavor::title).collect();
+            s.push('\n');
+            s.push_str(&tr!("cleanup.skipped_running", flavors = titles.join(", ")));
+        }
+    };
     let found = scan(&closed).get(item);
     if found.files == 0 {
-        return Ok(tr!("cleanup.nothing").to_string());
+        let mut s = tr!("cleanup.nothing").to_string();
+        skipped(&mut s);
+        log::info!("{}: {}", item.key(), s.replace('\n', " | "));
+        return Ok(s);
     }
     if item.touches_wtf() {
-        let store = ctx.store();
         for fl in &closed {
-            if let Outcome::Created(s) = store.backup(fl, Kind::Wtf, true, Some("pre-cleanup"))? {
-                log::info!("{}", tr!("cleanup.saved", flavor = fl.title(), id = s.id));
+            if let Some(id) = app::safety_snapshot(ctx, fl, "pre-cleanup")? {
+                log::info!("{}", tr!("cleanup.saved", flavor = fl.title(), id = id));
             }
         }
     }
@@ -433,7 +480,7 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
     for path in &found.paths {
         let size = size_of(path);
         let result = match item {
-            Item::Screenshots => move_screenshot(path, &closed, &screenshots_dir()),
+            Item::Screenshots => move_screenshot(path, &closed, &ctx.cfg),
             _ => fs::remove_file(path).map_err(Into::into),
         };
         match result {
@@ -463,26 +510,44 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
         s.push('\n');
         s.push_str(&tr!("cleanup.failed_files", n = failed));
     }
-    if !running.is_empty() {
-        s.push('\n');
-        let titles: Vec<String> = running.iter().map(Flavor::title).collect();
-        s.push_str(&tr!("cleanup.skipped_running", flavors = titles.join(", ")));
-    }
+    skipped(&mut s);
     log::info!("{}: {}", item.key(), s.replace('\n', " | "));
     Ok(s)
 }
 
-/// `<flavor>\Screenshots\x.jpg` -> `<root>\<flavor title>\<YYYY-MM>\x.jpg` (`root`: `screenshots_dir`).
-fn move_screenshot(path: &Path, flavors: &[Flavor], root: &Path) -> Result<()> {
-    let title = flavors
-        .iter()
-        .find(|fl| path.starts_with(&fl.dir))
-        .map_or_else(|| "World of Warcraft".to_string(), Flavor::title);
-    let month = fs::metadata(path)
-        .and_then(|m| m.modified())
-        .map(|t| chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m").to_string())
-        .unwrap_or_else(|_| "unknown".into());
-    let dir = root.join(title).join(month);
+/// When a screenshot was taken: from WoW's name (`WoWScrnShot_MMDDYY_HHMMSS.jpg`), else the file time.
+fn shot_date(path: &Path) -> Option<chrono::NaiveDate> {
+    let stem = path.file_stem()?.to_string_lossy();
+    let named = stem
+        .split('_')
+        .nth(1)
+        .filter(|d| d.len() == 6)
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%m%d%y").ok());
+    named.or_else(|| {
+        let t = fs::metadata(path).and_then(|m| m.modified()).ok()?;
+        Some(chrono::DateTime::<chrono::Local>::from(t).date_naive())
+    })
+}
+
+/// `<flavor>\Screenshots\x.jpg` -> `<screenshots_dir>\[<flavor title>\][<date folder>\]x.jpg`.
+fn move_screenshot(path: &Path, flavors: &[Flavor], cfg: &Config) -> Result<()> {
+    let mut dir = screenshots_dir(cfg);
+    if cfg.screenshots_per_flavor {
+        let title = flavors
+            .iter()
+            .find(|fl| path.starts_with(&fl.dir))
+            .map_or_else(|| "World of Warcraft".to_string(), Flavor::title);
+        dir.push(title);
+    }
+    let format = match cfg.screenshots_by {
+        ShotsBy::Year => Some("%Y"),
+        ShotsBy::Month => Some("%Y-%m"),
+        ShotsBy::Day => Some("%Y-%m-%d"),
+        ShotsBy::None => None,
+    };
+    if let Some(format) = format {
+        dir.push(shot_date(path).map_or_else(|| "unknown".to_string(), |d| d.format(format).to_string()));
+    }
     fs::create_dir_all(&dir)?;
     let name = path.file_name().unwrap_or_default();
     let mut target = dir.join(name);
@@ -619,12 +684,30 @@ mod tests {
         touch(&shot, 3);
         let month = chrono::Local::now().format("%Y-%m").to_string();
         let root = dir.path().join("Pictures");
+        let mut cfg = Config {
+            screenshots_dir: Some(root.clone()),
+            ..Config::default()
+        };
         let target = root.join("Retail").join(&month);
         touch(&target.join("a.jpg"), 1);
-        move_screenshot(&shot, std::slice::from_ref(&fl), &root).unwrap();
+        move_screenshot(&shot, std::slice::from_ref(&fl), &cfg).unwrap();
         assert!(!shot.exists());
         assert_eq!(fs::read(target.join("a.jpg")).unwrap().len(), 1);
         assert_eq!(fs::read(target.join("a (2).jpg")).unwrap().len(), 3);
+
+        // By day, no flavor folder; the date comes from WoW's file name.
+        cfg.screenshots_by = ShotsBy::Day;
+        cfg.screenshots_per_flavor = false;
+        let shot = fl.dir.join(r"Screenshots\WoWScrnShot_042426_234920.jpg");
+        touch(&shot, 2);
+        move_screenshot(&shot, std::slice::from_ref(&fl), &cfg).unwrap();
+        assert!(root.join(r"2026-04-24\WoWScrnShot_042426_234920.jpg").exists());
+        // All in one folder.
+        cfg.screenshots_by = ShotsBy::None;
+        let shot = fl.dir.join(r"Screenshots\b.png");
+        touch(&shot, 2);
+        move_screenshot(&shot, std::slice::from_ref(&fl), &cfg).unwrap();
+        assert!(root.join("b.png").exists());
     }
 
     #[test]

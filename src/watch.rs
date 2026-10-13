@@ -2,8 +2,10 @@
 //! or once on each scheduled day), plus on-demand requests.
 
 use crate::app::{self, Ctx, Report};
+use crate::chars::Character;
 use crate::config::When;
 use crate::maintenance::{self, Item, Patch};
+use crate::profiles::{self, Profile};
 use crate::snapshot::Kind;
 use crate::{updater, wow};
 use anyhow::Result;
@@ -29,6 +31,16 @@ pub enum Request {
     },
     /// Tidy one thing up (`maintenance::clean`).
     Cleanup(Item),
+    /// Save a character's interface as a profile (`profiles::save`).
+    SaveProfile {
+        flavor: String,
+        character: Character,
+    },
+    /// Put a profile on a character (`profiles::apply`).
+    ApplyProfile {
+        profile: Profile,
+        target: Character,
+    },
 }
 
 /// What a busy worker is doing.
@@ -39,6 +51,7 @@ pub enum Work {
     Addons,
     Restore,
     Cleanup,
+    Profile,
 }
 
 pub enum Event {
@@ -58,6 +71,11 @@ pub enum Event {
     /// Battle.net patched these flavors (snapshots taken before their first start).
     Patch(Vec<Patch>),
     Cleanup(Result<String>),
+    /// A profile job finished: its summary (`notice`: nothing was done, worth a look) or the error.
+    Profile {
+        result: Result<String>,
+        notice: bool,
+    },
 }
 
 /// How often client versions are compared with the last ones seen.
@@ -187,6 +205,28 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
                     log::error!("{e:#}");
                 }
                 emit(Event::Cleanup(result));
+            }
+            Ok(Request::SaveProfile { flavor, character }) => {
+                emit(Event::Busy(Work::Profile));
+                let result = ctx.single_flavor(Some(&flavor)).and_then(|fl| profiles::save(&ctx, &fl, &character));
+                if let Err(e) = &result {
+                    log::error!("{e:#}");
+                }
+                let notice = result.as_ref().is_ok_and(|s| !s.new);
+                emit(Event::Profile {
+                    result: result.map(|s| s.summary),
+                    notice,
+                });
+            }
+            Ok(Request::ApplyProfile { profile, target }) => {
+                emit(Event::Busy(Work::Profile));
+                let result = ctx
+                    .single_flavor(Some(&profile.meta.flavor))
+                    .and_then(|fl| profiles::apply(&ctx, &fl, &profile, &target));
+                if let Err(e) = &result {
+                    log::error!("{e:#}");
+                }
+                emit(Event::Profile { result, notice: false });
             }
             Ok(Request::Restore { flavor, id, kind }) => {
                 emit(Event::Busy(Work::Restore));
