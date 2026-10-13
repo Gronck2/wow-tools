@@ -285,7 +285,7 @@ enum Hit {
     InstallUpdate,
     File,
     ShotsChange,
-    /// Back to `PicturesWorld of Warcraft`.
+    /// Back to `Pictures\World of Warcraft`.
     ShotsAuto,
     ShotsBy(ShotsBy),
     ShotsFlavor,

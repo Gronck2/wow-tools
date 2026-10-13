@@ -209,7 +209,10 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 
 - WoW writes WTF and SavedVariables on logout/exit, so snapshots of the running flavor are skipped and `restore`/`copy-char`
   of it refuse to run (other flavors go on). The panel lists the newest points of all flavors, each flavor at least once.
-  Safety snapshots (`app::safety_snapshot`: `pre-cleanup`, `pre-profile`, `pre-copy`): only `pre-cleanup` is listed, and one taken in
-  the last 10 minutes that is still the newest covers the next action (no new one).
+  Safety snapshots (`app::safety_snapshot`: `pre-cleanup`, `pre-profile`, `pre-copy`): `pre-cleanup` and `pre-profile` are listed; one
+  taken in the last 10 minutes that is still the newest covers the next action (no new one) while WTF is as the last
+  action left it (`app::safety_done` writes `safety.fingerprint` in the series folder). `.bak` cleanup snapshots only
+  when `exclude_ext` keeps `.bak`/`.old` in snapshots. The panel's confirmations and pick lists hold positions;
+  `panel::follow` moves them to the same point/profile/character when the lists change (or drops them).
   `.bak`/`.old` are excluded (that is why a 155 MB WTF zips to ~13 MB).
 - Keybinds and macros may be server-synced (`synchronizeBindings`/`synchronizeMacros`), which can override copied files.

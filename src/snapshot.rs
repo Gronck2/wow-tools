@@ -78,6 +78,17 @@ impl Store {
         self.root.join(&flavor.name).join(kind.series_name())
     }
 
+    /// Where the snapshots of `kind` of `flavor` are kept.
+    pub fn series_path(&self, flavor: &Flavor, kind: Kind) -> PathBuf {
+        self.series_dir(flavor, kind)
+    }
+
+    /// What `kind` of `flavor` is now (paths, sizes, times), as a snapshot would record it.
+    pub fn current_fingerprint(&self, flavor: &Flavor, kind: Kind) -> Result<String> {
+        let files = self.collect(&flavor.dir, &flavor.dir.join(kind.source_rel()))?;
+        Ok(fingerprint(&files))
+    }
+
     /// Takes a snapshot if anything changed since the last one (or with `force`).
     pub fn backup(&self, flavor: &Flavor, kind: Kind, force: bool, label: Option<&str>) -> Result<Outcome> {
         let src = flavor.dir.join(kind.source_rel());

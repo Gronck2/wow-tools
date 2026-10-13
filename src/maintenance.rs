@@ -253,10 +253,15 @@ impl Item {
         }
     }
 
-    /// Changes what a WTF snapshot holds: one comes first. (`.bak`/`.old` copies are not in
-    /// snapshots, so removing them needs none.)
-    fn touches_wtf(self) -> bool {
-        self == Item::Orphans
+    /// Changes what a WTF snapshot holds: one comes first. `.bak`/`.old` copies are left out of
+    /// snapshots by default (`exclude_ext`), and then removing them needs none.
+    fn touches_wtf(self, cfg: &Config) -> bool {
+        let excluded = |ext: &str| cfg.exclude_ext.iter().any(|e| e.trim_start_matches('.').eq_ignore_ascii_case(ext));
+        match self {
+            Item::Orphans => true,
+            Item::Backups => !(excluded("bak") && excluded("old")),
+            _ => false,
+        }
     }
 
     /// Files the game holds open: left alone in a running flavor. Everything else goes while it
@@ -468,7 +473,8 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
         log::info!("{}: {}", item.key(), s.replace('\n', " | "));
         return Ok(s);
     }
-    if item.touches_wtf() {
+    let safety = item.touches_wtf(&ctx.cfg);
+    if safety {
         for fl in &closed {
             if let Some(id) = app::safety_snapshot(ctx, fl, "pre-cleanup")? {
                 log::info!("{}", tr!("cleanup.saved", flavor = fl.title(), id = id));
@@ -492,6 +498,11 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
                 failed += 1;
                 log::warn!("{}: {e:#}", path.display());
             }
+        }
+    }
+    if safety {
+        for fl in &closed {
+            app::safety_done(ctx, fl);
         }
     }
     if item == Item::Cache {
@@ -585,6 +596,16 @@ fn remove_empty_dirs(dir: &Path) {
 mod tests {
     use super::*;
     use std::fs::File;
+
+    #[test]
+    fn bak_cleanup_needs_a_snapshot_only_when_snapshots_keep_them() {
+        let mut cfg = Config::default();
+        assert!(!Item::Backups.touches_wtf(&cfg), "left out of snapshots by default");
+        cfg.exclude_ext = vec![".bak".into()];
+        assert!(Item::Backups.touches_wtf(&cfg), ".old copies are in snapshots now");
+        assert!(Item::Orphans.touches_wtf(&cfg));
+        assert!(!Item::Logs.touches_wtf(&cfg));
+    }
 
     fn touch(path: &Path, bytes: usize) {
         fs::create_dir_all(path.parent().unwrap()).unwrap();

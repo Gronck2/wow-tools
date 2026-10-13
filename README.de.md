@@ -156,8 +156,9 @@ Die `AddOns`-Sicherungen *vor Update* zeigt der Bereich nicht: `wow-tools list -
 `wow-tools restore <id> --kind addons` macht ein Addon-Update rückgängig und lässt die Einstellungen unverändert.
 
 Vor dem Aufräumen, einem UI-Profil oder dem Kopieren von Einstellungen wird WTF ebenfalls gesichert (*vor Aufräumen*,
-*vor Profil*, *vor Kopieren*). Das ist ein Sicherheitsnetz: Der Bereich zeigt davon nur die *vor Aufräumen*; mehrere solche
-Aktionen innerhalb von 10 Minuten deckt die eine vor der ersten ab. `wow-tools list --kind wtf` zeigt sie,
+*vor Profil*, *vor Kopieren*). Das ist ein Sicherheitsnetz: Der Bereich zeigt davon die *vor Aufräumen* und *vor Profil*; mehrere
+solche Aktionen innerhalb von 10 Minuten deckt die eine vor der ersten ab, solange das Spiel WTF dazwischen nicht
+ändert. `wow-tools list --kind wtf` zeigt sie,
 `wow-tools restore <id> --kind wtf` stellt eine wieder her.
 
 Über die Befehlszeile: `wow-tools restore` (neueste), `wow-tools restore 20261012` (die neueste dieses Tages oder

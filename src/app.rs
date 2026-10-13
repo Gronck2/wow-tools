@@ -135,10 +135,12 @@ pub fn backup_all(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bo
     Ok(report)
 }
 
-/// Fails while the client of `fl` runs: it would overwrite the files on exit.
 /// Labels of the snapshots taken right before an action changes WTF. They are a safety net: the
-/// panel lists only the ones before a cleanup.
+/// panel lists the ones before a cleanup or a profile (`tray::restore_points`).
 const SAFETY: [&str; 3] = ["pre-cleanup", "pre-profile", "pre-copy"];
+
+/// WTF as an action covered by a safety snapshot left it (`safety_done`), in the series folder.
+const SAFETY_MARK: &str = "safety.fingerprint";
 
 /// How long a safety snapshot covers the actions after it.
 const SAFETY_REUSE_MIN: i64 = 10;
@@ -148,14 +150,19 @@ pub fn is_safety(id: &str) -> bool {
 }
 
 /// Saves `fl`'s WTF (label `label`, one of `SAFETY`) before an action changes it, unless the
-/// newest snapshot already is such a safety net from the last few minutes: it holds the state
-/// before the whole series, so going back to it undoes all of it. Returns the new snapshot's id.
+/// newest snapshot already is such a safety net from the last few minutes and WTF is still as the
+/// actions after it left it (`safety_done`; a game session in between changes it): that snapshot
+/// holds the state before the whole series, so going back to it undoes all of it. Returns the new
+/// snapshot's id.
 pub fn safety_snapshot(ctx: &Ctx, fl: &Flavor, label: &str) -> Result<Option<String>> {
     let store = ctx.store();
     let recent = chrono::Local::now().naive_local() - chrono::Duration::minutes(SAFETY_REUSE_MIN);
+    let mark = std::fs::read_to_string(store.series_path(fl, Kind::Wtf).join(SAFETY_MARK)).unwrap_or_default();
     if let Some(last) = store.list(fl, Kind::Wtf)?.last()
         && is_safety(&last.id)
         && last.created >= recent
+        && !mark.is_empty()
+        && store.current_fingerprint(fl, Kind::Wtf)? == mark.trim()
     {
         log::info!("{}", tr!("app.safety_reused", flavor = fl.title(), id = &last.id));
         return Ok(None);
@@ -166,6 +173,16 @@ pub fn safety_snapshot(ctx: &Ctx, fl: &Flavor, label: &str) -> Result<Option<Str
     })
 }
 
+/// Notes how an action covered by `safety_snapshot` left WTF, so the next one may lean on the same
+/// snapshot. Best effort: without the note a new snapshot is taken.
+pub fn safety_done(ctx: &Ctx, fl: &Flavor) {
+    let store = ctx.store();
+    if let Ok(fp) = store.current_fingerprint(fl, Kind::Wtf) {
+        let _ = std::fs::write(store.series_path(fl, Kind::Wtf).join(SAFETY_MARK), fp);
+    }
+}
+
+/// Fails while the client of `fl` runs: it would overwrite the files on exit.
 pub fn ensure_game_closed(fl: &Flavor) -> Result<()> {
     if let Some(p) = wow::running_in(&wow::running_games(), fl) {
         bail!(tr!("app.close_game", game = p, flavor = fl.title()));

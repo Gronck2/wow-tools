@@ -158,8 +158,8 @@ Les sauvegardes de `AddOns` *avant mise à jour* ne sont pas listées dans le pa
 les affiche, `wow-tools restore <id> --kind addons` annule une mise à jour des addons sans toucher aux réglages.
 
 Avant un nettoyage, un profil d'interface ou une copie de réglages, WTF est aussi sauvegardé (*avant nettoyage*,
-*avant profil*, *avant copie*). C'est un filet de sécurité : le panneau n'en liste que celles *avant nettoyage* ; plusieurs de ces
-actions en 10 minutes partagent celle faite avant la première. `wow-tools list --kind wtf` les affiche,
+*avant profil*, *avant copie*). C'est un filet de sécurité : le panneau en liste celles *avant nettoyage* et *avant profil* ; plusieurs
+de ces actions en 10 minutes partagent celle faite avant la première, sauf si le jeu a modifié WTF entre-temps. `wow-tools list --kind wtf` les affiche,
 `wow-tools restore <id> --kind wtf` en restaure une.
 
 En ligne de commande : `wow-tools restore` (la plus récente), `wow-tools restore 20261012` (la plus récente de ce jour

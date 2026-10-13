@@ -152,8 +152,8 @@ Las copias de `AddOns` *antes de actualizar* no aparecen en el panel: `wow-tools
 `wow-tools restore <id> --kind addons` deshace una actualización de addons sin tocar la configuración.
 
 Antes de una limpieza, un perfil de interfaz o una copia de configuración también se guarda WTF (*antes de limpiar*,
-*antes del perfil*, *antes de copiar*). Es una red de seguridad: el panel solo muestra las de *antes de limpiar*; varias de esas
-acciones en 10 minutos comparten la hecha antes de la primera. `wow-tools list --kind wtf` las muestra y
+*antes del perfil*, *antes de copiar*). Es una red de seguridad: el panel muestra las de *antes de limpiar* y *antes del perfil*; varias de
+esas acciones en 10 minutos comparten la hecha antes de la primera, salvo que el juego cambie WTF entre medias. `wow-tools list --kind wtf` las muestra y
 `wow-tools restore <id> --kind wtf` devuelve una.
 
 Desde la línea de comandos: `wow-tools restore` (la última), `wow-tools restore 20261012` (la última de ese día o

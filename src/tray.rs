@@ -188,6 +188,8 @@ struct State {
     /// The profile job running now, and how the last one went (shown in its row).
     profile_job: Option<ProfileJob>,
     profile_done: Option<(ProfileJob, String, Tone)>,
+    /// The saved profiles (`saved_profiles`).
+    profiles: Option<Vec<Profile>>,
 }
 
 /// How a job ended, as its row shows it: done (green), nothing done but worth a look (warning), failed (red).
@@ -229,6 +231,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     chars: None,
     profile_job: None,
     profile_done: None,
+    profiles: None,
 });
 static HWND_MAIN: AtomicIsize = AtomicIsize::new(0);
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
@@ -382,17 +385,15 @@ fn load_ctx() -> Option<Ctx> {
     Ctx::load(&path, explicit.as_deref()).ok()
 }
 
-fn restore_points(ctx: &Ctx) -> Vec<RestorePoint> {
-    let Ok(flavors) = ctx.flavors(None) else { return Vec::new() };
+fn restore_points(ctx: &Ctx, flavors: &[wow::Flavor], games: &[wow::Running]) -> Vec<RestorePoint> {
     let store = ctx.store();
-    let games = wow::running_games();
     let multi = flavors.len() > 1;
     let mut per_flavor: Vec<Vec<RestorePoint>> = flavors
         .iter()
         .map(|fl| {
             let wtf = store.list(fl, Kind::Wtf).unwrap_or_default();
             let addons = store.list(fl, Kind::Addons).unwrap_or_default();
-            let running = wow::running_in(&games, fl).is_some();
+            let running = wow::running_in(games, fl).is_some();
             let point = |id: &str, created, wtf_size, addons_size, kind| RestorePoint {
                 flavor: fl.name.clone(),
                 flavor_title: multi.then(|| fl.title()),
@@ -403,11 +404,11 @@ fn restore_points(ctx: &Ctx) -> Vec<RestorePoint> {
                 running,
                 kind,
             };
-            // Backups and the state before a cleanup; the safety nets before a profile or a copy
+            // Backups and the state before a cleanup or a profile; the safety nets before a copy
             // (`app::is_safety`) and the addons saved before an update are not listed.
             let mut list: Vec<RestorePoint> = wtf
                 .iter()
-                .filter(|s| !crate::app::is_safety(&s.id) || s.id.ends_with("-pre-cleanup"))
+                .filter(|s| !crate::app::is_safety(&s.id) || s.id.ends_with("-pre-cleanup") || s.id.ends_with("-pre-profile"))
                 .map(|s| point(&s.id, s.created, s.size, snapshot::select(&addons, Some(&s.id)).map(|a| a.size), None))
                 .collect();
             list.sort_by_key(|p| std::cmp::Reverse(p.created));
@@ -435,6 +436,8 @@ fn pick_points(per_flavor: &mut [Vec<RestorePoint>]) -> Vec<RestorePoint> {
 pub fn view() -> View {
     let ctx = load_ctx();
     let cfg = ctx.as_ref().map_or_else(Config::default, |c| c.cfg.clone());
+    let flavors = ctx.as_ref().and_then(|c| c.flavors(None).ok()).unwrap_or_default();
+    let games = wow::running_games();
     let update_text = if cfg.update_addons {
         upper_first(&cfg.update_text())
     } else {
@@ -448,7 +451,7 @@ pub fn view() -> View {
         self_update,
         update_waits_for_game: cfg.update_skip_in_game && status.game.is_some(),
         status,
-        points: ctx.as_ref().map(restore_points).unwrap_or_default(),
+        points: ctx.as_ref().map(|c| restore_points(c, &flavors, &games)).unwrap_or_default(),
         autostart: schedule::logon_command().is_some(),
         schedule: cfg.schedule_text(),
         update_app: crate::updater::chosen(cfg.update_app).map(|a| a.title()),
@@ -458,20 +461,28 @@ pub fn view() -> View {
         scan,
         cleaning,
         cleaned,
-        profiles: ctx.as_ref().map(|c| profiles::list(&profiles::root(c))).unwrap_or_default(),
+        profiles: ctx.as_ref().map(saved_profiles).unwrap_or_default(),
         chars,
         profile_job,
         profile_done,
         shots_dir: maintenance::screenshots_dir(&cfg),
-        running: ctx.as_ref().and_then(|c| c.flavors(None).ok()).map_or_else(Vec::new, |flavors| {
-            let games = wow::running_games();
-            flavors
-                .into_iter()
-                .filter(|fl| wow::running_in(&games, fl).is_some())
-                .map(|fl| fl.name)
-                .collect()
-        }),
+        running: flavors
+            .iter()
+            .filter(|fl| wow::running_in(&games, fl).is_some())
+            .map(|fl| fl.name.clone())
+            .collect(),
     }
+}
+
+/// The saved profiles, read once and kept until a profile job, a delete or a settings change
+/// (`forget_profiles`): `view` runs on every refresh and each profile is a zip to open.
+fn saved_profiles(ctx: &Ctx) -> Vec<Profile> {
+    let mut st = STATE.lock().unwrap();
+    st.profiles.get_or_insert_with(|| profiles::list(&profiles::root(ctx))).clone()
+}
+
+fn forget_profiles() {
+    STATE.lock().unwrap().profiles = None;
 }
 
 /// Reads what the cleanup tab shows again, on a thread of its own (it takes a moment on a big WTF).
@@ -543,6 +554,8 @@ pub fn act(action: Action) {
         }
         Action::OpenConfigFile => open_config(),
         Action::SettingsChanged => {
+            // The backup folder, and the profiles in it, may have moved.
+            forget_profiles();
             post_state();
             Ok(())
         }
@@ -572,7 +585,12 @@ pub fn act(action: Action) {
                 target: target.character,
             })
         }
-        Action::DeleteProfile(profile) => profiles::delete(&profile).map(|()| post_state()),
+        Action::DeleteProfile(profile) => {
+            let result = profiles::delete(&profile);
+            forget_profiles();
+            post_state();
+            result
+        }
         Action::OpenScreenshots => {
             let dir = maintenance::screenshots_dir(&load_ctx().map_or_else(Config::default, |c| c.cfg));
             std::fs::create_dir_all(&dir)
@@ -871,6 +889,7 @@ fn on_event(event: Event) {
                 });
             }
             Event::Profile { result, notice } => {
+                st.profiles = None;
                 st.status.phase = Phase::Idle;
                 st.profile_done = st.profile_job.take().map(|job| match &result {
                     Ok(summary) => (job, summary.clone(), if notice { Tone::Notice } else { Tone::Ok }),

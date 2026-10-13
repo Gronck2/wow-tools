@@ -144,8 +144,8 @@ The `AddOns` snapshots taken *before update* are not listed in the panel: `wow-t
 `wow-tools restore <id> --kind addons` undoes an addon update and leaves settings as they are.
 
 Before a cleanup, a UI profile or a settings copy a WTF snapshot is taken too (*before cleanup*, *before profile*,
-*before copy*). It is a safety net: the panel lists only the ones *before cleanup*; several such actions within 10 minutes share the one
-taken before the first. `wow-tools list --kind wtf` shows them, `wow-tools restore <id> --kind wtf` brings one back.
+*before copy*). It is a safety net: the panel lists the ones *before cleanup* and *before profile*; several such actions within 10
+minutes share the one taken before the first, unless the game changed `WTF` in between. `wow-tools list --kind wtf` shows them, `wow-tools restore <id> --kind wtf` brings one back.
 
 From the command line: `wow-tools restore` (latest), `wow-tools restore 20261012` (the latest of that day or earlier),
 `--kind wtf` or `--kind addons` for one part only, `--flavor _classic_era_` for another game version.

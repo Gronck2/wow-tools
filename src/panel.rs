@@ -1946,16 +1946,21 @@ fn open() -> gfx::Result<()> {
 /// Re-reads the state (after a backup, a restore, a settings change) and redraws.
 pub fn refresh() {
     let Some((hwnd, cleaning)) = with_panel(|p| {
-        p.view = tray::view();
-        let still = match p.confirm {
-            Some(Confirm::Restore(i)) => restore_allowed(&p.view, i),
-            Some(Confirm::Clean(item)) => clean_allowed(&p.view, item),
-            Some(Confirm::DeleteProfile(i)) => profiles_allowed(&p.view) && i < p.view.profiles.len(),
-            Some(Confirm::ApplyProfile(i, c)) => profiles_allowed(&p.view) && i < p.view.profiles.len() && p.view.chars.as_ref().is_some_and(|cs| c < cs.len()),
-            None => true,
-        };
-        if !still {
-            p.confirm = None;
+        let old = std::mem::replace(&mut p.view, tray::view());
+        // A confirmation or pick list points into the lists by position, and they may have changed
+        // (a new snapshot or profile goes first): it follows what it pointed at, or goes.
+        p.confirm = p.confirm.and_then(|c| follow(&old, &p.view, c)).filter(|&c| match c {
+            Confirm::Restore(i) => restore_allowed(&p.view, i),
+            Confirm::Clean(item) => clean_allowed(&p.view, item),
+            Confirm::DeleteProfile(_) | Confirm::ApplyProfile(..) => profiles_allowed(&p.view),
+        });
+        if let Some(s) = p.sheet.as_mut()
+            && let SheetList::ApplyTo(i) = s.list
+        {
+            match profile_index(&old, &p.view, i) {
+                Some(j) => s.list = SheetList::ApplyTo(j),
+                None => p.sheet = None,
+            }
         }
         // A list that emptied (after a cleanup) closes.
         if p.sheet.as_ref().is_some_and(|s| !picks(s.list) && sheet_entries(&p.view, s).is_empty()) {
@@ -1970,6 +1975,33 @@ pub fn refresh() {
         fit_height(hwnd);
         InvalidateRect(hwnd, null(), 0);
     }
+}
+
+/// Where profile `i` of `old` is in `new`.
+fn profile_index(old: &View, new: &View, i: usize) -> Option<usize> {
+    let path = &old.profiles.get(i)?.path;
+    new.profiles.iter().position(|p| &p.path == path)
+}
+
+/// `c`, with its positions moved to where the same point, profile and character are in `new`.
+fn follow(old: &View, new: &View, c: Confirm) -> Option<Confirm> {
+    let char_index = |c: usize| {
+        let dir = &old.chars.as_ref()?.get(c)?.character.dir;
+        new.chars.as_ref()?.iter().position(|e| &e.character.dir == dir)
+    };
+    Some(match c {
+        Confirm::Restore(i) => {
+            let point = old.points.get(i)?;
+            Confirm::Restore(
+                new.points
+                    .iter()
+                    .position(|p| p.id == point.id && p.flavor == point.flavor && p.kind == point.kind)?,
+            )
+        }
+        Confirm::Clean(item) => Confirm::Clean(item),
+        Confirm::DeleteProfile(i) => Confirm::DeleteProfile(profile_index(old, new, i)?),
+        Confirm::ApplyProfile(i, c) => Confirm::ApplyProfile(profile_index(old, new, i)?, char_index(c)?),
+    })
 }
 
 /// A job with a `spinner` runs.

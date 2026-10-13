@@ -1021,6 +1021,9 @@ fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], fl
             println!("  {f}");
         }
     }
+    if !dry_run {
+        app::safety_done(ctx, &fl);
+    }
     Ok(())
 }
 

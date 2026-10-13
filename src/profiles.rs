@@ -174,7 +174,10 @@ fn read_ace(c: &Character) -> Vec<AceProfile> {
     files.sort();
     let mut out = Vec::new();
     for path in files {
-        let Ok(text) = fs::read_to_string(&path) else { continue };
+        // Some addons keep raw bytes in strings: read what is text. A table with such bytes is
+        // not carried (`data` stays empty), only which profile the character uses.
+        let Ok(bytes) = fs::read(&path) else { continue };
+        let text = String::from_utf8_lossy(&bytes);
         if !text.contains("[\"profileKeys\"]") {
             continue;
         }
@@ -182,7 +185,9 @@ fn read_ace(c: &Character) -> Vec<AceProfile> {
             let Some(profile) = lua::subtable(&text, db, "profileKeys").and_then(|keys| lua::string(&text, keys, &key)) else {
                 continue;
             };
-            let data = lua::subtable(&text, db, "profiles").and_then(|p| lua::value_text(&text, p, &profile));
+            let data = lua::subtable(&text, db, "profiles")
+                .and_then(|p| lua::value_text(&text, p, &profile))
+                .filter(|t| !t.contains(char::REPLACEMENT_CHARACTER));
             let mut namespaces = Vec::new();
             if let Some(nss) = lua::subtable(&text, db, "namespaces") {
                 for ns in lua::entries(&text, nss) {
@@ -190,7 +195,7 @@ fn read_ace(c: &Character) -> Vec<AceProfile> {
                     let Some(p) = lua::subtable(&text, ns.value.start, "profiles") else {
                         continue;
                     };
-                    if let Some(t) = lua::value_text(&text, p, &profile) {
+                    if let Some(t) = lua::value_text(&text, p, &profile).filter(|t| !t.contains(char::REPLACEMENT_CHARACTER)) {
                         namespaces.push((name, t.to_string()));
                     }
                 }
@@ -331,6 +336,7 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         log::info!("{}", tr!("profiles.snapshot", flavor = fl.title(), id = id));
     }
     let mut files = 0;
+    let mut edit_mode_copied = false;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
         let Some(rel) = entry.enclosed_name() else { continue };
@@ -345,16 +351,21 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         let mut out = File::create(&dst).with_context(|| tr!("profiles.write_failed", path = dst.display()))?;
         io::copy(&mut entry, &mut out)?;
         files += 1;
+        edit_mode_copied |= rel.as_os_str().eq_ignore_ascii_case(EDIT_MODE);
     }
+    let same_account = meta.account == target.account;
+    // Layout numbers point into the account's layouts: on another account they mean others.
     let edit_mode = target.dir.join(EDIT_MODE);
-    if let Some(filled) = fs::read(&edit_mode).ok().and_then(|d| fill_layout_slots(&d)) {
+    if edit_mode_copied
+        && same_account
+        && let Some(filled) = fs::read(&edit_mode).ok().and_then(|d| fill_layout_slots(&d))
+    {
         fs::write(&edit_mode, filled).with_context(|| tr!("profiles.write_failed", path = edit_mode.display()))?;
     }
 
-    let same_account = meta.account == target.account;
     let key = ace_key(target);
     let sv = account_sv(target);
-    let (mut switched, mut missing) = (Vec::new(), Vec::new());
+    let (mut switched, mut missing, mut unreadable) = (Vec::new(), Vec::new(), Vec::new());
     let mut by_file: Vec<(&str, Vec<&AceProfile>)> = Vec::new();
     for a in &ace {
         match by_file.iter_mut().find(|(f, _)| *f == a.file) {
@@ -365,9 +376,19 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
     for (file, dbs) in by_file {
         let addon = file.trim_end_matches(".lua").to_string();
         let path = sv.join(file);
-        let Ok(mut s) = fs::read_to_string(&path) else {
-            missing.push(addon);
-            continue;
+        let mut s = match fs::read(&path) {
+            Err(_) => {
+                missing.push(addon);
+                continue;
+            }
+            // Rewriting it as text would mangle what is not.
+            Ok(bytes) => match String::from_utf8(bytes) {
+                Ok(s) => s,
+                Err(_) => {
+                    unreadable.push(addon);
+                    continue;
+                }
+            },
         };
         let before = s.clone();
         let mut any = false;
@@ -396,6 +417,11 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         summary.push('\n');
         summary.push_str(&tr!("profiles.missing", addons = missing.join(", ")));
     }
+    if !unreadable.is_empty() {
+        summary.push('\n');
+        summary.push_str(&tr!("profiles.unreadable", addons = unreadable.join(", ")));
+    }
+    app::safety_done(ctx, fl);
     log::info!("{}", summary.replace('\n', " | "));
     Ok(summary)
 }
@@ -490,15 +516,17 @@ pub fn characters(flavors: &[Flavor]) -> Vec<CharEntry> {
     let mut rosters: HashMap<PathBuf, Roster> = HashMap::new();
     let mut out: Vec<CharEntry> = flavors
         .iter()
-        .flat_map(|fl| crate::chars::list(&fl.wtf_dir()).into_iter().map(move |c| (fl.name.clone(), c)))
-        .filter(|(_, c)| {
-            let account = c.dir.parent().and_then(Path::parent).unwrap_or(&c.dir).to_path_buf();
-            rosters.entry(account).or_insert_with_key(|dir| Roster::read(dir)).has(c)
+        .flat_map(|fl| {
+            crate::chars::list(&fl.wtf_dir()).into_iter().map(move |c| CharEntry {
+                flavor: fl.name.clone(),
+                played: last_played(&c),
+                character: c,
+            })
         })
-        .map(|(flavor, c)| CharEntry {
-            flavor,
-            played: last_played(&c),
-            character: c,
+        .filter(|e| {
+            let c = &e.character;
+            let account = c.dir.parent().and_then(Path::parent).unwrap_or(&c.dir).to_path_buf();
+            rosters.entry(account).or_insert_with_key(|dir| Roster::read(dir)).has(c, e.played)
         })
         .collect();
     out.sort_by_key(|e| std::cmp::Reverse(e.played));
@@ -514,8 +542,9 @@ pub fn characters(flavors: &[Flavor]) -> Vec<CharEntry> {
 /// it is judged realm by realm: the realm id of a named one gives the realm's name.
 #[derive(Debug, Default)]
 struct Roster {
-    /// The list was read.
+    /// The list was read; when the game wrote it.
     listed: bool,
+    listed_at: Option<NaiveDateTime>,
     /// Realm id -> (GUIDs on it, of them named).
     realms: HashMap<String, (usize, usize)>,
     /// (realm id, lowercase name, realm as `realm_key` when known).
@@ -537,8 +566,13 @@ impl Roster {
             return Roster::default();
         }
         let realm_id = |guid: &str| guid.split('-').nth(1).unwrap_or_default().to_string();
+        let listed_at = fs::metadata(account.join("character-list-order.txt"))
+            .and_then(|m| m.modified())
+            .ok()
+            .map(|t| chrono::DateTime::<Local>::from(t).naive_local());
         let mut roster = Roster {
             listed: true,
+            listed_at,
             ..Roster::default()
         };
         for g in &wanted {
@@ -635,9 +669,10 @@ impl Roster {
     }
 
     /// False only when `c` is surely gone: its realm is on the list with every character named
-    /// and `c` is not one of them, or every realm of the list is known and `c`'s is not one.
-    fn has(&self, c: &Character) -> bool {
-        if !self.listed {
+    /// and `c` is not one of them, or every realm of the list is known and `c`'s is not one. A
+    /// character played (`played`) after the list was written is newer than it: kept.
+    fn has(&self, c: &Character, played: Option<NaiveDateTime>) -> bool {
+        if !self.listed || played.is_some_and(|p| self.listed_at.is_none_or(|l| p > l)) {
             return true;
         }
         let name = c.name.to_lowercase();
@@ -761,6 +796,15 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().contains("pre-profile"))
             .count();
         assert_eq!(safety, 1, "the snapshot of the first apply covers the second");
+        // The game wrote WTF in between: that is not in the snapshot, so a new one is taken.
+        fs::write(acc.join("Realm/Alt/config-cache.wtf"), "SET played \"1\"").unwrap();
+        apply(&ctx, &fl, &profile, alt).unwrap();
+        let safety = fs::read_dir(backups.join("_retail_/wtf"))
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().contains("pre-profile"))
+            .count();
+        assert_eq!(safety, 2, "WTF changed after the last action");
         let other = fs::read_to_string(fl.wtf_dir().join("Account/ACC2/SavedVariables/ElvUI.lua")).unwrap();
         assert!(other.contains("[\"Third - Realm\"] = \"Main - Realm\","), "{other}");
         assert!(
@@ -794,23 +838,23 @@ mod tests {
             dir: acc.join(realm).join(name),
         };
         // No list: nothing is hidden.
-        assert!(Roster::read(&acc).has(&ch("Tarren Mill", "Deleted")));
+        assert!(Roster::read(&acc).has(&ch("Tarren Mill", "Deleted"), None));
 
         fs::write(acc.join("character-list-order.txt"), "Version: 2\r\n0 1084-0B52E2A1 1\r\n0 1615-0AE5AEC9 2\r\n").unwrap();
         let big_wigs = "\r\nBigWigsDB = {\r\n[\"Player-1084-0B52E2A1\"] = {\r\n[\"name\"] = \"Groncky\",\r\n[\"realm\"] = \"Tarren Mill\",\r\n},\r\n}\r\n";
         fs::write(acc.join("SavedVariables/BigWigs.lua"), big_wigs).unwrap();
         // Tarren Mill's only character is named; the other realm of the list is not known yet.
         let partial = Roster::read(&acc);
-        assert!(partial.has(&ch("Tarren Mill", "groncky")));
-        assert!(!partial.has(&ch("Tarren Mill", "Deleted")));
-        assert!(partial.has(&ch("Silvermoon", "Groncky")), "might be the unnamed one");
+        assert!(partial.has(&ch("Tarren Mill", "groncky"), None));
+        assert!(!partial.has(&ch("Tarren Mill", "Deleted"), None));
+        assert!(partial.has(&ch("Silvermoon", "Groncky"), None), "might be the unnamed one");
 
         let rc = "\r\nRC = {\r\n[\"Player-1615-0AE5AEC9\"] = {\r\n[\"name\"] = \"Гронки-Азурегос\",\r\n},\r\n}\r\n";
         fs::write(acc.join("SavedVariables/RCLootCouncil.lua"), rc).unwrap();
         let full = Roster::read(&acc);
-        assert!(full.has(&ch("Азурегос", "Гронки")));
-        assert!(!full.has(&ch("Silvermoon", "Groncky")), "moved to Tarren Mill");
-        assert!(!full.has(&ch("Азурегос", "Гронкмаг")));
+        assert!(full.has(&ch("Азурегос", "Гронки"), None));
+        assert!(!full.has(&ch("Silvermoon", "Groncky"), None), "moved to Tarren Mill");
+        assert!(!full.has(&ch("Азурегос", "Гронкмаг"), None));
 
         // A name without its realm: the one realm whose folder has it, of those not taken.
         fs::write(
@@ -833,9 +877,12 @@ WQT = {
             fs::create_dir_all(acc.join(c)).unwrap();
         }
         let moved = Roster::read(&acc);
-        assert!(moved.has(&ch("Silvermoon", "Gronckowski")));
-        assert!(!moved.has(&ch("Tarren Mill", "Gronckowski")), "moved to Silvermoon");
-        assert!(!moved.has(&ch("Kazzak", "Groncky")), "a realm the list does not have");
+        assert!(moved.has(&ch("Silvermoon", "Gronckowski"), None));
+        assert!(!moved.has(&ch("Tarren Mill", "Gronckowski"), None), "moved to Silvermoon");
+        assert!(!moved.has(&ch("Kazzak", "Groncky"), None), "a realm the list does not have");
+        // Played after the list was written (a new character the list has not caught up with).
+        let later = Some(Local::now().naive_local() + chrono::Duration::hours(1));
+        assert!(moved.has(&ch("Kazzak", "Groncky"), later));
     }
 
     #[test]
