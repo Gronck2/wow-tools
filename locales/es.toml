@@ -48,6 +48,19 @@ forced_on = "{app}: actualización automática activada para esta ejecución"
 auto_restored = "{app}: actualización automática desactivada de nuevo, como estaba"
 auto_restore_failed = "{app}: no se pudo restaurar la actualización automática: {error}"
 
+[elvui]
+history_updated = "Actualizado: {from} → {to}"
+history_redone = "Reinstalado limpio: {version}"
+http = "tukui.org respondió {status}"
+bad_answer = "respuesta inesperada de tukui.org sobre la versión de ElvUI"
+bad_zip = "el archivo de ElvUI no es correcto o está dañado ({error}), no se reemplazó nada"
+swap_failed = "no se pudo reemplazar {path}, la versión anterior sigue en su sitio"
+not_installed = "ElvUI no está instalado, se omite"
+fresh = "ElvUI {version} en {flavor} está al día"
+updated = "ElvUI en {flavor}: {from} → {to}"
+repaired = "ElvUI en {flavor}: versiones mezcladas {versions}, {to} instalado limpio"
+failed = "ElvUI no actualizado: {error}"
+
 [curseforge]
 auto_on = "actualización automática activada"
 auto_off = "actualización automática desactivada"
@@ -284,6 +297,7 @@ wago_only_extras = "Wago App no actualiza accesorios por sí solo, solo WeakAura
 weakauras_sub = "Las auras actualizadas se aplican en el juego"
 weakauras_missing = "El accesorio WeakAuras no está instalado"
 ui_packs_sub = "Perfiles de interfaz de autores en Wago"
+elvui_sub = "Desde tukui.org: los gestores no lo actualizan"
 update_game = "No actualizar mientras juegas"
 update_game_sub = "Actualizar con el juego abierto puede romperlo: se espera a que se cierre"
 updates = "Actualizar automáticamente"
@@ -459,7 +473,7 @@ check = "Solo comprobar, sin instalar"
 
 [self_update]
 http = "GitHub respondió {status}"
-network = "sin conexión con GitHub: {error}"
+network = "sin conexión con {host}: {error}"
 no_asset = "La versión {version} no tiene exe — descárgalo desde la página de la versión: {url}"
 no_hash = "El archivo de la versión no tiene suma de comprobación, se canceló la instalación. Descárgalo a mano: {url}"
 bad_hash = "El archivo descargado no coincide con la suma de comprobación — no se instaló"

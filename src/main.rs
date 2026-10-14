@@ -4,6 +4,7 @@ mod app;
 mod chars;
 mod config;
 mod curseforge;
+mod elvui;
 #[cfg(windows)]
 mod gfx;
 mod lua;
@@ -625,12 +626,13 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         update_waits_for_game: false,
         last_update: Some(now - Duration::minutes(25)),
         updates: [
+            (25, "ElvUI", true, true, tr!("elvui.history_updated", from = "15.26", to = "16.00")),
             (
                 25,
                 "CurseForge",
                 true,
                 true,
-                tr!("addons.updated", n = 3, names = "BigWigs, Details! Damage Meter, ElvUI"),
+                tr!("addons.updated", n = 3, names = "BigWigs, Details! Damage Meter, Plater"),
             ),
             (85, "CurseForge", true, false, tr!("addons.none").to_string()),
             (
@@ -646,7 +648,6 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                 ),
             ),
             (1500, "WowUp", true, false, tr!("addons.updated", n = 1, names = "WeakAuras")),
-            (2900, "WowUp", true, false, tr!("addons.updated", n = 2, names = "Plater, OmniCD")),
         ]
         .map(|(min, app, ok, manual, text)| updater::Entry {
             time: now - Duration::minutes(min),

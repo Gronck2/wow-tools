@@ -291,7 +291,7 @@ pub fn wait_for_exit(pid: u32) {
 }
 
 #[cfg(windows)]
-mod http {
+pub(crate) mod http {
     use anyhow::{Result, bail};
     use std::ffi::c_void;
     use std::ptr::{null, null_mut};
@@ -314,20 +314,25 @@ mod http {
 
     fn check(h: *mut c_void) -> Result<Handle> {
         if h.is_null() {
-            bail!(tr!("self_update.network", error = std::io::Error::last_os_error()));
+            return Err(std::io::Error::last_os_error().into());
         }
         Ok(Handle(h))
     }
 
     fn ok(r: windows_sys::core::BOOL) -> Result<()> {
         if r == 0 {
-            bail!(tr!("self_update.network", error = std::io::Error::last_os_error()));
+            return Err(std::io::Error::last_os_error().into());
         }
         Ok(())
     }
 
     /// A GET over HTTPS (redirects followed); returns the status and the body.
     pub fn get(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {
+        let host = url.trim_start_matches("https://").split('/').next().unwrap_or_default();
+        request(url, accept).map_err(|e| anyhow::anyhow!(tr!("self_update.network", host = host, error = e)))
+    }
+
+    fn request(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {
         let Some(rest) = url.strip_prefix("https://") else {
             bail!("https only: {url}")
         };
@@ -383,7 +388,7 @@ mod http {
 }
 
 #[cfg(not(windows))]
-mod http {
+pub(crate) mod http {
     pub fn get(_: &str, _: Option<&str>) -> anyhow::Result<(u32, Vec<u8>)> {
         anyhow::bail!(tr!("autostart.windows_only"))
     }

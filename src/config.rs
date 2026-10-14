@@ -104,6 +104,8 @@ pub struct Config {
     /// With the Wago App chosen: what it updates (it cannot update addons unattended).
     pub wago_weakauras: bool,
     pub wago_ui_packs: bool,
+    /// Update ElvUI from tukui.org with the addon updates (the managers do not carry it).
+    pub update_elvui: bool,
     pub update_when: UpdateWhen,
     /// Minutes of `UpdateWhen::Interval`.
     pub update_every: u64,
@@ -144,6 +146,7 @@ impl Default for Config {
             update_skip_in_game: true,
             wago_weakauras: true,
             wago_ui_packs: true,
+            update_elvui: true,
             update_when: UpdateWhen::Schedule,
             update_every: 60,
             update_days: Day::ALL.to_vec(),

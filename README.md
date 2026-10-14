@@ -9,7 +9,8 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - **One-click restore** to any earlier point, with the current state saved first, so a restore can always be undone.
 - **Copying settings between characters**: bindings, macros, chat windows, frame layout, enabled addons, addon settings.
 - **Addon updates** through the addon manager you already use — CurseForge, WowUp, WowUp-CF or the Wago App —
-  started without a window, on a schedule, never while you are playing.
+  started without a window, on a schedule, never while you are playing. ElvUI, which none of them carries, straight
+  from its official site.
 - **Game patches**: when Battle.net updates the game, settings and addons are saved before its first start on the
   new version, and you see which addons are not made for it yet.
 - **Cleanup**: settings of removed addons, WoW's `.bak` copies, old combat logs, screenshots and the cache — with
@@ -152,9 +153,9 @@ From the command line: `wow-tools restore` (latest), `wow-tools restore 20261012
 
 ## Addon updates
 
-WoW Tools does not download addons itself. It runs the addon manager you already have, lets it do its usual update and
-closes it. This keeps the manager's own records correct and respects authors who allow downloads only through official
-clients.
+WoW Tools does not download addons itself (except [ElvUI](#elvui)). It runs the addon manager you already have, lets
+it do its usual update and closes it. This keeps the manager's own records correct and respects authors who allow
+downloads only through official clients.
 
 Only **one** program is used: two managers working on the same `AddOns` folder overwrite each other's files. If you
 have several, choose one in **Settings → Addons**; if there is just one, it is used automatically.
@@ -193,6 +194,16 @@ The Wago App has no unattended addon update — only its *Update All* button —
 started minimized, writes its updates to `AddOns\WagoAppCompanion` (WeakAuras, applied in game) and
 `AddOns\WagoUI_Storage` (UI packs), and is closed once it has been quiet for 15 seconds. A part you switched off is
 kept exactly as it was. With both off there is nothing to do and the app is not started.
+
+### ElvUI
+
+ElvUI is not on CurseForge or Wago, so no addon manager updates it. With the **ElvUI** switch on (the default), every
+update run also asks the official site [tukui.org](https://tukui.org/elvui) for the current version. Every game version
+that has ElvUI installed and is behind gets the new zip: the `ElvUI`, `ElvUI_Libraries` and `ElvUI_Options` folders
+are replaced whole, so files an older version left behind go too (a leftover `ElvUI_Mainline.toc` would make the game
+load the old version's file list). An install that mixes versions this way is reinstalled even when the version
+matches. ElvUI plugins (`ElvUI_WindTools` and the like) are left alone, and game versions without ElvUI get nothing.
+This also works without any addon manager installed.
 
 ## Game patches
 
@@ -344,10 +355,11 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
 
 ## Privacy and safety
 
-- The only connection WoW Tools makes itself is to **GitHub**, to look for a new version of WoW Tools (see
-  [Updating WoW Tools](#updating-wow-tools)) — once a day, and it can be switched off. It is a plain request for the
-  latest release, like opening the releases page in a browser; nothing about you, your game or your addons is sent.
-- Addons are downloaded only by the addon program you chose, never by WoW Tools.
+- WoW Tools connects to two places itself. **GitHub**, to look for a new version of WoW Tools (see
+  [Updating WoW Tools](#updating-wow-tools)) — once a day, and it can be switched off. And **tukui.org**, during an
+  addon update run when ElvUI is installed and its switch is on, for [ElvUI](#elvui). Both are plain requests for the
+  latest version, like opening the download page in a browser; nothing about you, your game or your addons is sent.
+- Addons are downloaded only by the addon program you chose — except ElvUI, which WoW Tools takes from its official site.
 - It never touches the game itself, does not read game memory and does not automate anything in game.
 - It writes to the game folder only when you restore, copy character settings, tidy up, or an addon program updates
   addons — and whatever touches settings or addons takes a snapshot first.

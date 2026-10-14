@@ -12,7 +12,8 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
 - **Copie des réglages entre personnages** : raccourcis, macros, fenêtres de discussion, disposition des cadres, addons
   activés, réglages des addons.
 - **Mise à jour des addons** via le gestionnaire que vous utilisez déjà — CurseForge, WowUp, WowUp-CF ou Wago App —
-  lancé sans fenêtre, selon un planning, jamais pendant que vous jouez.
+  lancé sans fenêtre, selon un planning, jamais pendant que vous jouez. ElvUI, qu'aucun d'eux ne propose, directement
+  depuis son site officiel.
 - **Patchs du jeu** : quand Battle.net met le jeu à jour, les réglages et les addons sont sauvegardés avant le premier
   lancement sur la nouvelle version, et vous voyez quels addons ne sont pas encore faits pour elle.
 - **Nettoyage** : réglages d'addons supprimés, copies `.bak` de WoW, vieux journaux de combat, captures d'écran et
@@ -168,9 +169,9 @@ jeu.
 
 ## Mise à jour des addons
 
-WoW Tools ne télécharge pas les addons lui-même. Il lance le gestionnaire d'addons que vous avez déjà, le laisse faire
-sa mise à jour habituelle, puis le ferme. Les données du gestionnaire restent ainsi correctes, et les auteurs qui
-n'autorisent le téléchargement que via les clients officiels sont respectés.
+WoW Tools ne télécharge pas les addons lui-même (sauf [ElvUI](#elvui)). Il lance le gestionnaire d'addons que vous
+avez déjà, le laisse faire sa mise à jour habituelle, puis le ferme. Les données du gestionnaire restent ainsi
+correctes, et les auteurs qui n'autorisent le téléchargement que via les clients officiels sont respectés.
 
 Un **seul** programme est utilisé : deux gestionnaires qui travaillent sur le même dossier `AddOns` écrasent les
 fichiers l'un de l'autre. Si vous en avez plusieurs, choisissez-en un dans **Paramètres → Addons** ; s'il n'y en a
@@ -216,6 +217,17 @@ est choisi : **WeakAuras** et **packs d'interface**. L'application est lancée r
 `AddOns\WagoAppCompanion` (WeakAuras, à appliquer en jeu) et `AddOns\WagoUI_Storage` (packs d'interface), puis est
 fermée après 15 secondes d'inactivité. Une partie que vous avez désactivée reste exactement telle qu'elle était. Si les
 deux sont désactivées, il n'y a rien à faire et l'application n'est pas lancée.
+
+### ElvUI
+
+ElvUI n'est ni sur CurseForge ni sur Wago, donc aucun gestionnaire d'addons ne le met à jour. Avec l'interrupteur
+**ElvUI** activé (par défaut), chaque mise à jour demande aussi la version actuelle au site officiel
+[tukui.org](https://tukui.org/elvui). Chaque version du jeu où ElvUI est installé et en retard reçoit le nouveau zip :
+les dossiers `ElvUI`, `ElvUI_Libraries` et `ElvUI_Options` sont remplacés en entier, donc les fichiers laissés par une
+ancienne version disparaissent aussi (un `ElvUI_Mainline.toc` oublié ferait charger au jeu la liste de fichiers de
+l'ancienne version). Une installation qui mélange ainsi des versions est réinstallée même si le numéro de version est
+le même. Les plugins d'ElvUI (`ElvUI_WindTools` et autres) ne sont pas touchés, et les versions du jeu sans ElvUI ne
+reçoivent rien. Cela fonctionne aussi sans aucun gestionnaire d'addons installé.
 
 ## Patchs du jeu
 
@@ -378,11 +390,13 @@ défaut) et `language` (`ru`, `en`, `de`, `fr`, `es` ; absent = la langue d'affi
 
 ## Confidentialité et sécurité
 
-- La seule connexion que WoW Tools établit lui-même est vers **GitHub**, pour chercher une nouvelle version de WoW
-  Tools (voir [Mettre à jour WoW Tools](#mettre-à-jour-wow-tools)) — une fois par jour, et cela peut être désactivé.
-  C'est une simple requête pour obtenir la dernière release, comme si vous ouvriez la page des releases dans un
-  navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé.
-- Les addons sont téléchargés uniquement par le programme d'addons que vous avez choisi, jamais par WoW Tools.
+- WoW Tools se connecte lui-même à deux endroits. À **GitHub**, pour chercher une nouvelle version de WoW Tools (voir
+  [Mettre à jour WoW Tools](#mettre-à-jour-wow-tools)) — une fois par jour, et cela peut être désactivé. Et à
+  **tukui.org**, pendant une mise à jour des addons quand ElvUI est installé et que son interrupteur est activé, pour
+  [ElvUI](#elvui). Ce sont de simples requêtes pour obtenir la dernière version, comme si vous ouvriez la page de
+  téléchargement dans un navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé.
+- Les addons sont téléchargés uniquement par le programme d'addons que vous avez choisi — sauf ElvUI, que WoW Tools
+  prend sur son site officiel.
 - Il ne touche jamais au jeu lui-même, ne lit pas la mémoire du jeu et n'automatise rien en jeu.
 - Il n'écrit dans le dossier du jeu que lorsque vous restaurez, copiez les réglages d'un personnage, faites le ménage,
   ou quand un programme d'addons met à jour les addons — et tout ce qui touche aux réglages ou aux addons crée d'abord

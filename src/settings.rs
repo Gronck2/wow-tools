@@ -150,6 +150,7 @@ enum Row {
     UpdateApp,
     WagoWeakAuras,
     WagoUiPacks,
+    Elvui,
     Updates,
     UpdateWhen,
     UpdateEvery,
@@ -216,6 +217,7 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
             if m.chosen() == Some(AddonApp::Wago) {
                 rows.extend([Row::WagoWeakAuras, Row::WagoUiPacks]);
             }
+            rows.push(Row::Elvui);
             rows.push(Row::UpdateGame);
             rows.push(Row::Updates);
             if m.cfg.update_addons {
@@ -271,6 +273,7 @@ enum Hit {
     UpdateGame,
     WagoWeakAuras,
     WagoUiPacks,
+    Elvui,
     Updates,
     UpdateInterval,
     UpdateSchedule,
@@ -625,6 +628,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
         Row::UpdateGame => switch(&mut out, m.cfg.update_skip_in_game, Hit::UpdateGame),
         Row::WagoWeakAuras => switch(&mut out, m.cfg.wago_weakauras, Hit::WagoWeakAuras),
         Row::WagoUiPacks => switch(&mut out, m.cfg.wago_ui_packs, Hit::WagoUiPacks),
+        Row::Elvui => switch(&mut out, m.cfg.update_elvui, Hit::Elvui),
         Row::UpdateTime => stepper(
             &mut out,
             m.cfg.update_at().format("%H:%M").to_string(),
@@ -756,6 +760,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             ("\u{E945}", "WeakAuras", sub.into(), false)
         }
         Row::WagoUiPacks => ("\u{E8A1}", tr!("wago.ui_packs"), tr!("settings.ui_packs_sub").into(), false),
+        Row::Elvui => ("\u{E896}", "ElvUI", tr!("settings.elvui_sub").into(), false),
         Row::UpdateGame => ("\u{E7FC}", tr!("settings.update_game"), tr!("settings.update_game_sub").into(), false),
         Row::Updates => {
             let title = tr!("settings.updates");
@@ -1131,6 +1136,7 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
         Hit::UpdateGame => m.cfg.update_skip_in_game = !m.cfg.update_skip_in_game,
         Hit::WagoWeakAuras => m.cfg.wago_weakauras = !m.cfg.wago_weakauras,
         Hit::WagoUiPacks => m.cfg.wago_ui_packs = !m.cfg.wago_ui_packs,
+        Hit::Elvui => m.cfg.update_elvui = !m.cfg.update_elvui,
         Hit::Updates => {
             if !m.cfg.update_addons && m.chosen().is_none() {
                 m.message = Some((tr!("settings.install_app").into(), true));

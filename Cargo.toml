@@ -1,6 +1,6 @@
 [package]
 name = "wow-tools"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "WoW Tools: snapshots of WTF and addons, settings between characters"
 repository = "https://github.com/Gronck2/wow-tools"

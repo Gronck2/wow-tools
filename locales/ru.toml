@@ -48,6 +48,19 @@ forced_on = "{app}: автообновление включено на врем�
 auto_restored = "{app}: автообновление снова выключено, как было"
 auto_restore_failed = "{app}: не удалось вернуть настройку автообновления: {error}"
 
+[elvui]
+history_updated = "Обновлён: {from} → {to}"
+history_redone = "Переустановлен начисто: {version}"
+http = "tukui.org ответил {status}"
+bad_answer = "непонятный ответ tukui.org о версии ElvUI"
+bad_zip = "архив ElvUI не тот или повреждён ({error}), ничего не заменено"
+swap_failed = "не удалось заменить {path}, старая версия на месте"
+not_installed = "ElvUI не установлен — пропускаю"
+fresh = "ElvUI {version} в {flavor} — свежий"
+updated = "ElvUI в {flavor}: {from} → {to}"
+repaired = "ElvUI в {flavor}: смесь версий {versions}, поставил {to} начисто"
+failed = "ElvUI не обновлён: {error}"
+
 [curseforge]
 auto_on = "автообновление вкл."
 auto_off = "автообновление выкл."
@@ -284,6 +297,7 @@ wago_only_extras = "Wago App сам аддоны не обновляет — т�
 weakauras_sub = "Обновления аур применяются в игре"
 weakauras_missing = "Аддон WeakAuras не установлен"
 ui_packs_sub = "Профили интерфейса от авторов на Wago"
+elvui_sub = "С официального сайта tukui.org — менеджеры его не обновляют"
 update_game = "Не обновлять во время игры"
 update_game_sub = "Обновление под запущенной игрой может её сломать — жду выхода"
 updates = "Обновлять автоматически"
@@ -459,7 +473,7 @@ check = "Только проверить, не устанавливать"
 
 [self_update]
 http = "GitHub ответил {status}"
-network = "нет связи с GitHub: {error}"
+network = "нет связи с {host}: {error}"
 no_asset = "В релизе {version} нет exe — скачайте его со страницы релиза: {url}"
 no_hash = "У файла в релизе нет контрольной суммы, установка отменена. Скачайте вручную: {url}"
 bad_hash = "Скачанный файл не совпал с контрольной суммой релиза — он не установлен"

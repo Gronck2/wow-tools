@@ -191,8 +191,17 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   The panel shows a spinner in place of the button while it runs and the result (`tray` `cleaned`) in the row until
   it closes (balloons are hidden while a fullscreen game runs). Shown in the panel's "Уборка" tab (cleanup is actions, not
   settings). `wow-tools clean [items]`.
-- `selfupdate.rs`: updates of WoW Tools itself from the GitHub releases of `CARGO_PKG_REPOSITORY` (the only network
-  access of the app; README "Privacy" says so). WinHTTP (system proxy and certificates, no TLS crate); GET
+- `elvui.rs`: ElvUI is on no addon manager, so `app::update_addons` also updates it itself (`update_elvui`, on by
+  default; works with no manager installed). `api.tukui.org/v1/addon/elvui` gives `version` + `url` of one zip for all
+  clients (`ElvUI`, `ElvUI_Libraries`, `ElvUI_Options`). Per selected flavor that has `AddOns\ElvUI`: newer (by
+  `selfupdate::newer`) or mixed `## Version:` over its `.toc` files (an older version's leftover `ElvUI_Mainline.toc`
+  wins over `ElvUI.toc` in game) = reinstall. Extracted to `Interface\.wow-tools-elvui\new`, the folders swapped whole
+  (old ones to `old\`, rolled back on failure, `recover` next time); a zip with anything not `ElvUI*` is refused;
+  plugins (`ElvUI_WindTools`) untouched. Its own history row (app "ElvUI", "from → to") when it updated or failed.
+  `live_tukui` (ignored) runs the real site.
+- `selfupdate.rs`: updates of WoW Tools itself from the GitHub releases of `CARGO_PKG_REPOSITORY` (network access of
+  the app: this and tukui.org for ElvUI; README "Privacy" says so). WinHTTP (system proxy and certificates, no TLS
+  crate; `selfupdate::http::get` is shared with `elvui`); GET
   `api.github.com/repos/<repo>/releases/latest` (published releases only; 404 = none or a private repo, not an
   error). The exe asset is checked against the asset's GitHub `digest` (or the `SHA-256: ...` line release.yml writes
   into the notes) and its size; no hash = no install. `install` renames the running exe to `<exe>.old` and copies the

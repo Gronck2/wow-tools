@@ -48,6 +48,19 @@ forced_on = "{app} : mise à jour auto activée pour cette fois"
 auto_restored = "{app} : mise à jour auto désactivée de nouveau, comme avant"
 auto_restore_failed = "{app} : impossible de rétablir le réglage de mise à jour auto : {error}"
 
+[elvui]
+history_updated = "Mis à jour : {from} → {to}"
+history_redone = "Réinstallé proprement : {version}"
+http = "tukui.org a répondu {status}"
+bad_answer = "réponse inattendue de tukui.org sur la version d’ElvUI"
+bad_zip = "l’archive d’ElvUI est incorrecte ou endommagée ({error}), rien n’est remplacé"
+swap_failed = "impossible de remplacer {path}, l’ancienne version est en place"
+not_installed = "ElvUI n’est pas installé, ignoré"
+fresh = "ElvUI {version} dans {flavor} est à jour"
+updated = "ElvUI dans {flavor} : {from} → {to}"
+repaired = "ElvUI dans {flavor} : versions mélangées {versions}, {to} installé proprement"
+failed = "ElvUI non mis à jour : {error}"
+
 [curseforge]
 auto_on = "mise à jour auto activée"
 auto_off = "mise à jour auto désactivée"
@@ -284,6 +297,7 @@ wago_only_extras = "Wago App ne met pas à jour les addons — seulement WeakAur
 weakauras_sub = "Les mises à jour d'auras s'appliquent en jeu"
 weakauras_missing = "L'addon WeakAuras n'est pas installé"
 ui_packs_sub = "Profils d'interface d'auteurs sur Wago"
+elvui_sub = "Depuis tukui.org : les gestionnaires ne le mettent pas à jour"
 update_game = "Pas de mise à jour en jeu"
 update_game_sub = "Mettre à jour pendant le jeu peut le casser — attente de sa fermeture"
 updates = "Mise à jour automatique"
@@ -459,7 +473,7 @@ check = "Vérifier seulement, sans installer"
 
 [self_update]
 http = "GitHub a répondu {status}"
-network = "pas de connexion à GitHub : {error}"
+network = "pas de connexion à {host} : {error}"
 no_asset = "La version {version} n'a pas d'exe — téléchargez-le depuis la page de la version : {url}"
 no_hash = "Le fichier de la version n'a pas de somme de contrôle, installation annulée. Téléchargez-le à la main : {url}"
 bad_hash = "Le fichier téléchargé ne correspond pas à la somme de contrôle — il n'a pas été installé"

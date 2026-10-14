@@ -48,6 +48,19 @@ forced_on = "{app}: automatische Updates für diesen Lauf eingeschaltet"
 auto_restored = "{app}: automatische Updates wieder ausgeschaltet, wie vorher"
 auto_restore_failed = "{app}: Einstellung für automatische Updates konnte nicht wiederhergestellt werden: {error}"
 
+[elvui]
+history_updated = "Aktualisiert: {from} → {to}"
+history_redone = "Sauber neu installiert: {version}"
+http = "tukui.org antwortete {status}"
+bad_answer = "unerwartete Antwort von tukui.org zur ElvUI-Version"
+bad_zip = "das ElvUI-Archiv ist falsch oder beschädigt ({error}), nichts ersetzt"
+swap_failed = "{path} konnte nicht ersetzt werden, die alte Version ist noch da"
+not_installed = "ElvUI ist nicht installiert, übersprungen"
+fresh = "ElvUI {version} in {flavor} ist aktuell"
+updated = "ElvUI in {flavor}: {from} → {to}"
+repaired = "ElvUI in {flavor}: gemischte Versionen {versions}, {to} sauber installiert"
+failed = "ElvUI nicht aktualisiert: {error}"
+
 [curseforge]
 auto_on = "Auto-Update an"
 auto_off = "Auto-Update aus"
@@ -284,6 +297,7 @@ wago_only_extras = "Wago App aktualisiert keine Addons selbst – nur WeakAuras 
 weakauras_sub = "Aura-Updates werden im Spiel übernommen"
 weakauras_missing = "Das Addon WeakAuras ist nicht installiert"
 ui_packs_sub = "Interface-Profile von Autoren auf Wago"
+elvui_sub = "Von tukui.org – Addon-Manager aktualisieren es nicht"
 update_game = "Nicht während des Spielens"
 update_game_sub = "Updates im laufenden Spiel können es stören – wartet aufs Ende"
 updates = "Automatisch aktualisieren"
@@ -459,7 +473,7 @@ check = "Nur prüfen, nicht installieren"
 
 [self_update]
 http = "GitHub antwortete {status}"
-network = "keine Verbindung zu GitHub: {error}"
+network = "keine Verbindung zu {host}: {error}"
 no_asset = "Release {version} enthält keine exe — laden Sie sie von der Release-Seite: {url}"
 no_hash = "Die Datei im Release hat keine Prüfsumme, die Installation wurde abgebrochen. Manuell laden: {url}"
 bad_hash = "Die geladene Datei passt nicht zur Prüfsumme des Releases — sie wurde nicht installiert"

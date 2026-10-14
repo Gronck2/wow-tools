@@ -233,8 +233,10 @@ pub fn restore_point(ctx: &Ctx, flavor: &str, spec: &str, kind: Option<Kind>) ->
     Ok(format!("{}\n{}", fl.title(), lines.join("\n")))
 }
 
-/// Updates addons through the chosen addon manager app; first snapshots the addons of every selected
-/// flavor (when they changed since the last snapshot) so a bad update can be rolled back.
+/// Updates addons through the chosen addon manager app and ElvUI from its site (`update_elvui`);
+/// first snapshots the addons of every selected flavor (when they changed since the last
+/// snapshot) so a bad update can be rolled back. ElvUI gets its own history row when it was
+/// updated or failed (or when there is no app to give a row to).
 pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
     // One time for the run everywhere (history, "last update", the schedule): when it started.
     let started = chrono::Local::now().naive_local();
@@ -245,34 +247,78 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
         bail!(tr!("app.no_update_in_game", game = game));
     }
     let app = crate::updater::chosen(ctx.cfg.update_app);
-    let result = app.with_context(|| tr!("app.no_addon_app")).and_then(|app| run_update(ctx, app));
+    let record = |title: &str, result: &Result<String>| {
+        crate::updater::record(crate::updater::Entry {
+            time: started,
+            app: title.to_string(),
+            ok: result.is_ok(),
+            text: match result {
+                Ok(text) => text.clone(),
+                Err(e) => format!("{e:#}"),
+            },
+            manual,
+        })
+    };
+    let flavors = if app.is_none() && !ctx.cfg.update_elvui {
+        Err(anyhow::anyhow!(tr!("app.no_addon_app")))
+    } else {
+        pre_update_snapshots(ctx)
+    };
+    let flavors = match flavors {
+        Ok(f) => f,
+        Err(e) => {
+            let e = Err(e);
+            record(app.map_or("ElvUI", |a| a.title()), &e);
+            return e;
+        }
+    };
+    let app_result = app.map(|app| {
+        let result = app.update((ctx.cfg.wago_weakauras, ctx.cfg.wago_ui_packs)).map(|o| o.summary());
+        if let Ok(summary) = &result {
+            log::info!("{}: {}", app.title(), summary.replace('\n', " | "));
+        }
+        record(app.title(), &result);
+        result
+    });
+    // ElvUI goes on when the app failed: it does not depend on it.
+    let elvui = ctx
+        .cfg
+        .update_elvui
+        .then(|| crate::elvui::update(&flavors))
+        .map(|r| r.inspect_err(|e| log::error!("ElvUI: {e:#}")));
+    match &elvui {
+        Some(Ok(Some(text))) => record("ElvUI", &Ok(text.clone())),
+        Some(Err(e)) => record("ElvUI", &Err(anyhow::anyhow!("{e:#}"))),
+        Some(Ok(None)) if app.is_none() => record("ElvUI", &Ok(tr!("addons.none").to_string())),
+        _ => {}
+    }
+    let elvui_line = match &elvui {
+        Some(Ok(Some(text))) => Some(format!("ElvUI: {text}")),
+        Some(Err(e)) => Some(tr!("elvui.failed", error = format!("{e:#}"))),
+        _ => None,
+    };
+    let result = match (app_result, elvui) {
+        (Some(Err(e)), _) | (None, Some(Err(e))) => Err(e),
+        (Some(Ok(summary)), _) => Ok(elvui_line.map_or(summary.clone(), |line| format!("{summary}\n{line}"))),
+        (None, _) => Ok(elvui_line.unwrap_or_else(|| tr!("addons.none").to_string())),
+    };
     if result.is_ok() {
         crate::updater::set_last_run(started);
     }
-    crate::updater::record(crate::updater::Entry {
-        time: started,
-        app: app.map_or("—", |a| a.title()).to_string(),
-        ok: result.is_ok(),
-        text: match &result {
-            Ok(summary) => summary.clone(),
-            Err(e) => format!("{e:#}"),
-        },
-        manual,
-    });
     result
 }
 
-fn run_update(ctx: &Ctx, app: crate::updater::AddonApp) -> Result<String> {
+/// Snapshots the addons of every selected flavor before an update; returns the flavors.
+fn pre_update_snapshots(ctx: &Ctx) -> Result<Vec<Flavor>> {
     let store = ctx.store();
-    for fl in ctx.flavors(None)? {
+    let flavors = ctx.flavors(None)?;
+    for fl in &flavors {
         if let Outcome::Created(s) = store
-            .backup(&fl, Kind::Addons, false, Some("pre-update"))
+            .backup(fl, Kind::Addons, false, Some("pre-update"))
             .with_context(|| tr!("app.pre_update_failed", flavor = fl.name))?
         {
             log::info!("{}", tr!("app.pre_update_saved", flavor = fl.name, id = s.id));
         }
     }
-    let summary = app.update((ctx.cfg.wago_weakauras, ctx.cfg.wago_ui_packs))?.summary();
-    log::info!("{}: {}", app.title(), summary.replace('\n', " | "));
-    Ok(summary)
+    Ok(flavors)
 }
