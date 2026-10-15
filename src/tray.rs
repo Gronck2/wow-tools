@@ -1020,6 +1020,8 @@ unsafe fn update_tray(hwnd: HWND, action: u32) {
         let tip = tooltip(s);
         (id, badge, tip, st.balloon.take())
     };
+    // Read only when there is something to show; unreadable = shown.
+    let balloon = balloon.filter(|_| config_path().and_then(|p| Config::load(&p).ok()).is_none_or(|c| c.notifications));
     unsafe {
         let icon = tray_icon(id, badge, GetSystemMetrics(SM_CXSMICON));
         let mut nid: NOTIFYICONDATAW = zeroed();

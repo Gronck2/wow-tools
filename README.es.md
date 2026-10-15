@@ -96,12 +96,14 @@ El icono muestra el estado actual:
   cosa; mira [Limpieza](#limpieza).
 - Pestaña **Perfiles**: los perfiles de interfaz guardados y **Guardar un perfil** — ver
   [Perfiles de interfaz](#perfiles-de-interfaz).
-- Arriba: la carpeta de copias y la configuración; abajo: **Iniciar con Windows**.
+- Arriba: el clip, la carpeta de copias y la configuración; abajo: **Iniciar con Windows**. El panel se cierra al
+  hacer clic fuera; con el clip pulsado sigue abierto hasta pulsar Esc o hacer clic en el icono de la bandeja.
 
 **Clic derecho** abre el menú: el panel, hacer copia ahora, actualizar addons, carpeta de copias, configuración,
 registro, inicio automático, salir.
 
-Se muestran notificaciones con el resultado de lo que inicias tú mismo y con los errores nuevos.
+Se muestran notificaciones con el resultado de lo que inicias tú mismo y con los errores nuevos; **Notificaciones**
+en **Configuración → General** las desactiva.
 
 ## Configuración
 
@@ -113,8 +115,8 @@ Se muestran notificaciones con el resultado de lo que inicias tú mismo y con lo
 Cada cambio se guarda al instante y se aplica sin reiniciar.
 
 - **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego trabajar (copias, limpieza, perfiles),
-  idioma, inicio con Windows, **Buscar actualizaciones** y la versión actual con **Comprobar** / **Instalar**, y un
-  enlace a `config.toml` para las opciones que rara vez se necesitan.
+  idioma, inicio con Windows, **Notificaciones**, **Buscar actualizaciones** y la versión actual con **Comprobar** /
+  **Instalar**, y un enlace a `config.toml` para las opciones que rara vez se necesitan.
 - **Copias**: cuándo hacer la copia (*Tras el juego*, al cerrarlo, o *Programada*: los días de la semana elegidos a una
   hora fija), cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**,
   la carpeta de copias.

@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 use std::mem::{size_of, zeroed};
 use std::ptr::{null, null_mut};
-use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextFormat;
@@ -105,6 +105,8 @@ pub const HISTORY_ROWS: usize = 5;
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Hit {
     Tab(Tab),
+    /// The paperclip: keep the panel open when it loses focus.
+    Pin,
     Update,
     /// Hovering a history row shows its full text.
     History(usize),
@@ -601,6 +603,15 @@ fn height(v: &View) -> f32 {
     divider_y(v) + 1.0 + FOOTER_H + 8.0
 }
 
+fn pin_rect() -> R {
+    R {
+        x: W - PAD - 110.0,
+        y: 14.0,
+        w: 32.0,
+        h: 32.0,
+    }
+}
+
 fn folder_rect() -> R {
     R {
         x: W - PAD - 72.0,
@@ -624,7 +635,7 @@ fn update_rect(v: &View, f: &Formats) -> Option<R> {
     let release = v.self_update.available.as_ref()?;
     let w = gfx::text_width(&f.button, &release.version) + 44.0;
     Some(R {
-        x: folder_rect().x - 8.0 - w,
+        x: pin_rect().x - 8.0 - w,
         y: 16.0,
         w,
         h: 28.0,
@@ -705,7 +716,12 @@ fn tabs(f: &Formats) -> Vec<(R, Tab)> {
 }
 
 fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<Confirm>, sheet: Option<&Sheet>, prof_first: usize) -> Vec<(R, Hit)> {
-    let mut out = vec![(folder_rect(), Hit::Folder), (settings_rect(), Hit::Settings), (footer_rect(v), Hit::Autostart)];
+    let mut out = vec![
+        (pin_rect(), Hit::Pin),
+        (folder_rect(), Hit::Folder),
+        (settings_rect(), Hit::Settings),
+        (footer_rect(v), Hit::Autostart),
+    ];
     if let Some(r) = update_rect(v, f).filter(|_| !v.self_update.installing) {
         out.push((r, Hit::SelfUpdate));
     }
@@ -874,6 +890,17 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
         },
         t.text,
     );
+    // The paperclip: accent-filled while pinned.
+    let pin = pin_rect();
+    if PINNED.load(Ordering::Relaxed) {
+        p.fill(pin, 4.0, t.accent);
+        p.text("\u{E723}", &f.icon, pin, t.on_accent);
+    } else {
+        if hover == Some(Hit::Pin) {
+            p.fill(pin, 4.0, t.card_hover);
+        }
+        p.text("\u{E723}", &f.icon, pin, t.text);
+    }
     for (r, hit, icon) in [(folder_rect(), Hit::Folder, "\u{E838}"), (settings_rect(), Hit::Settings, "\u{E713}")] {
         if hover == Some(hit) {
             p.fill(r, 4.0, t.card_hover);
@@ -1870,6 +1897,14 @@ thread_local! {
 /// When the panel last closed: a click on the tray icon first deactivates (closes) it,
 /// and must not reopen it right away.
 static LAST_CLOSE: AtomicU64 = AtomicU64::new(0);
+/// Pinned with the paperclip: focus loss does not close the panel (Esc and the tray icon do).
+/// Kept while the tray runs.
+static PINNED: AtomicBool = AtomicBool::new(false);
+
+pub fn set_pinned(on: bool) {
+    PINNED.store(on, Ordering::Relaxed);
+}
+
 /// The tab open last (`Tab as u8`); the panel reopens on it.
 static LAST_TAB: AtomicU8 = AtomicU8::new(0);
 
@@ -2050,12 +2085,16 @@ fn click(hwnd: HWND, hit: Hit) {
     let mut close = false;
     let action = with_panel(|p| match hit {
         Hit::Folder => {
-            close = true;
+            close = !PINNED.load(Ordering::Relaxed);
             Some(Action::OpenBackups)
         }
         Hit::Settings => {
-            close = true;
+            close = !PINNED.load(Ordering::Relaxed);
             Some(Action::OpenSettings)
+        }
+        Hit::Pin => {
+            PINNED.fetch_xor(true, Ordering::Relaxed);
+            None
         }
         Hit::Backup => Some(Action::BackupNow),
         Hit::Update => Some(Action::UpdateAddons),
@@ -2308,8 +2347,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 }
                 0
             }
-            // Clicking anywhere else closes the panel, like Windows flyouts.
-            WM_ACTIVATE if (wparam & 0xFFFF) as u32 == WA_INACTIVE => {
+            // Clicking anywhere else closes the panel, like Windows flyouts, unless it is pinned.
+            WM_ACTIVATE if (wparam & 0xFFFF) as u32 == WA_INACTIVE && !PINNED.load(Ordering::Relaxed) => {
                 DestroyWindow(hwnd);
                 0
             }

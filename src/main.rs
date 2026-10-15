@@ -810,6 +810,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         }
         "error" => demo.status.phase = Phase::Error(format!("_retail_ WTF: {} (os error 5)", tr!("snapshot.remove_failed", path = "Config.wtf"))),
         "confirm" => confirm = Some(panel::Confirm::Restore(1)),
+        "pinned" => panel::set_pinned(true),
         "empty" => {
             demo.points.clear();
             demo.status.last = None;

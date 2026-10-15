@@ -158,6 +158,7 @@ enum Row {
     UpdateTime,
     Language,
     Autostart,
+    Notify,
     CheckUpdates,
     Version,
     File,
@@ -201,6 +202,7 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
             Row::Section(tr!("settings.section_system")),
             Row::Language,
             Row::Autostart,
+            Row::Notify,
             Row::CheckUpdates,
             Row::Version,
             Row::File,
@@ -283,6 +285,7 @@ enum Hit {
     UpdateTimeDown,
     UpdateTimeUp,
     Autostart,
+    Notify,
     CheckUpdates,
     CheckNow,
     InstallUpdate,
@@ -636,6 +639,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             Some(Hit::UpdateTimeUp),
         ),
         Row::Autostart => switch(&mut out, m.autostart, Hit::Autostart),
+        Row::Notify => switch(&mut out, m.cfg.notifications, Hit::Notify),
         Row::CheckUpdates => switch(&mut out, m.cfg.check_updates, Hit::CheckUpdates),
         Row::Version => {
             let u = &m.update;
@@ -813,6 +817,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             ("\u{E774}", tr!("settings.language"), sub, false)
         }
         Row::Autostart => ("\u{E7E8}", tr!("panel.autostart"), tr!("settings.autostart_sub").into(), false),
+        Row::Notify => ("\u{EA8F}", tr!("settings.notify"), tr!("settings.notify_sub").into(), false),
         Row::CheckUpdates => ("\u{E777}", tr!("self_update.check"), tr!("self_update.check_sub").into(), false),
         Row::Version => {
             let u = &m.update;
@@ -1190,6 +1195,7 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
             crate::i18n::set(lang);
         }
         Hit::Autostart => return Some(Action::Autostart),
+        Hit::Notify => m.cfg.notifications = !m.cfg.notifications,
         Hit::CheckUpdates => m.cfg.check_updates = !m.cfg.check_updates,
         Hit::CheckNow => return Some(Action::CheckUpdate),
         Hit::InstallUpdate => return Some(Action::InstallUpdate),

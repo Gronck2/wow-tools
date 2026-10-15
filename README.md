@@ -92,11 +92,13 @@ The icon shows the current state:
 - **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
   [Cleanup](#cleanup).
 - **Profiles** tab: saved UI profiles and **Save a profile** — see [UI profiles](#ui-profiles).
-- At the top: the backups folder and the settings; at the bottom: **Start with Windows**.
+- At the top: the paperclip, the backups folder and the settings; at the bottom: **Start with Windows**. The panel
+  closes when you click elsewhere; with the paperclip pressed it stays open until Esc or a click on the tray icon.
 
 **Right click** opens the menu: the panel, back up now, update addons, backups folder, settings, log, autostart, exit.
 
-Notifications appear for the results of what you started yourself and for new errors.
+Notifications appear for the results of what you started yourself and for new errors; **Notifications** in
+**Settings → General** turns them off.
 
 ## Settings
 
@@ -108,7 +110,7 @@ Notifications appear for the results of what you started yourself and for new er
 Every change is saved at once and applied without a restart.
 
 - **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), language,
-  start with Windows, **Check for updates** and the current version with **Check** / **Install**, and a link to
+  start with Windows, **Notifications**, **Check for updates** and the current version with **Check** / **Install**, and a link to
   `config.toml` for the rarely needed options.
 - **Backup**: when to back up (*after the game* closes, or *on schedule* — chosen weekdays at a set time), how many
   snapshots to keep, the **Back up addons** and **Wait for the game to exit** switches, the backups folder.

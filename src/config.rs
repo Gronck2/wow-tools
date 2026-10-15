@@ -122,6 +122,8 @@ pub struct Config {
     pub exclude_ext: Vec<String>,
     /// Interface language; unset = the Windows one.
     pub language: Option<crate::i18n::Lang>,
+    /// Tray balloons (snapshots, updates, errors).
+    pub notifications: bool,
     /// Ask GitHub once a day for a newer WoW Tools (`selfupdate`).
     pub check_updates: bool,
     /// Where the cleanup moves screenshots; unset = `Pictures\World of Warcraft`.
@@ -156,6 +158,7 @@ impl Default for Config {
             skip_while_running: true,
             exclude_ext: vec!["bak".into(), "old".into()],
             language: None,
+            notifications: true,
             check_updates: true,
             screenshots_dir: None,
             screenshots_by: ShotsBy::Month,

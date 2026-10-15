@@ -101,12 +101,15 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
   chaque élément — voir [Nettoyage](#nettoyage).
 - Onglet **Profils** : les profils d'interface enregistrés et **Enregistrer un profil** — voir
   [Profils d'interface](#profils-dinterface).
-- En haut : le dossier des sauvegardes et les paramètres ; en bas : **Lancer avec Windows**.
+- En haut : le trombone, le dossier des sauvegardes et les paramètres ; en bas : **Lancer avec Windows**. Le panneau
+  se ferme quand vous cliquez ailleurs ; trombone enfoncé, il reste ouvert jusqu'à Échap ou un clic sur l'icône de
+  notification.
 
 Le **clic droit** ouvre le menu : le panneau, sauvegarder, mettre à jour les addons, dossier des sauvegardes,
 paramètres, journal, démarrage automatique, quitter.
 
-Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-même et pour les nouvelles erreurs.
+Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-même et pour les nouvelles erreurs ;
+**Notifications** dans **Paramètres → Général** les désactive.
 
 ## Paramètres
 
@@ -118,8 +121,8 @@ Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-
 Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 
 - **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), langue,
-  lancement avec Windows, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** / **Installer**, et
-  un lien vers `config.toml` pour les options rarement utiles.
+  lancement avec Windows, **Notifications**, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** /
+  **Installer**, et un lien vers `config.toml` pour les options rarement utiles.
 - **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, ou *Planifié* — les jours choisis à une heure
   donnée), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la fermeture du jeu**,
   dossier des sauvegardes.

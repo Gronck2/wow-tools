@@ -99,12 +99,15 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben und je einer
   Schaltfläche – siehe [Aufräumen](#aufräumen).
 - Reiter **Profile**: gespeicherte UI-Profile und **Profil speichern** — siehe [UI-Profile](#ui-profile).
-- Oben: der Sicherungsordner und die Einstellungen; unten: **Mit Windows starten**.
+- Oben: die Büroklammer, der Sicherungsordner und die Einstellungen; unten: **Mit Windows starten**. Der Bereich
+  schließt sich bei einem Klick daneben; mit gedrückter Büroklammer bleibt er offen, bis Sie Esc drücken oder auf das
+  Infobereichssymbol klicken.
 
 **Rechtsklick** öffnet das Menü: Bereich, jetzt sichern, Addons aktualisieren, Sicherungsordner, Einstellungen,
 Protokoll, Autostart, Beenden.
 
-Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestartet haben, und bei neuen Fehlern.
+Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestartet haben, und bei neuen Fehlern;
+**Benachrichtigungen** unter **Einstellungen → Allgemein** schaltet sie ab.
 
 ## Einstellungen
 
@@ -116,8 +119,8 @@ Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestart
 Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 
 - **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile),
-  Sprache, Start mit Windows, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** / **Installieren** sowie
-  ein Link zu `config.toml` für selten benötigte Optionen.
+  Sprache, Start mit Windows, **Benachrichtigungen**, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** /
+  **Installieren** sowie ein Link zu `config.toml` für selten benötigte Optionen.
 - **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, oder *Nach Zeitplan* – an gewählten
   Wochentagen zu einer festen Uhrzeit), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und
   **Auf Spielende warten**, der Sicherungsordner.

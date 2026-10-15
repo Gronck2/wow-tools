@@ -50,7 +50,7 @@ links the MSVC C runtime statically, so the exe needs no VC++ redistributable. C
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -69,7 +69,7 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 - `tray.rs`: hidden window, single-instance mutex, tray icon from the exe's resources (`build.rs` +
   `wow-tools.rc` embed `assets\wow-tools.ico`, the gold app icon = a game runs, and `assets\tray-idle.ico`, grey)
   with a dot drawn on for busy (blue) / failed (red) (`tray_icon`; `ui-snapshot tray-icons` shows them), `TaskbarCreated`
-  re-add, balloons for manual results and new errors. `view()` builds what the panel/menu show; `act(Action)` runs
+  re-add, balloons for manual results and new errors (none with `notifications` off: `update_tray` drops them). `view()` builds what the panel/menu show; `act(Action)` runs
   their clicks. A double-click start frees its own console (`GetConsoleProcessList == 1`); after that,
   `Command::spawn` with inherited stdio fails with os error 50, so files are opened with `ShellExecuteW`.
 - `gfx.rs`: Direct2D/DirectWrite helpers shared by the UI, modeled on RGBTray (`C:\test\Accs\src\ui.rs`): system
@@ -87,7 +87,8 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   (pick list `ApplyTo`, then "sure?" in the row: `Confirm::ApplyProfile`) and delete; jobs run in the worker
   (`Request::SaveProfile`/`ApplyProfile`), spinner and result in the row); autostart switch under all. The height fits the tallest tab, so switching tabs
   does not resize it.
-  Pure `draw(view, …)`; closes on deactivate/Esc. `menu.rs`: right-click menu in the same style.
+  Pure `draw(view, …)`; closes on deactivate/Esc; the header paperclip (`PINNED`, kept while the tray runs) keeps it
+  open on deactivate and after the folder/settings buttons (Esc and the tray icon still close it). `menu.rs`: right-click menu in the same style.
 - `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game + system only), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
   top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
   switches and on changes that add or remove cards, top edge kept): game folder
