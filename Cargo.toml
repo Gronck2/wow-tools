@@ -4,6 +4,7 @@ version = "0.2.3"
 edition = "2024"
 description = "WoW Tools: snapshots of WTF and addons, settings between characters"
 repository = "https://github.com/Gronck2/wow-tools"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.104"

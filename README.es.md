@@ -47,6 +47,8 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 - [Desinstalación](#desinstalación)
 - [Preguntas frecuentes y limitaciones](#preguntas-frecuentes-y-limitaciones)
 - [Compilar desde el código fuente](#compilar-desde-el-código-fuente)
+- [Política de firma de código](#política-de-firma-de-código)
+- [Licencia](#licencia)
 
 ## Requisitos
 
@@ -439,3 +441,21 @@ cargo build --release
 Rust stable, Windows. La CI (GitHub Actions) comprueba el formato, clippy, los tests y la compilación en cada push; una
 etiqueta `vX.Y.Z` que coincida con la versión de `Cargo.toml` compila el exe y crea un borrador de versión. Los textos
 están en `locales/<idioma>.toml`.
+
+## Política de firma de código
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/) — firma de código gratuita de SignPath.io, certificado de SignPath Foundation.
+
+- Solo se firma `WoW-Tools-X.Y.Z.exe`, que el workflow de release compila en GitHub Actions a partir del código de
+  este repositorio; cada release se aprueba a mano antes de firmarse.
+- Autores, revisores y aprobadores: [Aleksandr Stepanov](https://github.com/Gronck2).
+- Privacidad: consulta [Privacidad y seguridad](#privacidad-y-seguridad). WoW Tools no envía nada sobre ti, tu equipo
+  ni tu juego; sus únicas peticiones de red comprueban nuevas versiones de sí mismo (GitHub) y de ElvUI (tukui.org), y
+  ambas se pueden desactivar en los ajustes.
+
+## Licencia
+
+A tu elección, bajo [Apache License, Version 2.0](LICENSE-APACHE) o [licencia MIT](LICENSE-MIT). Salvo que indiques
+expresamente lo contrario, cualquier contribución que envíes intencionadamente para incluirla en WoW Tools (según la
+licencia Apache-2.0) tendrá la misma doble licencia, sin términos ni condiciones adicionales.

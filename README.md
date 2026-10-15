@@ -46,6 +46,8 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - [Uninstalling](#uninstalling)
 - [FAQ and limitations](#faq-and-limitations)
 - [Building from source](#building-from-source)
+- [Code signing policy](#code-signing-policy)
+- [License](#license)
 
 ## Requirements
 
@@ -411,3 +413,21 @@ cargo build --release
 
 Rust stable, Windows. CI (GitHub Actions) checks formatting, clippy, tests and the build on every push; a `vX.Y.Z` tag
 matching the version in `Cargo.toml` builds the exe and drafts a release. Texts are in `locales/<language>.toml`.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- Signed is only `WoW-Tools-X.Y.Z.exe`, built by the release workflow on GitHub Actions from the source in this
+  repository; every release is approved by hand before it is signed.
+- Committers, reviewers and approvers: [Aleksandr Stepanov](https://github.com/Gronck2).
+- Privacy: see [Privacy and safety](#privacy-and-safety). WoW Tools sends nothing about you, your computer or your
+  game; its only own network requests are the version checks for itself (GitHub) and ElvUI (tukui.org), and both can
+  be switched off in the settings.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in WoW Tools by you, as
+defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

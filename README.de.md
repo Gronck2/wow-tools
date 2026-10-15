@@ -48,6 +48,8 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
 - [Deinstallation](#deinstallation)
 - [FAQ und Einschränkungen](#faq-und-einschränkungen)
 - [Aus dem Quellcode bauen](#aus-dem-quellcode-bauen)
+- [Code-Signing-Richtlinie](#code-signing-richtlinie)
+- [Lizenz](#lizenz)
 
 ## Voraussetzungen
 
@@ -457,3 +459,21 @@ cargo build --release
 Rust stable, Windows. Die CI (GitHub Actions) prüft bei jedem Push Formatierung, Clippy, Tests und den Build; ein Tag
 `vX.Y.Z`, der zur Version in `Cargo.toml` passt, baut die exe und legt einen Release-Entwurf an. Die Texte liegen in
 `locales/<language>.toml`.
+
+## Code-Signing-Richtlinie
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/) — kostenlose Codesignatur von SignPath.io, Zertifikat der SignPath Foundation.
+
+- Signiert wird nur `WoW-Tools-X.Y.Z.exe`, das der Release-Workflow auf GitHub Actions aus dem Quellcode dieses
+  Repositorys baut; jedes Release wird vor dem Signieren von Hand freigegeben.
+- Autoren, Reviewer und Freigebende: [Aleksandr Stepanov](https://github.com/Gronck2).
+- Datenschutz: siehe [Datenschutz und Sicherheit](#datenschutz-und-sicherheit). WoW Tools sendet nichts über dich,
+  deinen Computer oder dein Spiel; selbst fragt es im Netz nur nach neuen Versionen von sich (GitHub) und von ElvUI
+  (tukui.org), und beides lässt sich in den Einstellungen abschalten.
+
+## Lizenz
+
+Nach deiner Wahl unter der [Apache License, Version 2.0](LICENSE-APACHE) oder der [MIT-Lizenz](LICENSE-MIT). Sofern
+nicht ausdrücklich anders angegeben, steht jeder Beitrag, den du absichtlich zur Aufnahme in WoW Tools einreichst (im
+Sinne der Apache-2.0-Lizenz), unter derselben doppelten Lizenz, ohne zusätzliche Bedingungen.
