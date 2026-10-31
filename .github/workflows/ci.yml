@@ -45,4 +45,4 @@ jobs:
           name: wow-tools-${{ github.sha }}
           path: |
             target/release/wow-tools.exe
-            dist/*-setup.exe
+            dist/WoW-Tools-Setup-*.exe

@@ -43,8 +43,9 @@ code; every visible command/argument has a help key. Tests assert Russian texts 
 Repo `Gronck2/wow-tools` (public), branch `main`. `.github/workflows/ci.yml` (push to main, PRs, windows-latest,
 MSVC): fmt, clippy, tests, build with `--locked`, the installer compiled; exe + setup are run artifacts. `release.yml`:
 a `v1.2.3` tag must match `version` in Cargo.toml; it tests, builds and creates a draft release with three forms —
-`WoW-Tools-1.2.3.exe` (uploaded first: 0.2.x self-update takes the first `.exe` asset and the first `SHA-256` of the
-notes; newer ones skip names with "setup"), `-setup.exe` (Inno Setup, `packaging/installer.iss`, per user into
+`WoW-Tools-1.2.3.exe` (0.2.x self-update takes the first `.exe` asset, and GitHub lists assets by name, so the
+installer is `WoW-Tools-Setup-1.2.3.exe`, sorted after it — never name an exe asset so it sorts first; 0.2.x also
+reads the first `SHA-256` line of the notes; newer versions skip names with "setup"), the installer (Inno Setup, `packaging/installer.iss`, per user into
 `%LOCALAPPDATA%\Programs\WoW Tools`; its AppId is also `selfupdate::UNINSTALL_KEY`, whose `DisplayVersion` the
 self-update keeps current) and `-portable.zip` (`WoW Tools\` with `packaging/portable.txt`) — each with a SHA-256
 line and a build provenance attestation (`gh attestation verify`). Publish it by hand. winget is on hold until the
@@ -60,9 +61,9 @@ quote the locale files; pictures in `docs/images/<view>-<lang>.png` come from `u
 changes). Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
 links the MSVC C runtime statically, so the exe needs no VC++ redistributable. Commit and push only when asked.
 License: `MIT OR Apache-2.0` (`LICENSE-MIT`, `LICENSE-APACHE`; every dependency is compatible). `build.rs` writes
-`wow-tools.rc` + a VERSIONINFO (ProductName "WoW Tools", version from Cargo.toml) to `OUT_DIR`. No code signing: SignPath
-Foundation turned the project down and the owner will not pay for a certificate; README "Verifying downloads"
-offers SHA-256 + attestations instead (Microsoft Store, which signs MSIX for free, was put off as a big rework).
+`wow-tools.rc` + a VERSIONINFO (ProductName "WoW Tools", version from Cargo.toml) to `OUT_DIR`. No code signing (the owner
+will not pay for a certificate): README "Verifying downloads" offers SHA-256 + attestations instead (Microsoft
+Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 

@@ -53,7 +53,7 @@ jobs:
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           & $iscc /Q "/DAppVersion=$v" "/DSourceExe=$PWD\target\release\wow-tools.exe" "/O$PWD\dist" packaging\installer.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $setup = "dist/WoW-Tools-$v-setup.exe"
+          $setup = "dist/WoW-Tools-Setup-$v.exe"
 
           # Portable: the exe with portable.txt next to it, in a "WoW Tools" folder.
           $dir = "portable/WoW Tools"
@@ -81,8 +81,12 @@ jobs:
           $notes = ($files | ForEach-Object {
             "SHA-256: ``$((Get-FileHash $_ -Algorithm SHA256).Hash)`` $(Split-Path $_ -Leaf)"
           }) -join "`n"
-          # The exe is uploaded on its own first, so it is the first .exe asset (0.2.x takes the first one).
-          gh release create $env:GITHUB_REF_NAME $files[0] --draft --verify-tag `
+          # GitHub lists assets by name and 0.2.x installs the first .exe: the bare exe must sort before
+          # the installer (WoW-Tools-1.2.3.exe < WoW-Tools-Setup-1.2.3.exe).
+          $exes = $files | Where-Object { $_ -like '*.exe' } | ForEach-Object { Split-Path $_ -Leaf } | Sort-Object
+          if ($exes[0] -ne (Split-Path $files[0] -Leaf)) {
+            Write-Error "The installer sorts before the exe: $($exes -join ', ')"
+            exit 1
+          }
+          gh release create $env:GITHUB_REF_NAME $files --draft --verify-tag `
             --title "WoW Tools ${{ steps.version.outputs.version }}" --generate-notes --notes "$notes"
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          gh release upload $env:GITHUB_REF_NAME $files[1] $files[2]

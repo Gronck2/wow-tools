@@ -168,7 +168,7 @@ fn parse_release(body: &[u8]) -> Result<Release> {
     }
     let r: ApiRelease = serde_json::from_slice(body).context("GitHub API")?;
     let notes_hash = r.body.as_deref().and_then(hash_in_notes);
-    // The bare exe, not the installer next to it (`WoW-Tools-1.2.3-setup.exe`).
+    // The bare exe, not the installer next to it (`WoW-Tools-Setup-1.2.3.exe`).
     let is_exe = |a: &ApiAsset| {
         let name = a.name.to_ascii_lowercase();
         name.ends_with(".exe") && !name.contains("setup")
@@ -447,7 +447,7 @@ mod tests {
             r#"{{"tag_name":"v0.2.0","html_url":"https://github.com/x/y/releases/tag/v0.2.0",
             "body":"SHA-256: `{}`\n\nnotes","assets":[
             {{"name":"notes.txt","browser_download_url":"https://e/notes.txt","size":3}},
-            {{"name":"WoW-Tools-0.2.0-setup.exe","browser_download_url":"https://e/setup.exe","size":7}},
+            {{"name":"WoW-Tools-Setup-0.2.0.exe","browser_download_url":"https://e/setup.exe","size":7}},
             {{"name":"WoW-Tools-0.2.0-portable.zip","browser_download_url":"https://e/p.zip","size":9}},
             {{"name":"WoW-Tools-0.2.0.exe","browser_download_url":"https://e/a.exe","size":42}}]}}"#,
             hash.to_uppercase()

@@ -68,7 +68,7 @@ Every [release](https://github.com/Gronck2/wow-tools/releases) has the same prog
 
 | File | What it is |
 | --- | --- |
-| `WoW-Tools-x.y.z-setup.exe` | **Installer.** Installs for your Windows user into `%LOCALAPPDATA%\Programs\WoW Tools` (no administrator rights), adds a Start menu shortcut and, if you leave the box ticked, starts with Windows. Removed in **Settings → Apps → Installed apps**. |
+| `WoW-Tools-Setup-x.y.z.exe` | **Installer.** Installs for your Windows user into `%LOCALAPPDATA%\Programs\WoW Tools` (no administrator rights), adds a Start menu shortcut and, if you leave the box ticked, starts with Windows. Removed in **Settings → Apps → Installed apps**. |
 | `WoW-Tools-x.y.z-portable.zip` | **Portable.** Unpack the `WoW Tools` folder anywhere (a USB stick too) and run `wow-tools.exe`. Settings, backups and the log stay in that folder — see [Files and folders](#files-and-folders). |
 | `WoW-Tools-x.y.z.exe` | **The bare exe.** Put it in a permanent folder (autostart remembers its path) and run it. Settings are kept where the installer keeps them. |
 
@@ -436,13 +436,13 @@ portable zip and drafts a release. Texts are in
 WoW Tools is not code-signed. Instead, every release file can be checked:
 
 - **Checksum.** The release notes list the SHA-256 of each file; compare it with
-  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+  `Get-FileHash .\WoW-Tools-Setup-x.y.z.exe`.
 - **Build provenance.** Each file has a GitHub [attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)
   showing it was built by this repository's release workflow on GitHub Actions from the tagged source, not uploaded
   by hand. With the [GitHub CLI](https://cli.github.com/):
 
   ```
-  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  gh attestation verify WoW-Tools-Setup-x.y.z.exe --repo Gronck2/wow-tools
   ```
 
 - WoW Tools' own update checks the new exe against the SHA-256 GitHub publishes for it before installing (see

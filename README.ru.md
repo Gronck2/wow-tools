@@ -71,7 +71,7 @@
 
 | Файл | Что это |
 | --- | --- |
-| `WoW-Tools-x.y.z-setup.exe` | **Установщик.** Ставит программу для вашего пользователя Windows в `%LOCALAPPDATA%\Programs\WoW Tools` (без прав администратора), добавляет ярлык в меню «Пуск» и, если не снимать галочку, запуск вместе с Windows. Удаляется в **Параметры → Приложения → Установленные приложения**. |
+| `WoW-Tools-Setup-x.y.z.exe` | **Установщик.** Ставит программу для вашего пользователя Windows в `%LOCALAPPDATA%\Programs\WoW Tools` (без прав администратора), добавляет ярлык в меню «Пуск» и, если не снимать галочку, запуск вместе с Windows. Удаляется в **Параметры → Приложения → Установленные приложения**. |
 | `WoW-Tools-x.y.z-portable.zip` | **Портативная версия.** Распакуйте папку `WoW Tools` куда угодно (хоть на флешку) и запустите `wow-tools.exe`. Настройки, бэкапы и лог остаются в этой папке — см. [Файлы и папки](#файлы-и-папки). |
 | `WoW-Tools-x.y.z.exe` | **Просто exe.** Положите его в постоянную папку (автозапуск запоминает его путь) и запустите. Настройки хранятся там же, где у установленной версии. |
 
@@ -450,13 +450,13 @@ Rust stable, Windows. CI (GitHub Actions) при каждом push провер�
 WoW Tools не подписан. Зато каждый файл релиза можно проверить:
 
 - **Контрольная сумма.** В описании релиза указан SHA-256 каждого файла; сравните его с
-  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+  `Get-FileHash .\WoW-Tools-Setup-x.y.z.exe`.
 - **Происхождение сборки.** У каждого файла есть [аттестация](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)
   GitHub: она подтверждает, что файл собран релизным workflow этого репозитория в GitHub Actions из исходников
   с этим тегом, а не загружен вручную. С помощью [GitHub CLI](https://cli.github.com/):
 
   ```
-  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  gh attestation verify WoW-Tools-Setup-x.y.z.exe --repo Gronck2/wow-tools
   ```
 
 - Встроенное обновление WoW Tools перед установкой сверяет новый exe с SHA-256, который для него публикует GitHub

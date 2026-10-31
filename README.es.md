@@ -71,7 +71,7 @@ una:
 
 | Archivo | Qué es |
 | --- | --- |
-| `WoW-Tools-x.y.z-setup.exe` | **Instalador.** Instala para tu usuario de Windows en `%LOCALAPPDATA%\Programs\WoW Tools` (sin permisos de administrador), añade un acceso directo al menú Inicio y, si dejas la casilla marcada, se inicia con Windows. Se quita en **Configuración → Aplicaciones → Aplicaciones instaladas**. |
+| `WoW-Tools-Setup-x.y.z.exe` | **Instalador.** Instala para tu usuario de Windows en `%LOCALAPPDATA%\Programs\WoW Tools` (sin permisos de administrador), añade un acceso directo al menú Inicio y, si dejas la casilla marcada, se inicia con Windows. Se quita en **Configuración → Aplicaciones → Aplicaciones instaladas**. |
 | `WoW-Tools-x.y.z-portable.zip` | **Portátil.** Descomprime la carpeta `WoW Tools` donde quieras (también en una memoria USB) y ejecuta `wow-tools.exe`. La configuración, las copias y el registro se quedan en esa carpeta: mira [Archivos y carpetas](#archivos-y-carpetas). |
 | `WoW-Tools-x.y.z.exe` | **El exe suelto.** Ponlo en una carpeta fija (el inicio automático recuerda su ruta) y ejecútalo. La configuración se guarda donde la guarda el instalador. |
 
@@ -463,13 +463,13 @@ etiqueta `vX.Y.Z` que coincida con la versión de `Cargo.toml` compila el exe, e
 WoW Tools no está firmado. En su lugar, cada archivo de una versión publicada se puede comprobar:
 
 - **Suma de comprobación.** Las notas de la versión indican el SHA-256 de cada archivo; compáralo con
-  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+  `Get-FileHash .\WoW-Tools-Setup-x.y.z.exe`.
 - **Origen de la compilación.** Cada archivo tiene una [atestación](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)
   de GitHub que demuestra que lo compiló el workflow de release de este repositorio en GitHub Actions a partir del
   código etiquetado, y que no se subió a mano. Con [GitHub CLI](https://cli.github.com/):
 
   ```
-  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  gh attestation verify WoW-Tools-Setup-x.y.z.exe --repo Gronck2/wow-tools
   ```
 
 - La actualización propia de WoW Tools comprueba el nuevo exe con el SHA-256 que GitHub publica para él antes de

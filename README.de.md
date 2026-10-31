@@ -72,7 +72,7 @@ eine:
 
 | Datei | Was es ist |
 | --- | --- |
-| `WoW-Tools-x.y.z-setup.exe` | **Installationsprogramm.** Installiert für Ihren Windows-Benutzer nach `%LOCALAPPDATA%\Programs\WoW Tools` (ohne Administratorrechte), legt eine Verknüpfung im Startmenü an und startet, wenn Sie das Häkchen gesetzt lassen, mit Windows. Entfernt wird es unter **Einstellungen → Apps → Installierte Apps**. |
+| `WoW-Tools-Setup-x.y.z.exe` | **Installationsprogramm.** Installiert für Ihren Windows-Benutzer nach `%LOCALAPPDATA%\Programs\WoW Tools` (ohne Administratorrechte), legt eine Verknüpfung im Startmenü an und startet, wenn Sie das Häkchen gesetzt lassen, mit Windows. Entfernt wird es unter **Einstellungen → Apps → Installierte Apps**. |
 | `WoW-Tools-x.y.z-portable.zip` | **Portabel.** Entpacken Sie den Ordner `WoW Tools` an einen beliebigen Ort (auch auf einen USB-Stick) und starten Sie `wow-tools.exe`. Einstellungen, Sicherungen und das Protokoll bleiben in diesem Ordner – siehe [Dateien und Ordner](#dateien-und-ordner). |
 | `WoW-Tools-x.y.z.exe` | **Die reine exe.** Legen Sie sie in einen festen Ordner (der Autostart merkt sich ihren Pfad) und starten Sie sie. Die Einstellungen liegen dort, wo auch das Installationsprogramm sie ablegt. |
 
@@ -481,13 +481,13 @@ Rust stable, Windows. Die CI (GitHub Actions) prüft bei jedem Push Formatierung
 WoW Tools ist nicht signiert. Stattdessen lässt sich jede Release-Datei prüfen:
 
 - **Prüfsumme.** In den Release-Notizen steht die SHA-256-Prüfsumme jeder Datei; vergleichen Sie sie mit
-  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+  `Get-FileHash .\WoW-Tools-Setup-x.y.z.exe`.
 - **Herkunft des Builds.** Zu jeder Datei gibt es eine GitHub-[Attestierung](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations),
   die zeigt, dass sie vom Release-Workflow dieses Repositorys auf GitHub Actions aus dem getaggten Quellcode gebaut und
   nicht von Hand hochgeladen wurde. Mit der [GitHub CLI](https://cli.github.com/):
 
   ```
-  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  gh attestation verify WoW-Tools-Setup-x.y.z.exe --repo Gronck2/wow-tools
   ```
 
 - Das eigene Update von WoW Tools prüft die neue exe vor der Installation gegen die SHA-256-Prüfsumme, die GitHub

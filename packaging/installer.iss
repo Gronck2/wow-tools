@@ -1,4 +1,4 @@
-﻿; Inno Setup script for WoW-Tools-<version>-setup.exe (a per-user install, no admin rights).
+﻿; Inno Setup script for WoW-Tools-Setup-<version>.exe (a per-user install, no admin rights).
 ; Built by release.yml and ci.yml:
 ;   ISCC.exe /DAppVersion=1.2.3 /DSourceExe=..\target\release\wow-tools.exe /O..\dist packaging\installer.iss
 ; The AppId is also in src\selfupdate.rs (UNINSTALL_KEY): the self-update keeps DisplayVersion current.
@@ -32,7 +32,7 @@ UsedUserAreasWarning=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-OutputBaseFilename=WoW-Tools-{#AppVersion}-setup
+OutputBaseFilename=WoW-Tools-Setup-{#AppVersion}
 SetupIconFile=..\assets\wow-tools.ico
 UninstallDisplayIcon={app}\wow-tools.exe
 UninstallDisplayName=WoW Tools
