@@ -26,10 +26,11 @@ jobs:
       - name: Submit to winget
         shell: pwsh
         env:
-          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          # wingetcreate reads the token from here (passed as --token, it warns that it may be logged).
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
-          if (-not $env:WINGET_TOKEN) {
+          if (-not $env:WINGET_CREATE_GITHUB_TOKEN) {
             "::warning::No WINGET_TOKEN secret, nothing submitted to winget"
             exit 0
           }
@@ -45,5 +46,5 @@ jobs:
             [IO.File]::WriteAllText("$PWD/$out/$($_.Name)", $text, [Text.UTF8Encoding]::new($false))
           }
           Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
-          .\wingetcreate.exe submit $out --token $env:WINGET_TOKEN --prtitle "New version: Gronck2.WoWTools version $v"
+          .\wingetcreate.exe submit $out --prtitle "New version: Gronck2.WoWTools version $v"
           exit $LASTEXITCODE
