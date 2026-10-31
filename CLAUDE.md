@@ -60,11 +60,15 @@ Setup 6 locally: `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`; the .iss is UT
 `<exe dir>\config\config.toml` and `data_dir` to `<exe dir>\data`; `migrate_legacy` is skipped. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them
 quote the locale files; pictures in `docs/images/<view>-<lang>.png` and `<view>-<lang>-dark.png` (`--dark`) come from `ui-snapshot`
 (regenerate both after UI changes); the READMEs show them as `<picture>` with a `prefers-color-scheme: dark` source,
-so GitHub picks the one matching the reader's theme. Landing page `https://wow-tool.gronck.com`: static `site/` (`index.html` English, `ru/index.html`, kept in
-step; the design system of gold.gronck.com — tokens in `site/style.css`, self-hosted Open Sans with Cyrillic),
-published by `pages.yml` (GitHub Pages, custom domain set in the repo's Pages settings, DNS CNAME `wow-tool` ->
-`gronck2.github.io`), which copies `docs/images/*.png` to `/img` and `assets/wow-tools.ico` to `/favicon.ico`;
-`site.js` fills the download links from the latest release. Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
+so GitHub picks the one matching the reader's theme. Landing page `https://wow-tool.gronck.com`: `python3 site/build.py <out>`
+renders `site/template.html` per language from `site/locales/{en,ru,de,fr,es}.toml` (HTML values; English at `/`,
+the others at `/<lang>/`; a missing, extra or unused key stops the build; the README links go to that language's
+README) and copies the static files, `docs/images/*.png` (`/img`, the page shows the `-dark` ones) and the app icon;
+build into the scratchpad and screenshot it with headless Chrome to check. The design system of gold.gronck.com
+(tokens in `site/style.css`, self-hosted Open Sans with Latin + Cyrillic); `site.js` fills the download links from
+the latest release and opens screenshots large (`a.zoom` -> `<dialog class="lightbox">`). Published by `pages.yml`
+(GitHub Pages, custom domain in the repo's Pages settings, Cloudflare DNS: CNAME `wow-tool` -> `gronck2.github.io`,
+DNS only). `site/404.html` sends case variants (`/RU/`) and paths under a language to that language. Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
 links the MSVC C runtime statically, so the exe needs no VC++ redistributable. Commit and push only when asked.
 License: `MIT OR Apache-2.0` (`LICENSE-MIT`, `LICENSE-APACHE`; every dependency is compatible). `build.rs` writes
 `wow-tools.rc` + a VERSIONINFO (ProductName "WoW Tools", version from Cargo.toml) to `OUT_DIR`. No code signing (the owner

@@ -15,8 +15,9 @@
   var lower = path.toLowerCase();
   if (lower !== path) {
     location.replace(lower + location.search + location.hash);
-  } else if (/^\/ru(\/|$)/.test(lower) && lower !== "/ru/") {
-    location.replace("/ru/");
+  } else {
+    var m = /^\/(ru|de|fr|es)(\/|$)/.exec(lower);
+    if (m && lower !== "/" + m[1] + "/") location.replace("/" + m[1] + "/");
   }
 })();
 </script>
@@ -31,10 +32,13 @@
 <main class="sheet">
 <section aria-labelledby="title">
 <h1 id="title">404</h1>
-<p class="lede">This page does not exist. <span lang="ru">Такой страницы нет.</span></p>
+<p class="lede">This page does not exist.</p>
 <div class="actions">
 <a class="btn btn-primary" href="/">Home page</a>
-<a class="btn btn-secondary" href="/ru/" hreflang="ru" lang="ru">Русская версия</a>
+<a class="btn btn-secondary" href="/ru/" hreflang="ru" lang="ru">Русский</a>
+<a class="btn btn-secondary" href="/de/" hreflang="de" lang="de">Deutsch</a>
+<a class="btn btn-secondary" href="/fr/" hreflang="fr" lang="fr">Français</a>
+<a class="btn btn-secondary" href="/es/" hreflang="es" lang="es">Español</a>
 </div>
 </section>
 </main>

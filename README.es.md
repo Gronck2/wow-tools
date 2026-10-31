@@ -2,7 +2,7 @@
 
 [English](README.md) · [Русский](README.ru.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · **Español**
 
-Sitio web: [wow-tool.gronck.com](https://wow-tool.gronck.com/) (en inglés)
+Sitio web: [wow-tool.gronck.com](https://wow-tool.gronck.com/es/)
 
 Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantiene a salvo tu configuración y tus addons:
 

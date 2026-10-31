@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{html_title}}</title>
+<meta name="description" content="{{meta_description:attr}}">
+<link rel="canonical" href="{{page_url}}">
+{{alternates}}
+<meta property="og:type" content="website">
+<meta property="og:title" content="WoW Tools">
+<meta property="og:description" content="{{og_description:attr}}">
+<meta property="og:url" content="{{page_url}}">
+<meta property="og:image" content="{{og_image}}">
+<meta name="theme-color" content="#170e09">
+<link rel="icon" href="/favicon.ico">
+<link rel="preload" href="/fonts/OpenSans-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/style.css">
+<script src="/site.js" defer></script>
+</head>
+<body>
+<div class="frame">
+
+<header class="topbar">
+<a class="brand" href="{{home}}"><img src="/favicon.ico" alt="" width="32" height="32">WoW Tools</a>
+<nav class="topnav" aria-label="{{nav_label:attr}}">
+<a class="hide-narrow" href="#features">{{nav_features}}</a>
+<a class="hide-narrow" href="#download">{{nav_download}}</a>
+<a class="hide-narrow" href="#faq">{{nav_faq}}</a>
+<a href="{{readme_url}}">GitHub<span class="visually-hidden"> {{opens_github}}</span></a>
+<span class="lang" aria-label="{{lang_label:attr}}">{{lang_switch}}</span>
+</nav>
+</header>
+
+<main class="sheet">
+
+<section class="hero" aria-labelledby="title">
+<div class="hero-text">
+<div class="tags">
+<span class="tag">{{tag_free}}</span>
+<span class="pill">Windows 10 / 11</span>
+<span class="pill">{{tag_open_source}}</span>
+</div>
+<h1 id="title">WoW Tools</h1>
+<p class="lede">{{hero_lede}}</p>
+<div class="actions">
+<a class="btn btn-primary" data-asset="setup" href="https://github.com/Gronck2/wow-tools/releases/latest">
+<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v9m0 0L4.5 6.5M8 10l3.5-3.5M2 13.5h12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+{{btn_download}}</a>
+<a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools">{{btn_source}}</a>
+</div>
+<p class="release-note" data-release="{{release_note:attr}}" hidden></p>
+<p class="release-note">{{smartscreen_hint}}</p>
+</div>
+<a class="shot zoom" href="{{hero_img}}"><img src="{{hero_img}}" width="540" height="907" alt="{{hero_alt:attr}}"></a>
+</section>
+
+<section id="features" aria-labelledby="features-title">
+<div class="section-head">
+<h2 id="features-title">{{features_title}}</h2>
+<p class="lede">{{features_lede}}</p>
+</div>
+<div class="features">
+{{feature_list}}
+</div>
+</section>
+
+<section aria-labelledby="shots-title">
+<div class="section-head">
+<h2 id="shots-title">{{shots_title}}</h2>
+<p class="muted">{{shots_lede}}</p>
+</div>
+<div class="gallery">
+{{shot_list}}
+</div>
+</section>
+
+<section id="download" aria-labelledby="download-title">
+<div class="section-head">
+<h2 id="download-title">{{download_title}}</h2>
+<p class="lede">{{download_lede}}</p>
+</div>
+<div class="notice warn"><span class="icon" aria-hidden="true">⚠</span><span><strong>{{smartscreen_head}}</strong> {{smartscreen_text}} <a href="{{readme_url}}{{anchor_verify}}">{{smartscreen_link}}</a>.</span></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">{{th_file}}</th><th scope="col">{{th_what}}</th></tr></thead>
+<tbody>
+<tr><td><a data-asset="setup" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>{{setup_name}}</strong></a><code>WoW-Tools-Setup-x.y.z.exe</code></td><td>{{setup_text}}</td></tr>
+<tr><td><a data-asset="portable" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>{{portable_name}}</strong></a><code>WoW-Tools-x.y.z-portable.zip</code></td><td>{{portable_text}}</td></tr>
+<tr><td><a data-asset="exe" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>{{exe_name}}</strong></a><code>WoW-Tools-x.y.z.exe</code></td><td>{{exe_text}}</td></tr>
+<tr class="soon"><td><strong>winget <span class="pill">{{soon}}</span></strong><code>Gronck2.WoWTools</code></td><td>{{winget_text}}</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="cols" aria-label="{{privacy_faq_label:attr}}">
+<div class="section-head" style="gap: var(--sp-4)">
+<h2 id="privacy">{{privacy_title}}</h2>
+<div class="notices">
+{{privacy_list}}
+</div>
+</div>
+<div class="section-head" style="gap: var(--sp-4)">
+<h2 id="faq">{{faq_title}}</h2>
+<div>
+{{faq_list}}
+</div>
+<p class="muted">{{faq_more_before}} <a href="{{readme_url}}">{{faq_more_link}}</a>.</p>
+</div>
+</section>
+
+<section class="thanks" aria-labelledby="thanks-title">
+<h2 id="thanks-title">{{thanks_title}}</h2>
+<p class="lede">{{thanks_text}}</p>
+<div class="actions">
+<a class="btn btn-primary" href="https://github.com/Gronck2/wow-tools/issues/new?labels=enhancement">{{thanks_idea}}</a>
+<a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools/issues/new?labels=bug">{{thanks_bug}}</a>
+<a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools"><span aria-hidden="true">★</span> {{thanks_star}}</a>
+</div>
+<p class="muted">{{thanks_note}}</p>
+</section>
+
+</main>
+
+<footer>
+<p>{{footer_text}}</p>
+<nav aria-label="{{footer_label:attr}}">
+<a href="https://github.com/Gronck2/wow-tools/releases">{{footer_releases}}</a>
+<a href="https://github.com/Gronck2/wow-tools/issues">{{footer_issues}}</a>
+<a href="https://gold.gronck.com/">Currency to Gold</a>
+</nav>
+</footer>
+
+<dialog class="lightbox" aria-label="{{lb_label:attr}}">
+<figure><img alt=""><figcaption></figcaption></figure>
+<span class="lb-count" aria-live="polite"></span>
+<button type="button" class="lb-btn lb-prev" aria-label="{{lb_prev:attr}}"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+<button type="button" class="lb-btn lb-next" aria-label="{{lb_next:attr}}"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+<button type="button" class="lb-btn lb-close" autofocus aria-label="{{lb_close:attr}}"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2l12 12M14 2L2 14" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+</dialog>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,158 @@
+# Textes du site (site/template.html), français. Les valeurs sont du HTML ; mêmes clés que en.toml.
+# Termes repris de README.fr.md et de locales/fr.toml de l'application.
+
+html_title = "WoW Tools — sauvegardes, mises à jour d'addons et profils d'interface pour World of Warcraft"
+meta_description = "Une application Windows gratuite, dans la zone de notification, pour World of Warcraft : sauvegardes de WTF et AddOns, restauration en un clic, mises à jour d'addons via CurseForge, WowUp ou Wago, nettoyage et profils d'interface."
+og_description = "Sauvegardes, mises à jour d'addons, nettoyage et profils d'interface pour World of Warcraft — une petite application Windows dans la zone de notification."
+
+readme_url = "https://github.com/Gronck2/wow-tools/blob/main/README.fr.md"
+anchor_verify = "#vérifier-les-téléchargements"
+
+nav_label = "Menu principal"
+nav_features = "Fonctions"
+nav_download = "Télécharger"
+nav_faq = "FAQ"
+opens_github = "(ouvre github.com)"
+lang_label = "Langue"
+
+tag_free = "Gratuit"
+tag_open_source = "Open source"
+hero_lede = "Une petite application Windows pour World of Warcraft, dans la zone de notification, qui met vos réglages et vos addons à l'abri : une sauvegarde après chaque session, la restauration en un clic, la mise à jour des addons quand vous ne jouez pas et des profils d'interface pour n'importe quel personnage."
+btn_download = "Télécharger pour Windows"
+btn_source = "Code source sur GitHub"
+release_note = "Version {version}"
+smartscreen_hint = 'Windows SmartScreen peut demander de confirmer le lancement — <a href="#download">pourquoi et sur quoi cliquer</a>.'
+hero_alt = "Le panneau de WoW Tools : dernière sauvegarde, « Sauvegarder » et les derniers points de restauration"
+
+features_title = "Ce qu'il fait"
+features_lede = "Il tourne dans la zone de notification et travaille quand le jeu est fermé. Toutes les versions du jeu installées sont prises en charge : Retail, Classic, Classic Era, Anniversary, PTR et bêta."
+
+shots_title = "Un coup d'œil"
+shots_lede = "Un clic gauche sur l'icône de notification ouvre le panneau ; les paramètres sont à un clic de là."
+
+download_title = "Télécharger"
+download_lede = "Chaque version existe sous trois formes avec le même programme — choisissez-en une. Rien d'autre à installer : ni runtime, ni droits d'administrateur."
+smartscreen_head = "SmartScreen peut signaler un éditeur inconnu."
+smartscreen_text = "WoW Tools n'est pas signé ; choisissez « Informations complémentaires → Exécuter quand même ». Chaque fichier a une empreinte SHA-256 dans les notes de version et une attestation de provenance de la compilation — voir"
+smartscreen_link = "Vérifier les téléchargements"
+th_file = "Fichier"
+th_what = "Ce que c'est"
+setup_name = "Installateur"
+setup_text = 'Installe pour votre utilisateur Windows dans <code>%LOCALAPPDATA%\Programs\WoW Tools</code>, ajoute un raccourci au menu Démarrer et, si vous laissez la case cochée, se lance avec Windows. Se désinstalle dans « Paramètres → Applications ».'
+portable_name = "Portable"
+portable_text = "Décompressez le dossier <code>WoW Tools</code> où vous voulez, une clé USB aussi, et lancez <code>wow-tools.exe</code>. Les paramètres, les sauvegardes et le journal restent dans ce dossier."
+exe_name = "L'exe seul"
+exe_text = "Placez-le dans un dossier permanent (le démarrage automatique retient son chemin) et lancez-le."
+soon = "Bientôt"
+winget_text = "L'installateur en ligne de commande : <code>winget install Gronck2.WoWTools</code>. Le paquet est en cours d'ajout au catalogue winget ; d'ici là, prenez l'un des fichiers ci-dessus."
+
+privacy_faq_label = "Confidentialité et questions"
+privacy_title = "Confidentialité et sécurité"
+faq_title = "Questions"
+faq_more_before = "Tout le reste se trouve dans le"
+faq_more_link = "manuel complet sur GitHub"
+
+thanks_title = "Merci"
+thanks_text = "Merci d'essayer WoW Tools ! C'est un projet gratuit, fait sur notre temps libre, qui grandit avec ce dont les joueurs ont besoin. Dites-nous ce qui marche, ce qui gêne et ce qui vous manque : nous lisons chaque idée et chaque signalement de bug, et ils rendent la prochaine version meilleure. Et si WoW Tools vous est utile, une étoile sur GitHub nous fera plaisir et aidera d'autres joueurs à trouver le projet."
+thanks_idea = "Proposer une idée"
+thanks_bug = "Signaler un problème"
+thanks_star = "Étoile sur GitHub"
+thanks_note = "Les retours se font dans GitHub Issues ; il faut un compte GitHub gratuit pour écrire. Vous pouvez écrire en français."
+
+lb_label = "Capture d'écran"
+lb_close = "Fermer"
+lb_prev = "Précédente"
+lb_next = "Suivante"
+
+footer_label = "Pied de page"
+footer_text = "WoW Tools est un projet de fan, sans lien avec Blizzard Entertainment et non approuvé par elle. World of Warcraft et Battle.net sont des marques de Blizzard Entertainment, Inc."
+footer_releases = "Versions"
+footer_issues = "Signaler un problème"
+
+[[features]]
+title = "Sauvegardes"
+text = '<code>WTF</code> (raccourcis clavier, macros, discussion, CVars, réglages des addons) et <code>Interface\AddOns</code> — après chaque session de jeu ou selon un planning.'
+
+[[features]]
+title = "Restauration en un clic"
+text = "Vers n'importe quel point antérieur. L'état actuel est d'abord enregistré : une restauration peut toujours être annulée."
+
+[[features]]
+title = "Mise à jour des addons"
+text = "Via le gestionnaire que vous utilisez déjà — CurseForge, WowUp, WowUp-CF ou Wago App —, sans fenêtre, selon un planning, jamais pendant que vous jouez. ElvUI directement depuis son site officiel."
+
+[[features]]
+title = "Patchs du jeu"
+text = "Quand Battle.net met le jeu à jour, les réglages et les addons sont sauvegardés avant le premier lancement sur la nouvelle version, et vous voyez quels addons ne sont pas encore faits pour elle."
+
+[[features]]
+title = "Profils d'interface"
+text = "Enregistrez l'interface d'un personnage — raccourcis, macros, disposition, addons et leurs profils — et appliquez-la à un autre personnage en deux clics."
+
+[[features]]
+title = "Copie entre personnages"
+text = "Raccourcis, macros, fenêtres de discussion, disposition des cadres, addons activés et réglages des addons, d'un personnage vers d'autres."
+
+[[features]]
+title = "Nettoyage"
+text = "Réglages d'addons supprimés, copies <code>.bak</code> de WoW, vieux journaux de combat, captures d'écran et cache — avec leur taille, en un clic."
+
+[[features]]
+title = "Se met à jour seul"
+text = "Vérifie GitHub une fois par jour et installe une nouvelle version en un clic. Chaque téléchargement est contrôlé avec son empreinte SHA-256."
+
+[[features]]
+title = "Cinq langues"
+text = "Français, anglais, russe, allemand et espagnol. Suit le thème clair ou sombre de Windows et sa couleur d'accentuation."
+
+[[shots]]
+view = "addons"
+alt = "Onglet Addons : dernière mise à jour et historique"
+caption = "Addons : les dernières exécutions et ce qui a été mis à jour"
+
+[[shots]]
+view = "cleanup"
+alt = "Onglet Nettoyage avec les tailles et un bouton par élément"
+caption = "Nettoyage : ce qui peut partir, avec la taille"
+
+[[shots]]
+view = "profiles"
+alt = "Onglet Profils avec les profils d'interface enregistrés"
+caption = "Profils : enregistrer et appliquer une interface"
+
+[[shots]]
+view = "settings"
+alt = "Fenêtre des paramètres, onglet Général"
+caption = "Paramètres : chaque changement s'applique tout de suite"
+
+[[privacy]]
+head = "Deux requêtes réseau, rien sur vous."
+text = "GitHub une fois par jour pour une nouvelle version de WoW Tools (désactivable), et tukui.org pour ElvUI quand il est installé."
+
+[[privacy]]
+head = "Ne touche jamais au jeu."
+text = "Il ne lit pas la mémoire du jeu et n'automatise rien en jeu."
+
+[[privacy]]
+head = "D'abord une sauvegarde."
+text = "Tout ce qui modifie les réglages ou les addons — restauration, copie, nettoyage, profils, mises à jour d'addons — enregistre d'abord l'état actuel."
+
+[[faq]]
+q = "De quoi ai-je besoin ?"
+a = "Windows 10 ou 11, 64 bits, et World of Warcraft installé via Battle.net. Pour mettre à jour les addons : CurseForge, WowUp, WowUp-CF ou Wago App, configuré. Les sauvegardes, la restauration et la copie fonctionnent sans eux."
+
+[[faq]]
+q = "Peut-on utiliser plusieurs programmes d'addons à la fois ?"
+a = "Non, exprès : deux gestionnaires sur un même dossier AddOns cassent les addons l'un de l'autre. WoW Tools travaille avec celui que vous choisissez."
+
+[[faq]]
+q = "Les raccourcis copiés ont disparu après la connexion."
+a = 'Les raccourcis et les macros peuvent être synchronisés avec le serveur, ce qui peut écraser les fichiers copiés. Le <a href="https://github.com/Gronck2/wow-tools/blob/main/README.fr.md#copier-les-réglages-entre-personnages">README</a> explique comment le désactiver.'
+
+[[faq]]
+q = "Où trouve-t-il le jeu ?"
+a = "Dans le registre, la liste des installations de Battle.net, puis aux emplacements habituels. Les versions du jeu installées dans d'autres dossiers sont trouvées aussi ; sinon, indiquez le dossier dans « Paramètres → Général »."
+
+[[faq]]
+q = "Est-ce gratuit ?"
+a = "Oui. Open source sous MIT ou Apache-2.0, sans publicité et sans compte."

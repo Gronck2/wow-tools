@@ -1,5 +1,5 @@
 # Publishes the landing page (site/) to GitHub Pages at https://wow-tool.gronck.com.
-# The screenshots come from docs/images and the favicon from assets, so they are not kept twice.
+# site/build.py renders a page per language and adds the screenshots from docs/images and the favicon from assets.
 name: Pages
 
 on:
@@ -29,12 +29,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble the site
-        run: |
-          mkdir -p _site/img
-          cp -r site/. _site/
-          cp docs/images/*.png _site/img/
-          cp assets/wow-tools.ico _site/favicon.ico
+      - name: Build the site
+        run: python3 site/build.py _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

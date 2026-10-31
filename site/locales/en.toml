@@ -1,0 +1,158 @@
+# Texts of the landing page (site/template.html), English. Values are HTML; build.py checks that every language
+# has the same keys. UI labels quote locales/en.toml of the app; README links go to the README of this language.
+
+html_title = "WoW Tools — backups, addon updates and UI profiles for World of Warcraft"
+meta_description = "A free Windows tray app for World of Warcraft: backups of WTF and AddOns, one-click restore, addon updates through CurseForge, WowUp or Wago, cleanup and UI profiles."
+og_description = "Backups, addon updates, cleanup and UI profiles for World of Warcraft — a small Windows tray app."
+
+readme_url = "https://github.com/Gronck2/wow-tools"
+anchor_verify = "#verifying-downloads"
+
+nav_label = "Main"
+nav_features = "Features"
+nav_download = "Download"
+nav_faq = "FAQ"
+opens_github = "(opens github.com)"
+lang_label = "Language"
+
+tag_free = "Free"
+tag_open_source = "Open source"
+hero_lede = "A small Windows tray app for World of Warcraft that keeps your settings and addons safe: backups after every session, one-click restore, addon updates while you are not playing, and UI profiles you can put on any character."
+btn_download = "Download for Windows"
+btn_source = "Source on GitHub"
+release_note = "Version {version}"
+smartscreen_hint = 'Windows SmartScreen may ask to confirm the start — <a href="#download">why and what to press</a>.'
+hero_alt = "The WoW Tools panel: last backup, Back up now and the latest restore points"
+
+features_title = "What it does"
+features_lede = "It runs in the tray and does its work when the game is closed. Every version of the game you have installed is covered: Retail, Classic, Classic Era, Anniversary, PTR and beta."
+
+shots_title = "A look inside"
+shots_lede = "Left click on the tray icon opens the panel; the settings are one click away."
+
+download_title = "Download"
+download_lede = "Every release has the same program in three forms — pick one. Nothing else to install: no runtime, no administrator rights."
+smartscreen_head = "SmartScreen may warn about an unknown publisher."
+smartscreen_text = "WoW Tools is not code-signed; choose More info → Run anyway. Every file has a SHA-256 in the release notes and a build provenance attestation — see"
+smartscreen_link = "Verifying downloads"
+th_file = "File"
+th_what = "What it is"
+setup_name = "Installer"
+setup_text = 'Installs for your Windows user into <code>%LOCALAPPDATA%\Programs\WoW Tools</code>, adds a Start menu shortcut and, if you leave the box ticked, starts with Windows. Removed in Settings → Apps.'
+portable_name = "Portable"
+portable_text = "Unpack the <code>WoW Tools</code> folder anywhere, a USB stick too, and run <code>wow-tools.exe</code>. Settings, backups and the log stay in that folder."
+exe_name = "Bare exe"
+exe_text = "Put it in a permanent folder (autostart remembers its path) and run it."
+soon = "Coming soon"
+winget_text = "The installer from the command line: <code>winget install Gronck2.WoWTools</code>. The package is on its way into the winget catalog; until then, use one of the files above."
+
+privacy_faq_label = "Privacy and questions"
+privacy_title = "Privacy and safety"
+faq_title = "Questions"
+faq_more_before = "Everything else is in the"
+faq_more_link = "full manual on GitHub"
+
+thanks_title = "Thank you"
+thanks_text = "Thank you for trying WoW Tools! It is a free project made in spare time, and it grows from what players need. Tell us what works, what gets in the way and what you would like it to do: every idea and bug report is read and helps make the next version better. And if WoW Tools is useful to you, a star on GitHub makes us happy and helps other players find it."
+thanks_idea = "Suggest a feature"
+thanks_bug = "Report a problem"
+thanks_star = "Star on GitHub"
+thanks_note = "Feedback goes to GitHub Issues; writing there needs a free GitHub account."
+
+lb_label = "Screenshot"
+lb_close = "Close"
+lb_prev = "Previous"
+lb_next = "Next"
+
+footer_label = "Footer"
+footer_text = "WoW Tools is a fan project, not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft and Battle.net are trademarks of Blizzard Entertainment, Inc."
+footer_releases = "Releases"
+footer_issues = "Report a problem"
+
+[[features]]
+title = "Backups"
+text = "<code>WTF</code> (bindings, macros, chat, CVars, addon settings) and <code>Interface\\AddOns</code> — after every game session or on a schedule."
+
+[[features]]
+title = "One-click restore"
+text = "Back to any earlier point. The current state is saved first, so a restore can always be undone."
+
+[[features]]
+title = "Addon updates"
+text = "Through the manager you already use — CurseForge, WowUp, WowUp-CF or the Wago App — without a window, on a schedule, never while you play. ElvUI straight from its official site."
+
+[[features]]
+title = "Game patches"
+text = "When Battle.net patches the game, settings and addons are saved before the first start on the new version, and you see which addons are not made for it yet."
+
+[[features]]
+title = "UI profiles"
+text = "Save a character's interface — bindings, macros, layout, addons and their profiles — and put it on another character in two clicks."
+
+[[features]]
+title = "Copy between characters"
+text = "Bindings, macros, chat windows, frame layout, enabled addons and addon settings from one character to others."
+
+[[features]]
+title = "Cleanup"
+text = "Settings of removed addons, WoW's <code>.bak</code> copies, old combat logs, screenshots and the cache — with sizes, in one click."
+
+[[features]]
+title = "Updates itself"
+text = "Checks GitHub once a day and installs a new version in one click. Each download is checked against its SHA-256."
+
+[[features]]
+title = "Five languages"
+text = "English, Russian, German, French and Spanish. Follows the Windows light or dark theme and accent colour."
+
+[[shots]]
+view = "addons"
+alt = "Addons tab: last update and the update history"
+caption = "Addons: last runs and what was updated"
+
+[[shots]]
+view = "cleanup"
+alt = "Cleanup tab with sizes and a button per item"
+caption = "Cleanup: what can go, with sizes"
+
+[[shots]]
+view = "profiles"
+alt = "Profiles tab with saved UI profiles"
+caption = "Profiles: save and apply a UI"
+
+[[shots]]
+view = "settings"
+alt = "Settings window, General tab"
+caption = "Settings: every change applies at once"
+
+[[privacy]]
+head = "Two network requests, nothing about you."
+text = "GitHub once a day for a new version of WoW Tools (can be switched off), and tukui.org for ElvUI when it is installed."
+
+[[privacy]]
+head = "Never touches the game."
+text = "It does not read game memory and does not automate anything in game."
+
+[[privacy]]
+head = "A snapshot comes first."
+text = "Whatever changes settings or addons — restore, copying, cleanup, profiles, addon updates — saves the current state before it starts."
+
+[[faq]]
+q = "What do I need?"
+a = "Windows 10 or 11, 64-bit, and World of Warcraft installed through Battle.net. For addon updates — one of CurseForge, WowUp, WowUp-CF or the Wago App, set up. Backups, restore and copying work without them."
+
+[[faq]]
+q = "Can several addon programs be used at once?"
+a = "No, on purpose: two managers over one AddOns folder break each other's addons. WoW Tools works with the one you choose."
+
+[[faq]]
+q = "Copied bindings disappeared after login."
+a = "Bindings and macros may be synchronised with the server, which can override copied files. The <a href=\"https://github.com/Gronck2/wow-tools#copying-settings-between-characters\">README</a> shows how to switch that off."
+
+[[faq]]
+q = "Where does it find the game?"
+a = "The registry, Battle.net's install list, then the usual paths. Game versions installed in other folders are found too; otherwise set the folder in Settings → General."
+
+[[faq]]
+q = "Is it free?"
+a = "Yes. Open source under MIT or Apache-2.0, no ads, no accounts."

@@ -2,7 +2,7 @@
 
 [English](README.md) · [Русский](README.ru.md) · **Deutsch** · [Français](README.fr.md) · [Español](README.es.md)
 
-Website: [wow-tool.gronck.com](https://wow-tool.gronck.com/) (auf Englisch)
+Website: [wow-tool.gronck.com](https://wow-tool.gronck.com/de/)
 
 Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen und Addons in World of Warcraft schützt:
 
