@@ -1,5 +1,7 @@
-# Pushing a version tag (v1.2.3) builds the exe from that commit and creates a draft GitHub
-# release with it. Review the notes and publish the draft by hand.
+# Pushing a version tag (v1.2.3) builds WoW Tools from that commit in three forms and creates a draft
+# GitHub release with them: the bare exe (what the app's self-update downloads), the installer and a
+# portable zip. Each file gets a build provenance attestation (`gh attestation verify`). Review the
+# notes and publish the draft by hand.
 name: Release
 
 on:
@@ -8,6 +10,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -39,18 +43,46 @@ jobs:
         id: package
         shell: pwsh
         run: |
+          $v = "${{ steps.version.outputs.version }}"
           New-Item -ItemType Directory -Force dist | Out-Null
-          $exe = "dist/WoW-Tools-${{ steps.version.outputs.version }}.exe"
+          $exe = "dist/WoW-Tools-$v.exe"
           Copy-Item target/release/wow-tools.exe $exe
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+
+          # Installer (Inno Setup is on the runner image).
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc /Q "/DAppVersion=$v" "/DSourceExe=$PWD\target\release\wow-tools.exe" "/O$PWD\dist" packaging\installer.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $setup = "dist/WoW-Tools-$v-setup.exe"
+
+          # Portable: the exe with portable.txt next to it, in a "WoW Tools" folder.
+          $dir = "portable/WoW Tools"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item target/release/wow-tools.exe, packaging/portable.txt, LICENSE-MIT, LICENSE-APACHE $dir
+          $zip = "dist/WoW-Tools-$v-portable.zip"
+          Compress-Archive -Path $dir -DestinationPath $zip
+
           "exe=$exe" >> $env:GITHUB_OUTPUT
-          "sha256=$hash" >> $env:GITHUB_OUTPUT
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*
 
       - name: Draft release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $notes = "SHA-256: ``${{ steps.package.outputs.sha256 }}``"
-          gh release create $env:GITHUB_REF_NAME "${{ steps.package.outputs.exe }}" --draft --verify-tag `
+          $files = "${{ steps.package.outputs.exe }}", "${{ steps.package.outputs.setup }}", "${{ steps.package.outputs.zip }}"
+          # The exe's line goes first: WoW Tools 0.2.x reads the first "SHA-256" of the notes.
+          $notes = ($files | ForEach-Object {
+            "SHA-256: ``$((Get-FileHash $_ -Algorithm SHA256).Hash)`` $(Split-Path $_ -Leaf)"
+          }) -join "`n"
+          # The exe is uploaded on its own first, so it is the first .exe asset (0.2.x takes the first one).
+          gh release create $env:GITHUB_REF_NAME $files[0] --draft --verify-tag `
             --title "WoW Tools ${{ steps.version.outputs.version }}" --generate-notes --notes "$notes"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          gh release upload $env:GITHUB_REF_NAME $files[1] $files[2]

@@ -166,6 +166,9 @@ enum Cmd {
         #[command(subcommand)]
         action: ScheduleCmd,
     },
+    /// Closes the running tray (for the installer); exit code 3 while it is busy
+    #[command(hide = true)]
+    Quit,
     /// Draws the panel or the menu with demo data into a PNG (for checking the look)
     #[command(hide = true)]
     UiSnapshot {
@@ -371,6 +374,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Outdated => cmd_outdated(&ctx),
         Cmd::Profile { action } => cmd_profile(&ctx, action),
         Cmd::Schedule { action } => cmd_schedule(&ctx, action),
+        Cmd::Quit => cmd_quit(),
         Cmd::UiSnapshot { out, view, dark, lang } => {
             if let Some(code) = lang {
                 let lang = i18n::Lang::ALL.into_iter().find(|l| format!("{l:?}").eq_ignore_ascii_case(&code));
@@ -434,7 +438,9 @@ fn cmd_self_update(check_only: bool) -> Result<()> {
     }
     println!("{}", tr!("self_update.installing", version = &release.version));
     let new = selfupdate::download(&release)?;
-    selfupdate::install(&new, &selfupdate::exe_path()?)?;
+    let exe = selfupdate::exe_path()?;
+    selfupdate::install(&new, &exe)?;
+    selfupdate::set_installed_version(&exe, &release.version);
     println!("{}", tr!("self_update.cli_installed", version = &release.version));
     Ok(())
 }
@@ -442,6 +448,20 @@ fn cmd_self_update(check_only: bool) -> Result<()> {
 #[cfg(windows)]
 fn cmd_tray(ctx: Ctx) -> Result<()> {
     tray::run(ctx)
+}
+
+#[cfg(windows)]
+fn cmd_quit() -> Result<()> {
+    if let tray::Quit::Busy = tray::quit() {
+        eprintln!("{}", tr!("out.quit_busy"));
+        std::process::exit(3);
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn cmd_quit() -> Result<()> {
+    Ok(())
 }
 
 #[cfg(not(windows))]

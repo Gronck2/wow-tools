@@ -50,7 +50,7 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
 - [Désinstallation](#désinstallation)
 - [FAQ et limites](#faq-et-limites)
 - [Compiler depuis les sources](#compiler-depuis-les-sources)
-- [Politique de signature du code](#politique-de-signature-du-code)
+- [Vérifier les téléchargements](#vérifier-les-téléchargements)
 - [Licence](#licence)
 
 ## Prérequis
@@ -69,17 +69,22 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
 
 ## Installation
 
-1. Téléchargez `WoW-Tools-x.y.z.exe` depuis les [Releases](https://github.com/Gronck2/wow-tools/releases).
-2. Placez-le dans un dossier définitif (par exemple `%LOCALAPPDATA%\Programs\WoW Tools\`) — le démarrage automatique
-   retient ce chemin.
-3. Lancez-le. Une icône apparaît dans la zone de notification ; le dossier du jeu est trouvé automatiquement (registre,
-   Battle.net, chemins courants).
+Chaque [release](https://github.com/Gronck2/wow-tools/releases) propose le même programme sous trois formes — choisissez-en
+une :
 
-Windows SmartScreen peut signaler un éditeur inconnu, car l'exe n'est pas signé : choisissez
-**Informations complémentaires → Exécuter quand même**. Chaque release indique le SHA-256 du fichier pour vérifier ce
-que vous avez téléchargé (`Get-FileHash .\WoW-Tools-0.1.0.exe`).
+| Fichier | Ce que c'est |
+| --- | --- |
+| `WoW-Tools-x.y.z-setup.exe` | **Installateur.** Installe pour votre utilisateur Windows dans `%LOCALAPPDATA%\Programs\WoW Tools` (sans droits d'administrateur), ajoute un raccourci au menu Démarrer et, si vous laissez la case cochée, se lance avec Windows. Se désinstalle dans **Paramètres → Applications → Applications installées**. |
+| `WoW-Tools-x.y.z-portable.zip` | **Portable.** Décompressez le dossier `WoW Tools` où vous voulez (une clé USB aussi) et lancez `wow-tools.exe`. Les paramètres, les sauvegardes et le journal restent dans ce dossier — voir [Fichiers et dossiers](#fichiers-et-dossiers). |
+| `WoW-Tools-x.y.z.exe` | **L'exe seul.** Placez-le dans un dossier définitif (le démarrage automatique retient son chemin) et lancez-le. Les paramètres sont rangés au même endroit qu'avec l'installateur. |
 
-Relancer l'exe alors qu'il tourne déjà ouvre la fenêtre des paramètres.
+Au premier lancement, une icône apparaît dans la zone de notification ; le dossier du jeu est trouvé automatiquement
+(registre, Battle.net, chemins courants). Relancer le programme alors qu'il tourne déjà ouvre la fenêtre des paramètres.
+
+WoW Tools n'est pas signé, donc Windows SmartScreen peut signaler un éditeur inconnu à l'ouverture d'un fichier
+téléchargé : choisissez **Informations complémentaires → Exécuter quand même**. Les mises à jour que WoW Tools installe
+lui-même n'affichent pas cet avertissement. Pour vérifier qu'un fichier est authentique, voir
+[Vérifier les téléchargements](#vérifier-les-téléchargements).
 
 ## L'icône de notification et le panneau
 
@@ -387,6 +392,10 @@ explique le reste dans la langue choisie.
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | date de la dernière recherche d'une nouvelle version de WoW Tools |
 | `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | les dernières versions du jeu vues, pour repérer un patch |
 
+La version portable n'utilise aucun de ces chemins : tant que `portable.txt` se trouve à côté de `wow-tools.exe`, les
+paramètres sont dans `config\config.toml` et tout le reste dans `data\` à côté de l'exe (sauvegardes dans
+`data\backups`). Supprimez `portable.txt` pour revenir aux dossiers habituels.
+
 Les sauvegardes sont nommées `YYYYmmdd-HHMMSS[-label].zip` ; ce sont des fichiers zip ordinaires, que l'on peut ouvrir
 à la main.
 
@@ -420,7 +429,8 @@ Un clic télécharge le nouvel exe, le vérifie avec la somme de contrôle SHA-2
 release (un fichier qui ne correspond pas n'est jamais installé), le met à la place de l'actuel et redémarre l'icône de
 notification. L'ancien exe est conservé sous le nom `<name>.exe.old` jusqu'au prochain démarrage, puis supprimé. Si une
 sauvegarde ou une mise à jour est en cours, le redémarrage attend qu'elle se termine. Vos paramètres, vos sauvegardes
-et le démarrage automatique restent tels quels.
+et le démarrage automatique restent tels quels. Cela fonctionne de la même façon pour les trois formes ; pour une copie
+installée, la version affichée dans **Applications installées** est mise à jour aussi.
 
 En ligne de commande : `wow-tools self-update --check` (vérifier seulement) ou `wow-tools self-update` (vérifier et
 installer ; redémarrez ensuite l'icône de notification). Pour ne plus vérifier, désactivez **Rechercher les mises à
@@ -428,11 +438,16 @@ jour** dans **Paramètres → Général** (`check_updates = false` dans `config.
 
 ## Désinstallation
 
+**Installé :** **Paramètres → Applications → Applications installées → WoW Tools → Désinstaller**. Cela ferme l'icône de notification, supprime le démarrage
+automatique et la tâche planifiée, et demande s'il faut aussi supprimer les paramètres et les sauvegardes.
+
+**Portable ou exe seul :**
+
 1. Désactivez **Lancer avec Windows** (ou lancez `wow-tools schedule remove`, qui supprime aussi une éventuelle tâche
    planifiée).
 2. Choisissez **Quitter** dans le menu de l'icône de notification.
-3. Supprimez l'exe et, si vous n'avez plus besoin des paramètres ni des sauvegardes, `%APPDATA%\WoW Tools` et
-   `%LOCALAPPDATA%\WoW Tools`.
+3. Supprimez le dossier portable, ou bien l'exe et, si vous n'avez plus besoin des paramètres ni des sauvegardes,
+   `%APPDATA%\WoW Tools` et `%LOCALAPPDATA%\WoW Tools`.
 
 ## FAQ et limites
 
@@ -457,20 +472,25 @@ cargo build --release
 ```
 
 Rust stable, Windows. La CI (GitHub Actions) vérifie le formatage, clippy, les tests et la compilation à chaque push ;
-un tag `vX.Y.Z` correspondant à la version de `Cargo.toml` compile l'exe et crée un brouillon de release. Les textes
-sont dans `locales/<langue>.toml`.
+un tag `vX.Y.Z` correspondant à la version de `Cargo.toml` compile l'exe, l'installateur (Inno Setup,
+`packaging/installer.iss`) et le zip portable, et crée un brouillon de release. Les textes sont dans `locales/<langue>.toml`.
 
-## Politique de signature du code
+## Vérifier les téléchargements
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/) — signature de code gratuite par SignPath.io, certificat de la SignPath Foundation.
+WoW Tools n'est pas signé. À la place, chaque fichier d'une release peut être vérifié :
 
-- Seul `WoW-Tools-X.Y.Z.exe` est signé, compilé par le workflow de release sur GitHub Actions à partir des sources de
-  ce dépôt ; chaque release est approuvée à la main avant d'être signée.
-- Auteurs, relecteurs et approbateurs : [Aleksandr Stepanov](https://github.com/Gronck2).
-- Confidentialité : voir [Confidentialité et sécurité](#confidentialité-et-sécurité). WoW Tools n'envoie rien sur
-  vous, votre ordinateur ou votre jeu ; ses seules requêtes réseau vérifient les nouvelles versions de lui-même
-  (GitHub) et d'ElvUI (tukui.org), et les deux se désactivent dans les paramètres.
+- **Somme de contrôle.** Les notes de la release indiquent le SHA-256 de chaque fichier ; comparez-le avec
+  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+- **Provenance de la compilation.** Chaque fichier a une [attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)
+  GitHub montrant qu'il a été compilé par le workflow de release de ce dépôt sur GitHub Actions à partir des sources
+  du tag, et non déposé à la main. Avec la [GitHub CLI](https://cli.github.com/) :
+
+  ```
+  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  ```
+
+- La mise à jour intégrée de WoW Tools vérifie le nouvel exe avec le SHA-256 que GitHub publie pour lui avant de
+  l'installer (voir [Mettre à jour WoW Tools](#mettre-à-jour-wow-tools)).
 
 ## Licence
 

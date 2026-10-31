@@ -31,7 +31,18 @@ jobs:
       - name: Build
         run: cargo build --release --locked
 
+      - name: Installer
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc /Q "/DAppVersion=$v" "/DSourceExe=$PWD\target\release\wow-tools.exe" "/O$PWD\dist" packaging\installer.iss
+          exit $LASTEXITCODE
+
       - uses: actions/upload-artifact@v7
         with:
           name: wow-tools-${{ github.sha }}
-          path: target/release/wow-tools.exe
+          path: |
+            target/release/wow-tools.exe
+            dist/*-setup.exe

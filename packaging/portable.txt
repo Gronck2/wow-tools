@@ -1,0 +1,7 @@
+This file makes WoW Tools portable: with it next to wow-tools.exe, the settings are kept in the "config" folder and
+the backups, the log and the rest in the "data" folder beside the exe, not in %APPDATA% and %LOCALAPPDATA%.
+Delete this file to use the usual folders.
+
+Этот файл делает WoW Tools портативной: пока он лежит рядом с wow-tools.exe, настройки хранятся в папке "config",
+а бэкапы, лог и остальное — в папке "data" рядом с exe, а не в %APPDATA% и %LOCALAPPDATA%.
+Удалите файл, чтобы вернуться к обычным папкам.

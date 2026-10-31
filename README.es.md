@@ -47,7 +47,7 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 - [Desinstalación](#desinstalación)
 - [Preguntas frecuentes y limitaciones](#preguntas-frecuentes-y-limitaciones)
 - [Compilar desde el código fuente](#compilar-desde-el-código-fuente)
-- [Política de firma de código](#política-de-firma-de-código)
+- [Comprobar las descargas](#comprobar-las-descargas)
 - [Licencia](#licencia)
 
 ## Requisitos
@@ -66,16 +66,21 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 
 ## Instalación
 
-1. Descarga `WoW-Tools-x.y.z.exe` desde [Releases](https://github.com/Gronck2/wow-tools/releases).
-2. Ponlo en una carpeta fija (por ejemplo `%LOCALAPPDATA%\Programs\WoW Tools\`): el inicio automático recuerda esta ruta.
-3. Ejecútalo. Aparece un icono en la bandeja; la carpeta del juego se detecta automáticamente (registro, Battle.net,
-   rutas habituales).
+Cada [versión publicada](https://github.com/Gronck2/wow-tools/releases) trae el mismo programa en tres formas; elige
+una:
 
-Windows SmartScreen puede avisar de un editor desconocido porque el exe no está firmado: elige
-**Más información → Ejecutar de todas formas**. Cada versión publicada indica el SHA-256 del archivo para que puedas
-comprobar lo que has descargado (`Get-FileHash .\WoW-Tools-0.1.0.exe`).
+| Archivo | Qué es |
+| --- | --- |
+| `WoW-Tools-x.y.z-setup.exe` | **Instalador.** Instala para tu usuario de Windows en `%LOCALAPPDATA%\Programs\WoW Tools` (sin permisos de administrador), añade un acceso directo al menú Inicio y, si dejas la casilla marcada, se inicia con Windows. Se quita en **Configuración → Aplicaciones → Aplicaciones instaladas**. |
+| `WoW-Tools-x.y.z-portable.zip` | **Portátil.** Descomprime la carpeta `WoW Tools` donde quieras (también en una memoria USB) y ejecuta `wow-tools.exe`. La configuración, las copias y el registro se quedan en esa carpeta: mira [Archivos y carpetas](#archivos-y-carpetas). |
+| `WoW-Tools-x.y.z.exe` | **El exe suelto.** Ponlo en una carpeta fija (el inicio automático recuerda su ruta) y ejecútalo. La configuración se guarda donde la guarda el instalador. |
 
-Si vuelves a abrir el exe mientras ya se está ejecutando, se abre la ventana de configuración.
+Al primer inicio aparece un icono en la bandeja; la carpeta del juego se detecta automáticamente (registro, Battle.net,
+rutas habituales). Si vuelves a abrir el programa mientras ya se está ejecutando, se abre la ventana de configuración.
+
+WoW Tools no está firmado, así que Windows SmartScreen puede avisar de un editor desconocido al abrir un archivo
+descargado: elige **Más información → Ejecutar de todas formas**. Las actualizaciones que instala el propio WoW Tools
+no muestran este aviso. Para comprobar que un archivo es auténtico, mira [Comprobar las descargas](#comprobar-las-descargas).
 
 ## El icono de la bandeja y el panel
 
@@ -375,6 +380,10 @@ resto en el idioma elegido.
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | cuándo buscó WoW Tools una nueva versión por última vez |
 | `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | las últimas versiones del juego vistas, para detectar un parche |
 
+La versión portátil no usa ninguna de estas rutas: mientras haya un `portable.txt` junto a `wow-tools.exe`, la
+configuración está en `config\config.toml` y todo lo demás en `data\` junto al exe (las copias en `data\backups`).
+Borra `portable.txt` para pasar a las carpetas habituales.
+
 Las instantáneas se llaman `YYYYmmdd-HHMMSS[-label].zip`; son archivos zip normales y se pueden abrir a mano.
 
 `config.toml` también guarda lo que la ventana no muestra: `exclude_ext` (extensiones excluidas, `["bak", "old"]` por
@@ -405,7 +414,9 @@ al día (y cuando pulsas **Comprobar** en **Configuración → General**). Cuand
 Un clic descarga el nuevo exe, lo comprueba con la suma SHA-256 que GitHub publica para el archivo de la versión (un
 archivo que no coincide nunca se instala), lo pone en lugar del actual y reinicia la bandeja. El exe antiguo se guarda
 como `<name>.exe.old` hasta el siguiente inicio y luego se elimina. Si hay una copia o una actualización en curso, el
-reinicio espera a que termine. Tu configuración, tus instantáneas y el inicio automático quedan como estaban.
+reinicio espera a que termine. Tu configuración, tus instantáneas y el inicio automático quedan como estaban. Funciona
+igual en las tres formas; en una copia instalada también se actualiza la versión que aparece en
+**Aplicaciones instaladas**.
 
 Desde la línea de comandos: `wow-tools self-update --check` (solo comprobar) o `wow-tools self-update` (comprobar e
 instalar; después reinicia la bandeja). Para dejar de comprobar, desactiva **Buscar actualizaciones** en
@@ -413,10 +424,15 @@ instalar; después reinicia la bandeja). Para dejar de comprobar, desactiva **Bu
 
 ## Desinstalación
 
+**Instalado:** **Configuración → Aplicaciones → Aplicaciones instaladas → WoW Tools → Desinstalar**. Cierra la bandeja, quita el inicio automático y la tarea
+programada, y pregunta si borrar también la configuración y las copias.
+
+**Portátil o el exe suelto:**
+
 1. Desactiva **Iniciar con Windows** (o ejecuta `wow-tools schedule remove`, que también quita la tarea programada).
 2. Elige **Salir** en el menú de la bandeja.
-3. Borra el exe y, si no necesitas la configuración ni las instantáneas, `%APPDATA%\WoW Tools` y
-   `%LOCALAPPDATA%\WoW Tools`.
+3. Borra la carpeta portátil, o el exe y, si no necesitas la configuración ni las instantáneas, `%APPDATA%\WoW Tools`
+   y `%LOCALAPPDATA%\WoW Tools`.
 
 ## Preguntas frecuentes y limitaciones
 
@@ -439,20 +455,25 @@ cargo build --release
 ```
 
 Rust stable, Windows. La CI (GitHub Actions) comprueba el formato, clippy, los tests y la compilación en cada push; una
-etiqueta `vX.Y.Z` que coincida con la versión de `Cargo.toml` compila el exe y crea un borrador de versión. Los textos
-están en `locales/<idioma>.toml`.
+etiqueta `vX.Y.Z` que coincida con la versión de `Cargo.toml` compila el exe, el instalador (Inno Setup,
+`packaging/installer.iss`) y el zip portátil y crea un borrador de versión. Los textos están en `locales/<idioma>.toml`.
 
-## Política de firma de código
+## Comprobar las descargas
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/) — firma de código gratuita de SignPath.io, certificado de SignPath Foundation.
+WoW Tools no está firmado. En su lugar, cada archivo de una versión publicada se puede comprobar:
 
-- Solo se firma `WoW-Tools-X.Y.Z.exe`, que el workflow de release compila en GitHub Actions a partir del código de
-  este repositorio; cada release se aprueba a mano antes de firmarse.
-- Autores, revisores y aprobadores: [Aleksandr Stepanov](https://github.com/Gronck2).
-- Privacidad: consulta [Privacidad y seguridad](#privacidad-y-seguridad). WoW Tools no envía nada sobre ti, tu equipo
-  ni tu juego; sus únicas peticiones de red comprueban nuevas versiones de sí mismo (GitHub) y de ElvUI (tukui.org), y
-  ambas se pueden desactivar en los ajustes.
+- **Suma de comprobación.** Las notas de la versión indican el SHA-256 de cada archivo; compáralo con
+  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+- **Origen de la compilación.** Cada archivo tiene una [atestación](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)
+  de GitHub que demuestra que lo compiló el workflow de release de este repositorio en GitHub Actions a partir del
+  código etiquetado, y que no se subió a mano. Con [GitHub CLI](https://cli.github.com/):
+
+  ```
+  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  ```
+
+- La actualización propia de WoW Tools comprueba el nuevo exe con el SHA-256 que GitHub publica para él antes de
+  instalarlo (mira [Actualizar WoW Tools](#actualizar-wow-tools)).
 
 ## Licencia
 

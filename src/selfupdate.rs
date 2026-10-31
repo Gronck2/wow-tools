@@ -168,7 +168,12 @@ fn parse_release(body: &[u8]) -> Result<Release> {
     }
     let r: ApiRelease = serde_json::from_slice(body).context("GitHub API")?;
     let notes_hash = r.body.as_deref().and_then(hash_in_notes);
-    let asset = r.assets.into_iter().find(|a| a.name.to_ascii_lowercase().ends_with(".exe")).map(|a| Asset {
+    // The bare exe, not the installer next to it (`WoW-Tools-1.2.3-setup.exe`).
+    let is_exe = |a: &ApiAsset| {
+        let name = a.name.to_ascii_lowercase();
+        name.ends_with(".exe") && !name.contains("setup")
+    };
+    let asset = r.assets.into_iter().find(is_exe).map(|a| Asset {
         sha256: a
             .digest
             .as_deref()
@@ -249,6 +254,32 @@ pub fn mark_installed(version: &str) {
     s.installing = Some(version.to_string());
     save(&s);
 }
+
+/// The installer's entry in "Installed apps" (Inno Setup: `<AppId>_is1`, see `packaging\installer.iss`).
+#[cfg(windows)]
+const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E0A3C52-8B4F-4D1E-9C7A-2F5B8D3E1A47}_is1";
+
+/// After `install`: an exe the installer put in place shows the new version in "Installed apps".
+#[cfg(windows)]
+pub fn set_installed_version(exe: &Path, version: &str) {
+    use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE};
+    let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(UNINSTALL_KEY, KEY_READ | KEY_SET_VALUE) else {
+        return;
+    };
+    let Ok(dir) = key.get_value::<String, _>("InstallLocation") else {
+        return;
+    };
+    let ours = exe
+        .parent()
+        .is_some_and(|p| p.to_string_lossy().eq_ignore_ascii_case(dir.trim_end_matches('\\')));
+    if ours {
+        let _ = key.set_value("DisplayVersion", &version.to_string());
+    }
+}
+
+#[cfg(not(windows))]
+pub fn set_installed_version(_: &Path, _: &str) {}
 
 fn old_path(exe: &Path) -> PathBuf {
     let mut name = exe.as_os_str().to_owned();
@@ -416,6 +447,8 @@ mod tests {
             r#"{{"tag_name":"v0.2.0","html_url":"https://github.com/x/y/releases/tag/v0.2.0",
             "body":"SHA-256: `{}`\n\nnotes","assets":[
             {{"name":"notes.txt","browser_download_url":"https://e/notes.txt","size":3}},
+            {{"name":"WoW-Tools-0.2.0-setup.exe","browser_download_url":"https://e/setup.exe","size":7}},
+            {{"name":"WoW-Tools-0.2.0-portable.zip","browser_download_url":"https://e/p.zip","size":9}},
             {{"name":"WoW-Tools-0.2.0.exe","browser_download_url":"https://e/a.exe","size":42}}]}}"#,
             hash.to_uppercase()
         );

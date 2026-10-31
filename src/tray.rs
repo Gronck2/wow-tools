@@ -42,6 +42,11 @@ const WM_SHOW_SETTINGS: u32 = WM_APP + 3;
 const WM_RESTART: u32 = WM_APP + 4;
 /// Read the cleanup tab again (posted by the worker thread; the config paths live on the UI thread).
 const WM_RESCAN: u32 = WM_APP + 5;
+/// Sent by `wow-tools quit` (the installer): exit unless a job runs. The answer is `QUIT_EXITING` or
+/// `QUIT_BUSY`; a tray older than this message answers 0.
+const WM_QUIT_APP: u32 = WM_APP + 6;
+const QUIT_EXITING: LRESULT = 1;
+const QUIT_BUSY: LRESULT = 2;
 /// Restore points the panel lists.
 const POINTS: usize = 5;
 
@@ -267,6 +272,37 @@ pub fn format_time(t: NaiveDateTime) -> String {
         tr!("time.yesterday", time = t.format("%H:%M"))
     } else {
         t.format(tr!("time.date")).to_string()
+    }
+}
+
+/// How `quit` went.
+pub enum Quit {
+    /// No tray was running, or it has exited.
+    Done,
+    /// A backup or an update is running; the tray stays.
+    Busy,
+}
+
+/// Asks the running tray to exit and waits (up to 30 s) until it has.
+pub fn quit() -> Quit {
+    unsafe {
+        let running = FindWindowW(wide("WowToolsTray").as_ptr(), null());
+        if running.is_null() {
+            return Quit::Done;
+        }
+        let mut pid = 0;
+        GetWindowThreadProcessId(running, &mut pid);
+        let mut answer = 0;
+        let sent = SendMessageTimeoutW(running, WM_QUIT_APP, 0, 0, SMTO_ABORTIFHUNG, 10_000, &mut answer);
+        if sent != 0 && answer as LRESULT == QUIT_BUSY {
+            return Quit::Busy;
+        }
+        if sent == 0 || answer as LRESULT != QUIT_EXITING {
+            // An older tray: its window closes on WM_CLOSE (it cannot say whether it is busy).
+            PostMessageW(running, WM_CLOSE, 0, 0);
+        }
+        selfupdate::wait_for_exit(pid);
+        Quit::Done
     }
 }
 
@@ -731,6 +767,9 @@ fn install_update() {
     match result {
         Ok(()) => {
             selfupdate::mark_installed(&release.version);
+            if let Ok(exe) = selfupdate::exe_path() {
+                selfupdate::set_installed_version(&exe, &release.version);
+            }
             log::info!("{}", tr!("self_update.installed", version = &release.version));
             post(WM_RESTART);
         }
@@ -965,6 +1004,14 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             WM_RESCAN => {
                 rescan();
                 0
+            }
+            WM_QUIT_APP => {
+                if STATE.lock().unwrap().status.phase == Phase::Busy {
+                    QUIT_BUSY
+                } else {
+                    DestroyWindow(hwnd);
+                    QUIT_EXITING
+                }
             }
             WM_STATE => {
                 update_tray(hwnd, NIM_MODIFY);

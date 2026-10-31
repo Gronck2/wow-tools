@@ -46,7 +46,7 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - [Uninstalling](#uninstalling)
 - [FAQ and limitations](#faq-and-limitations)
 - [Building from source](#building-from-source)
-- [Code signing policy](#code-signing-policy)
+- [Verifying downloads](#verifying-downloads)
 - [License](#license)
 
 ## Requirements
@@ -64,15 +64,20 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 
 ## Installation
 
-1. Download `WoW-Tools-x.y.z.exe` from [Releases](https://github.com/Gronck2/wow-tools/releases).
-2. Put it in a permanent folder (for example `%LOCALAPPDATA%\Programs\WoW Tools\`) — autostart remembers this path.
-3. Run it. A tray icon appears; the game folder is found automatically (registry, Battle.net, common paths).
+Every [release](https://github.com/Gronck2/wow-tools/releases) has the same program in three forms — pick one:
 
-Windows SmartScreen may warn about an unknown publisher because the exe is not code-signed: choose
-**More info → Run anyway**. Each release lists the file's SHA-256 so you can check what you downloaded
-(`Get-FileHash .\WoW-Tools-0.1.0.exe`).
+| File | What it is |
+| --- | --- |
+| `WoW-Tools-x.y.z-setup.exe` | **Installer.** Installs for your Windows user into `%LOCALAPPDATA%\Programs\WoW Tools` (no administrator rights), adds a Start menu shortcut and, if you leave the box ticked, starts with Windows. Removed in **Settings → Apps → Installed apps**. |
+| `WoW-Tools-x.y.z-portable.zip` | **Portable.** Unpack the `WoW Tools` folder anywhere (a USB stick too) and run `wow-tools.exe`. Settings, backups and the log stay in that folder — see [Files and folders](#files-and-folders). |
+| `WoW-Tools-x.y.z.exe` | **The bare exe.** Put it in a permanent folder (autostart remembers its path) and run it. Settings are kept where the installer keeps them. |
 
-Starting the exe again while it is running opens the settings window.
+On the first start a tray icon appears; the game folder is found automatically (registry, Battle.net, common paths).
+Starting the program again while it is running opens the settings window.
+
+WoW Tools is not code-signed, so Windows SmartScreen may warn about an unknown publisher when you open a downloaded
+file: choose **More info → Run anyway**. Updates WoW Tools installs itself do not show this warning. To check that a
+file is genuine, see [Verifying downloads](#verifying-downloads).
 
 ## The tray icon and the panel
 
@@ -352,6 +357,10 @@ rest in the chosen language.
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | when WoW Tools last checked for a new version |
 | `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | the game versions last seen, to notice a patch |
 
+The portable version uses none of these: while `portable.txt` lies next to `wow-tools.exe`, the settings are in
+`config\config.toml` and everything else in `data\` beside the exe (backups in `data\backups`). Delete
+`portable.txt` to switch to the usual folders.
+
 Snapshot names are `YYYYmmdd-HHMMSS[-label].zip`; they are ordinary zip files and can be opened by hand.
 
 `config.toml` also holds what the window does not show: `exclude_ext` (left-out extensions, `["bak", "old"]` by
@@ -380,7 +389,8 @@ press **Check** in **Settings → General**). When there is a newer version:
 One click downloads the new exe, checks it against the SHA-256 checksum GitHub publishes for the release file (a file
 that does not match is never installed), puts it in place of the current one and restarts the tray. The old exe is
 kept as `<name>.exe.old` until the next start, then removed. If a backup or an update is running, the restart waits
-for it to finish. Your settings, snapshots and autostart stay as they are.
+for it to finish. Your settings, snapshots and autostart stay as they are. This works the same in all three forms;
+for an installed copy the version in **Installed apps** is updated too.
 
 From the command line: `wow-tools self-update --check` (only check) or `wow-tools self-update` (check and install;
 restart the tray afterwards). To stop checking, turn off **Check for updates** in **Settings → General**
@@ -388,10 +398,15 @@ restart the tray afterwards). To stop checking, turn off **Check for updates** i
 
 ## Uninstalling
 
+**Installed:** **Settings → Apps → Installed apps → WoW Tools → Uninstall**. It closes the tray, removes the autostart and the scheduled task, and asks
+whether to delete the settings and the backups too.
+
+**Portable or the bare exe:**
+
 1. Turn off **Start with Windows** (or run `wow-tools schedule remove`, which also removes a scheduled task).
 2. Choose **Exit** in the tray menu.
-3. Delete the exe and, if you do not need the settings and snapshots, `%APPDATA%\WoW Tools` and
-   `%LOCALAPPDATA%\WoW Tools`.
+3. Delete the portable folder, or the exe and, if you do not need the settings and snapshots, `%APPDATA%\WoW Tools`
+   and `%LOCALAPPDATA%\WoW Tools`.
 
 ## FAQ and limitations
 
@@ -412,19 +427,26 @@ cargo build --release
 ```
 
 Rust stable, Windows. CI (GitHub Actions) checks formatting, clippy, tests and the build on every push; a `vX.Y.Z` tag
-matching the version in `Cargo.toml` builds the exe and drafts a release. Texts are in `locales/<language>.toml`.
+matching the version in `Cargo.toml` builds the exe, the installer (Inno Setup, `packaging/installer.iss`) and the
+portable zip and drafts a release. Texts are in
+`locales/<language>.toml`.
 
-## Code signing policy
+## Verifying downloads
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
+WoW Tools is not code-signed. Instead, every release file can be checked:
 
-- Signed is only `WoW-Tools-X.Y.Z.exe`, built by the release workflow on GitHub Actions from the source in this
-  repository; every release is approved by hand before it is signed.
-- Committers, reviewers and approvers: [Aleksandr Stepanov](https://github.com/Gronck2).
-- Privacy: see [Privacy and safety](#privacy-and-safety). WoW Tools sends nothing about you, your computer or your
-  game; its only own network requests are the version checks for itself (GitHub) and ElvUI (tukui.org), and both can
-  be switched off in the settings.
+- **Checksum.** The release notes list the SHA-256 of each file; compare it with
+  `Get-FileHash .\WoW-Tools-x.y.z-setup.exe`.
+- **Build provenance.** Each file has a GitHub [attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)
+  showing it was built by this repository's release workflow on GitHub Actions from the tagged source, not uploaded
+  by hand. With the [GitHub CLI](https://cli.github.com/):
+
+  ```
+  gh attestation verify WoW-Tools-x.y.z-setup.exe --repo Gronck2/wow-tools
+  ```
+
+- WoW Tools' own update checks the new exe against the SHA-256 GitHub publishes for it before installing (see
+  [Updating WoW Tools](#updating-wow-tools)).
 
 ## License
 

@@ -236,17 +236,38 @@ pub const APP_NAME: &str = "WoW Tools";
 /// The first name of the app; its folders are moved over by `migrate_legacy`.
 const LEGACY_NAME: &str = "wtf_sync";
 
+/// A file of this name next to the exe makes it portable: the config and the data live in
+/// `config\` and `data\` beside it instead of `%APPDATA%` and `%LOCALAPPDATA%`.
+pub const PORTABLE_MARKER: &str = "portable.txt";
+
+/// The exe's folder when it is portable, read once.
+pub fn portable_dir() -> Option<&'static Path> {
+    static DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        let exe = std::env::current_exe().ok()?;
+        let dir = exe.parent()?;
+        dir.join(PORTABLE_MARKER).is_file().then(|| dir.to_path_buf())
+    })
+    .as_deref()
+}
+
 fn project_dirs() -> Option<ProjectDirs> {
     ProjectDirs::from("", "", APP_NAME)
 }
 
 pub fn default_config_path() -> PathBuf {
+    if let Some(dir) = portable_dir() {
+        return dir.join("config").join("config.toml");
+    }
     project_dirs()
         .map(|d| d.config_dir().join("config.toml"))
         .unwrap_or_else(|| PathBuf::from("wow-tools.toml"))
 }
 
 pub fn data_dir() -> PathBuf {
+    if let Some(dir) = portable_dir() {
+        return dir.join("data");
+    }
     project_dirs().map(|d| d.data_local_dir().to_path_buf()).unwrap_or_else(|| PathBuf::from("."))
 }
 
@@ -257,6 +278,9 @@ pub fn default_log_path() -> PathBuf {
 /// Moves the config and snapshots of the `wtf_sync` days to the WoW Tools folders, once,
 /// and points a config `backup_dir` that was in the old folder to the new one.
 pub fn migrate_legacy() -> Result<()> {
+    if portable_dir().is_some() {
+        return Ok(());
+    }
     let (Some(new), Some(old)) = (project_dirs(), ProjectDirs::from("", "", LEGACY_NAME)) else {
         return Ok(());
     };

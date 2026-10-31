@@ -41,16 +41,28 @@ code; every visible command/argument has a help key. Tests assert Russian texts 
 ## GitHub, CI and releases
 
 Repo `Gronck2/wow-tools` (public), branch `main`. `.github/workflows/ci.yml` (push to main, PRs, windows-latest,
-MSVC): fmt, clippy, tests, build with `--locked`; the exe is a run artifact. `release.yml`: a `v1.2.3` tag must match
-`version` in Cargo.toml; it tests, builds and creates a draft release with `WoW-Tools-1.2.3.exe` and its SHA-256 —
-publish it by hand. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them
+MSVC): fmt, clippy, tests, build with `--locked`, the installer compiled; exe + setup are run artifacts. `release.yml`:
+a `v1.2.3` tag must match `version` in Cargo.toml; it tests, builds and creates a draft release with three forms —
+`WoW-Tools-1.2.3.exe` (uploaded first: 0.2.x self-update takes the first `.exe` asset and the first `SHA-256` of the
+notes; newer ones skip names with "setup"), `-setup.exe` (Inno Setup, `packaging/installer.iss`, per user into
+`%LOCALAPPDATA%\Programs\WoW Tools`; its AppId is also `selfupdate::UNINSTALL_KEY`, whose `DisplayVersion` the
+self-update keeps current) and `-portable.zip` (`WoW Tools\` with `packaging/portable.txt`) — each with a SHA-256
+line and a build provenance attestation (`gh attestation verify`). Publish it by hand. winget is on hold until the
+owner gets a `WINGET_TOKEN` (classic PAT, public_repo) and is mentioned nowhere (not in the READMEs): the local
+branch `winget` holds `winget.yml` (on release published: fills `packaging/winget/*.yaml`, submits them with
+wingetcreate as `Gronck2.WoWTools`) and the README texts. The installer closes the tray with the hidden
+`wow-tools quit` (`WM_QUIT_APP`: exits unless busy = exit code 3; an older tray gets WM_CLOSE), restarts it after a
+silent upgrade, runs `schedule logon` for its "Start with Windows" task and `schedule remove` on uninstall. Inno
+Setup 6 locally: `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`; the .iss is UTF-8 with BOM, its texts in
+`[CustomMessages]` (5 languages). Portable mode: `portable.txt` next to the exe (`config::portable_dir`) moves the config to
+`<exe dir>\config\config.toml` and `data_dir` to `<exe dir>\data`; `migrate_legacy` is skipped. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them
 quote the locale files; pictures in `docs/images/<view>-<lang>.png` come from `ui-snapshot` (regenerate after UI
 changes). Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
 links the MSVC C runtime statically, so the exe needs no VC++ redistributable. Commit and push only when asked.
 License: `MIT OR Apache-2.0` (`LICENSE-MIT`, `LICENSE-APACHE`; every dependency is compatible). `build.rs` writes
-`wow-tools.rc` + a VERSIONINFO (ProductName "WoW Tools", version from Cargo.toml) to `OUT_DIR`. Code signing: applying
-to the SignPath Foundation (free for OSS); README "Code signing policy" holds the text their terms require — keep it
-true (only release.yml builds are signed, each approved by hand; the network requests listed under Privacy).
+`wow-tools.rc` + a VERSIONINFO (ProductName "WoW Tools", version from Cargo.toml) to `OUT_DIR`. No code signing: SignPath
+Foundation turned the project down and the owner will not pay for a certificate; README "Verifying downloads"
+offers SHA-256 + attestations instead (Microsoft Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
