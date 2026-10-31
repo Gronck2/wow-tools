@@ -75,6 +75,16 @@ una:
 | `WoW-Tools-x.y.z-portable.zip` | **Portátil.** Descomprime la carpeta `WoW Tools` donde quieras (también en una memoria USB) y ejecuta `wow-tools.exe`. La configuración, las copias y el registro se quedan en esa carpeta: mira [Archivos y carpetas](#archivos-y-carpetas). |
 | `WoW-Tools-x.y.z.exe` | **El exe suelto.** Ponlo en una carpeta fija (el inicio automático recuerda su ruta) y ejecútalo. La configuración se guarda donde la guarda el instalador. |
 
+O desde la línea de comandos con [winget](https://learn.microsoft.com/windows/package-manager/winget/), que viene con
+Windows 10 y 11:
+
+```
+winget install Gronck2.WoWTools
+```
+
+Esto ejecuta el mismo instalador en silencio; `winget upgrade Gronck2.WoWTools` y `winget uninstall Gronck2.WoWTools`
+hacen el resto.
+
 Al primer inicio aparece un icono en la bandeja; la carpeta del juego se detecta automáticamente (registro, Battle.net,
 rutas habituales). Si vuelves a abrir el programa mientras ya se está ejecutando, se abre la ventana de configuración.
 
@@ -416,7 +426,7 @@ archivo que no coincide nunca se instala), lo pone en lugar del actual y reinici
 como `<name>.exe.old` hasta el siguiente inicio y luego se elimina. Si hay una copia o una actualización en curso, el
 reinicio espera a que termine. Tu configuración, tus instantáneas y el inicio automático quedan como estaban. Funciona
 igual en las tres formas; en una copia instalada también se actualiza la versión que aparece en
-**Aplicaciones instaladas**.
+**Aplicaciones instaladas**, y `winget upgrade` funciona igualmente.
 
 Desde la línea de comandos: `wow-tools self-update --check` (solo comprobar) o `wow-tools self-update` (comprobar e
 instalar; después reinicia la bandeja). Para dejar de comprobar, desactiva **Buscar actualizaciones** en
@@ -424,7 +434,8 @@ instalar; después reinicia la bandeja). Para dejar de comprobar, desactiva **Bu
 
 ## Desinstalación
 
-**Instalado:** **Configuración → Aplicaciones → Aplicaciones instaladas → WoW Tools → Desinstalar**. Cierra la bandeja, quita el inicio automático y la tarea
+**Instalado** (con el instalador o winget): **Configuración → Aplicaciones → Aplicaciones instaladas → WoW Tools →
+Desinstalar**, o `winget uninstall Gronck2.WoWTools`. Cierra la bandeja, quita el inicio automático y la tarea
 programada, y pregunta si borrar también la configuración y las copias.
 
 **Portátil o el exe suelto:**
@@ -456,7 +467,8 @@ cargo build --release
 
 Rust stable, Windows. La CI (GitHub Actions) comprueba el formato, clippy, los tests y la compilación en cada push; una
 etiqueta `vX.Y.Z` que coincida con la versión de `Cargo.toml` compila el exe, el instalador (Inno Setup,
-`packaging/installer.iss`) y el zip portátil y crea un borrador de versión. Los textos están en `locales/<idioma>.toml`.
+`packaging/installer.iss`) y el zip portátil y crea un borrador de versión; al publicarla, la nueva versión se envía a
+winget. Los textos están en `locales/<idioma>.toml`.
 
 ## Comprobar las descargas
 

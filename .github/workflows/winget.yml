@@ -1,0 +1,49 @@
+# Publishing a release sends its installer to winget (microsoft/winget-pkgs) as Gronck2.WoWTools:
+# the manifests in packaging/winget are filled in and submitted as a pull request by wingetcreate.
+# Needs the WINGET_TOKEN secret: a classic personal access token with the public_repo scope (the
+# pull request comes from a fork of winget-pkgs under that account). Without it the job is skipped.
+# Run it by hand (Actions -> winget -> Run workflow) to submit an already published version again.
+name: winget
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (v1.2.3)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Submit to winget
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if (-not $env:WINGET_TOKEN) {
+            "::warning::No WINGET_TOKEN secret, nothing submitted to winget"
+            exit 0
+          }
+          $v = $env:TAG.TrimStart('v')
+          $url = "https://github.com/${{ github.repository }}/releases/download/v$v/WoW-Tools-Setup-$v.exe"
+          Invoke-WebRequest $url -OutFile setup.exe
+          $sha = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+          $date = Get-Date -Format yyyy-MM-dd
+          $out = "manifests/$v"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Get-ChildItem packaging/winget/*.yaml | ForEach-Object {
+            $text = (Get-Content $_ -Raw -Encoding utf8).Replace('{VERSION}', $v).Replace('{URL}', $url).Replace('{SHA256}', $sha).Replace('{DATE}', $date)
+            [IO.File]::WriteAllText("$PWD/$out/$($_.Name)", $text, [Text.UTF8Encoding]::new($false))
+          }
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe submit $out --token $env:WINGET_TOKEN --prtitle "New version: Gronck2.WoWTools version $v"
+          exit $LASTEXITCODE

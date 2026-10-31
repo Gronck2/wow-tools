@@ -76,6 +76,16 @@ eine:
 | `WoW-Tools-x.y.z-portable.zip` | **Portabel.** Entpacken Sie den Ordner `WoW Tools` an einen beliebigen Ort (auch auf einen USB-Stick) und starten Sie `wow-tools.exe`. Einstellungen, Sicherungen und das Protokoll bleiben in diesem Ordner – siehe [Dateien und Ordner](#dateien-und-ordner). |
 | `WoW-Tools-x.y.z.exe` | **Die reine exe.** Legen Sie sie in einen festen Ordner (der Autostart merkt sich ihren Pfad) und starten Sie sie. Die Einstellungen liegen dort, wo auch das Installationsprogramm sie ablegt. |
 
+Oder über die Befehlszeile mit [winget](https://learn.microsoft.com/windows/package-manager/winget/), das in Windows 10
+und 11 enthalten ist:
+
+```
+winget install Gronck2.WoWTools
+```
+
+Das führt dasselbe Installationsprogramm still aus; `winget upgrade Gronck2.WoWTools` und
+`winget uninstall Gronck2.WoWTools` erledigen den Rest.
+
 Beim ersten Start erscheint ein Symbol im Infobereich; der Spielordner wird automatisch gefunden (Registry,
 Battle.net, übliche Pfade). Wird das Programm erneut gestartet, während es bereits läuft, öffnet sich das
 Einstellungsfenster.
@@ -432,7 +442,8 @@ veröffentlicht (eine Datei, die nicht passt, wird nie installiert), ersetzt dam
 Infobereichssymbol neu. Die alte exe bleibt bis zum nächsten Start als `<name>.exe.old` erhalten und wird dann
 entfernt. Läuft gerade eine Sicherung oder ein Update, wartet der Neustart, bis es fertig ist. Ihre Einstellungen,
 Sicherungen und der Autostart bleiben unverändert. Das funktioniert in allen drei Formen gleich; bei einer
-installierten Kopie wird auch die Version unter **Installierte Apps** aktualisiert.
+installierten Kopie wird auch die Version unter **Installierte Apps** aktualisiert, und `winget upgrade` funktioniert
+ebenfalls.
 
 Über die Befehlszeile: `wow-tools self-update --check` (nur prüfen) oder `wow-tools self-update` (prüfen und
 installieren; das Infobereichssymbol danach neu starten). Um die Suche abzuschalten, deaktivieren Sie
@@ -440,7 +451,8 @@ installieren; das Infobereichssymbol danach neu starten). Um die Suche abzuschal
 
 ## Deinstallation
 
-**Installiert:** **Einstellungen → Apps → Installierte Apps → WoW Tools → Deinstallieren**. Das beendet das Infobereichssymbol, entfernt den Autostart
+**Installiert** (Installationsprogramm oder winget): **Einstellungen → Apps → Installierte Apps → WoW Tools →
+Deinstallieren** oder `winget uninstall Gronck2.WoWTools`. Das beendet das Infobereichssymbol, entfernt den Autostart
 und die geplante Aufgabe und fragt, ob auch die Einstellungen und Sicherungen gelöscht werden sollen.
 
 **Portabel oder die reine exe:**
@@ -474,7 +486,8 @@ cargo build --release
 
 Rust stable, Windows. Die CI (GitHub Actions) prüft bei jedem Push Formatierung, Clippy, Tests und den Build; ein Tag
 `vX.Y.Z`, der zur Version in `Cargo.toml` passt, baut die exe, das Installationsprogramm (Inno Setup,
-`packaging/installer.iss`) und das portable Zip und legt einen Release-Entwurf an. Die Texte liegen in `locales/<language>.toml`.
+`packaging/installer.iss`) und das portable Zip und legt einen Release-Entwurf an; seine Veröffentlichung schickt die
+neue Version an winget. Die Texte liegen in `locales/<language>.toml`.
 
 ## Downloads prüfen
 

@@ -1,7 +1,7 @@
 # Pushing a version tag (v1.2.3) builds WoW Tools from that commit in three forms and creates a draft
 # GitHub release with them: the bare exe (what the app's self-update downloads), the installer and a
 # portable zip. Each file gets a build provenance attestation (`gh attestation verify`). Review the
-# notes and publish the draft by hand.
+# notes and publish the draft by hand; winget.yml then sends the new version to winget.
 name: Release
 
 on:

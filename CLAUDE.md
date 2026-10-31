@@ -48,12 +48,13 @@ installer is `WoW-Tools-Setup-1.2.3.exe`, sorted after it — never name an exe 
 reads the first `SHA-256` line of the notes; newer versions skip names with "setup"), the installer (Inno Setup, `packaging/installer.iss`, per user into
 `%LOCALAPPDATA%\Programs\WoW Tools`; its AppId is also `selfupdate::UNINSTALL_KEY`, whose `DisplayVersion` the
 self-update keeps current) and `-portable.zip` (`WoW Tools\` with `packaging/portable.txt`) — each with a SHA-256
-line and a build provenance attestation (`gh attestation verify`). Publish it by hand. winget is on hold until the
-owner gets a `WINGET_TOKEN` (classic PAT, public_repo) and is mentioned nowhere (not in the READMEs): the local
-branch `winget` holds `winget.yml` (on release published: fills `packaging/winget/*.yaml`, submits them with
-wingetcreate as `Gronck2.WoWTools`) and the README texts. The installer closes the tray with the hidden
+line and a build provenance attestation (`gh attestation verify`). Publish it by hand; `winget.yml` (release
+published, or by hand with a tag) fills `packaging/winget/*.yaml` and submits them with wingetcreate as
+`Gronck2.WoWTools` (a PR to microsoft/winget-pkgs from the owner's fork) — needs the `WINGET_TOKEN` secret (classic
+PAT, public_repo; set 2026-10-31), skipped without it. `winget validate --manifest <dir>` checks filled manifests.
+The installer closes the tray with the hidden
 `wow-tools quit` (`WM_QUIT_APP`: exits unless busy = exit code 3; an older tray gets WM_CLOSE), restarts it after a
-silent upgrade, runs `schedule logon` for its "Start with Windows" task and `schedule remove` on uninstall. Inno
+silent (winget) upgrade, runs `schedule logon` for its "Start with Windows" task and `schedule remove` on uninstall. Inno
 Setup 6 locally: `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`; the .iss is UTF-8 with BOM, its texts in
 `[CustomMessages]` (5 languages). Portable mode: `portable.txt` next to the exe (`config::portable_dir`) moves the config to
 `<exe dir>\config\config.toml` and `data_dir` to `<exe dir>\data`; `migrate_legacy` is skipped. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them

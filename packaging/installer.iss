@@ -127,7 +127,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   Code: Integer;
 begin
-  { A silent upgrade (/SILENT, /VERYSILENT) has no "Launch" checkbox: start the tray again if it was running. }
+  { A silent upgrade (winget, /SILENT, /VERYSILENT) has no "Launch" checkbox: start the tray again if it was running. }
   if (CurStep = ssPostInstall) and WizardSilent() and TrayWasRunning then
     Exec(ExpandConstant('{app}\wow-tools.exe'), '', '', SW_HIDE, ewNoWait, Code);
 end;

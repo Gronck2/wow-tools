@@ -72,6 +72,16 @@ Every [release](https://github.com/Gronck2/wow-tools/releases) has the same prog
 | `WoW-Tools-x.y.z-portable.zip` | **Portable.** Unpack the `WoW Tools` folder anywhere (a USB stick too) and run `wow-tools.exe`. Settings, backups and the log stay in that folder — see [Files and folders](#files-and-folders). |
 | `WoW-Tools-x.y.z.exe` | **The bare exe.** Put it in a permanent folder (autostart remembers its path) and run it. Settings are kept where the installer keeps them. |
 
+Or from the command line with [winget](https://learn.microsoft.com/windows/package-manager/winget/), which comes
+with Windows 10 and 11:
+
+```
+winget install Gronck2.WoWTools
+```
+
+This runs the same installer silently; `winget upgrade Gronck2.WoWTools` and `winget uninstall Gronck2.WoWTools` do
+the rest.
+
 On the first start a tray icon appears; the game folder is found automatically (registry, Battle.net, common paths).
 Starting the program again while it is running opens the settings window.
 
@@ -390,7 +400,7 @@ One click downloads the new exe, checks it against the SHA-256 checksum GitHub p
 that does not match is never installed), puts it in place of the current one and restarts the tray. The old exe is
 kept as `<name>.exe.old` until the next start, then removed. If a backup or an update is running, the restart waits
 for it to finish. Your settings, snapshots and autostart stay as they are. This works the same in all three forms;
-for an installed copy the version in **Installed apps** is updated too.
+for an installed copy the version in **Installed apps** is updated too, and `winget upgrade` works as well.
 
 From the command line: `wow-tools self-update --check` (only check) or `wow-tools self-update` (check and install;
 restart the tray afterwards). To stop checking, turn off **Check for updates** in **Settings → General**
@@ -398,7 +408,8 @@ restart the tray afterwards). To stop checking, turn off **Check for updates** i
 
 ## Uninstalling
 
-**Installed:** **Settings → Apps → Installed apps → WoW Tools → Uninstall**. It closes the tray, removes the autostart and the scheduled task, and asks
+**Installed** (installer or winget): **Settings → Apps → Installed apps → WoW Tools → Uninstall**, or
+`winget uninstall Gronck2.WoWTools`. It closes the tray, removes the autostart and the scheduled task, and asks
 whether to delete the settings and the backups too.
 
 **Portable or the bare exe:**
@@ -428,7 +439,7 @@ cargo build --release
 
 Rust stable, Windows. CI (GitHub Actions) checks formatting, clippy, tests and the build on every push; a `vX.Y.Z` tag
 matching the version in `Cargo.toml` builds the exe, the installer (Inno Setup, `packaging/installer.iss`) and the
-portable zip and drafts a release. Texts are in
+portable zip and drafts a release; publishing it sends the new version to winget. Texts are in
 `locales/<language>.toml`.
 
 ## Verifying downloads
