@@ -23,9 +23,9 @@
 - Русский, английский, немецкий, французский и испанский языки.
 
 <p>
-  <img src="docs/images/panel-ru.png" width="270" alt="Вкладка «Бэкап» на панели">
-  <img src="docs/images/addons-ru.png" width="270" alt="Вкладка «Аддоны» на панели">
-  <img src="docs/images/menu-ru.png" width="210" alt="Меню в трее">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-ru-dark.png"><img src="docs/images/panel-ru.png" width="270" alt="Вкладка «Бэкап» на панели"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/addons-ru-dark.png"><img src="docs/images/addons-ru.png" width="270" alt="Вкладка «Аддоны» на панели"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-ru-dark.png"><img src="docs/images/menu-ru.png" width="210" alt="Меню в трее"></picture>
 </p>
 
 ## Содержание
@@ -125,8 +125,8 @@ WoW Tools не подписан, поэтому Windows SmartScreen может �
 ## Настройки
 
 <p>
-  <img src="docs/images/settings-ru.png" width="400" alt="Настройки, вкладка «Общие»">
-  <img src="docs/images/settings-addons-ru.png" width="400" alt="Настройки, вкладка «Аддоны»">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-ru-dark.png"><img src="docs/images/settings-ru.png" width="400" alt="Настройки, вкладка «Общие»"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-addons-ru-dark.png"><img src="docs/images/settings-addons-ru.png" width="400" alt="Настройки, вкладка «Аддоны»"></picture>
 </p>
 
 Любое изменение сохраняется сразу и применяется без перезапуска.
@@ -250,7 +250,7 @@ ElvUI нет ни на CurseForge, ни на Wago, поэтому ни один 
 
 ## Уборка
 
-<p><img src="docs/images/cleanup-ru.png" width="360" alt="Панель, вкладка «Уборка»"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/cleanup-ru-dark.png"><img src="docs/images/cleanup-ru.png" width="360" alt="Панель, вкладка «Уборка»"></picture></p>
 
 Вкладка **Уборка** на панели показывает, что можно убрать, с числом файлов и их размером, для тех версий игры, которые
 вы бэкапите. Список перечитывается каждый раз, когда вы открываете вкладку, и после каждой уборки; наведите на строку,
@@ -278,7 +278,7 @@ ElvUI нет ни на CurseForge, ни на Wago, поэтому ни один 
 
 ## Профили интерфейса
 
-<p><img src="docs/images/profiles-ru.png" width="360" alt="Панель, вкладка «Профили»"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/profiles-ru-dark.png"><img src="docs/images/profiles-ru.png" width="360" alt="Панель, вкладка «Профили»"></picture></p>
 
 Профиль — это всё, из чего складывается интерфейс персонажа, сохранённое под его именем. На вкладке **Профили**
 панели **Сохранить профиль → Выбрать…** показывает ваших персонажей (сверху те, в кого заходили недавно).

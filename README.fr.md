@@ -25,9 +25,9 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
 - Anglais, russe, allemand, français et espagnol.
 
 <p>
-  <img src="docs/images/panel-fr.png" width="270" alt="Onglet Sauvegarde du panneau">
-  <img src="docs/images/addons-fr.png" width="270" alt="Onglet Addons du panneau">
-  <img src="docs/images/menu-fr.png" width="210" alt="Menu de l'icône de notification">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-fr-dark.png"><img src="docs/images/panel-fr.png" width="270" alt="Onglet Sauvegarde du panneau"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/addons-fr-dark.png"><img src="docs/images/addons-fr.png" width="270" alt="Onglet Addons du panneau"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-fr-dark.png"><img src="docs/images/menu-fr.png" width="210" alt="Menu de l'icône de notification"></picture>
 </p>
 
 ## Sommaire
@@ -131,8 +131,8 @@ Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-
 ## Paramètres
 
 <p>
-  <img src="docs/images/settings-fr.png" width="400" alt="Paramètres, onglet Général">
-  <img src="docs/images/settings-addons-fr.png" width="400" alt="Paramètres, onglet Addons">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-fr-dark.png"><img src="docs/images/settings-fr.png" width="400" alt="Paramètres, onglet Général"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-addons-fr-dark.png"><img src="docs/images/settings-addons-fr.png" width="400" alt="Paramètres, onglet Addons"></picture>
 </p>
 
 Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
@@ -268,7 +268,7 @@ Retail, une bibliothèque) n'est pas jugé.
 
 ## Nettoyage
 
-<p><img src="docs/images/cleanup-fr.png" width="360" alt="Panneau, onglet Nettoyage"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/cleanup-fr-dark.png"><img src="docs/images/cleanup-fr.png" width="360" alt="Panneau, onglet Nettoyage"></picture></p>
 
 L'onglet **Nettoyage** du panneau montre ce qui peut partir, avec le nombre de fichiers et leur taille, pour les
 versions du jeu que vous sauvegardez. La liste est relue à chaque ouverture de l'onglet et après chaque nettoyage ;
@@ -298,7 +298,7 @@ ménage.
 
 ## Profils d'interface
 
-<p><img src="docs/images/profiles-fr.png" width="360" alt="Panneau, onglet Profils"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/profiles-fr-dark.png"><img src="docs/images/profiles-fr.png" width="360" alt="Panneau, onglet Profils"></picture></p>
 
 Un profil, c'est tout ce qui fait l'interface d'un personnage, enregistré sous son nom : dans l'onglet **Profils** du
 panneau, **Enregistrer un profil → Choisir…** liste vos personnages (les plus récemment joués en premier).

@@ -21,9 +21,9 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - English, Russian, German, French and Spanish.
 
 <p>
-  <img src="docs/images/panel-en.png" width="270" alt="Backup tab of the panel">
-  <img src="docs/images/addons-en.png" width="270" alt="Addons tab of the panel">
-  <img src="docs/images/menu-en.png" width="210" alt="Tray menu">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-en-dark.png"><img src="docs/images/panel-en.png" width="270" alt="Backup tab of the panel"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/addons-en-dark.png"><img src="docs/images/addons-en.png" width="270" alt="Addons tab of the panel"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-en-dark.png"><img src="docs/images/menu-en.png" width="210" alt="Tray menu"></picture>
 </p>
 
 ## Contents
@@ -120,8 +120,8 @@ Notifications appear for the results of what you started yourself and for new er
 ## Settings
 
 <p>
-  <img src="docs/images/settings-en.png" width="400" alt="Settings, General tab">
-  <img src="docs/images/settings-addons-en.png" width="400" alt="Settings, Addons tab">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-en-dark.png"><img src="docs/images/settings-en.png" width="400" alt="Settings, General tab"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-addons-en-dark.png"><img src="docs/images/settings-addons-en.png" width="400" alt="Settings, Addons tab"></picture>
 </p>
 
 Every change is saved at once and applied without a restart.
@@ -241,7 +241,7 @@ version (12.0 → 12.1 counts, a 12.1.0 → 12.1.5 hotfix does not); an addon wi
 
 ## Cleanup
 
-<p><img src="docs/images/cleanup-en.png" width="360" alt="Panel, Cleanup tab"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/cleanup-en-dark.png"><img src="docs/images/cleanup-en.png" width="360" alt="Panel, Cleanup tab"></picture></p>
 
 The **Cleanup** tab of the panel shows what can go, with the number of files and their size, for the game versions you
 back up. It is read again every time you open the tab and after every cleanup; hover a row for what it is about. The list
@@ -268,7 +268,7 @@ shows the same list, `wow-tools clean orphans backups logs screenshots cache` (a
 
 ## UI profiles
 
-<p><img src="docs/images/profiles-en.png" width="360" alt="Panel, Profiles tab"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/profiles-en-dark.png"><img src="docs/images/profiles-en.png" width="360" alt="Panel, Profiles tab"></picture></p>
 
 A profile is everything that makes a character's interface, saved under its name: in the panel's **Profiles** tab,
 **Save a profile → Choose…** lists your characters (recently played first). **Apply…** on a profile asks which

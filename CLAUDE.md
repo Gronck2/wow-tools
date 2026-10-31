@@ -58,8 +58,9 @@ silent (winget) upgrade, runs `schedule logon` for its "Start with Windows" task
 Setup 6 locally: `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`; the .iss is UTF-8 with BOM, its texts in
 `[CustomMessages]` (5 languages). Portable mode: `portable.txt` next to the exe (`config::portable_dir`) moves the config to
 `<exe dir>\config\config.toml` and `data_dir` to `<exe dir>\data`; `migrate_legacy` is skipped. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them
-quote the locale files; pictures in `docs/images/<view>-<lang>.png` come from `ui-snapshot` (regenerate after UI
-changes). Landing page `https://wow-tool.gronck.com`: static `site/` (`index.html` English, `ru/index.html`, kept in
+quote the locale files; pictures in `docs/images/<view>-<lang>.png` and `<view>-<lang>-dark.png` (`--dark`) come from `ui-snapshot`
+(regenerate both after UI changes); the READMEs show them as `<picture>` with a `prefers-color-scheme: dark` source,
+so GitHub picks the one matching the reader's theme. Landing page `https://wow-tool.gronck.com`: static `site/` (`index.html` English, `ru/index.html`, kept in
 step; the design system of gold.gronck.com — tokens in `site/style.css`, self-hosted Open Sans with Cyrillic),
 published by `pages.yml` (GitHub Pages, custom domain set in the repo's Pages settings, DNS CNAME `wow-tool` ->
 `gronck2.github.io`), which copies `docs/images/*.png` to `/img` and `assets/wow-tools.ico` to `/favicon.ico`;

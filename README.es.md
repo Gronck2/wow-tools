@@ -22,9 +22,9 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 - En inglés, ruso, alemán, francés y español.
 
 <p>
-  <img src="docs/images/panel-es.png" width="270" alt="Pestaña Copias del panel">
-  <img src="docs/images/addons-es.png" width="270" alt="Pestaña Accesorios del panel">
-  <img src="docs/images/menu-es.png" width="210" alt="Menú de la bandeja">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-es-dark.png"><img src="docs/images/panel-es.png" width="270" alt="Pestaña Copias del panel"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/addons-es-dark.png"><img src="docs/images/addons-es.png" width="270" alt="Pestaña Accesorios del panel"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-es-dark.png"><img src="docs/images/menu-es.png" width="210" alt="Menú de la bandeja"></picture>
 </p>
 
 ## Contenido
@@ -125,8 +125,8 @@ en **Configuración → General** las desactiva.
 ## Configuración
 
 <p>
-  <img src="docs/images/settings-es.png" width="400" alt="Configuración, pestaña General">
-  <img src="docs/images/settings-addons-es.png" width="400" alt="Configuración, pestaña Accesorios">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-es-dark.png"><img src="docs/images/settings-es.png" width="400" alt="Configuración, pestaña General"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-addons-es-dark.png"><img src="docs/images/settings-addons-es.png" width="400" alt="Configuración, pestaña Accesorios"></picture>
 </p>
 
 Cada cambio se guarda al instante y se aplica sin reiniciar.
@@ -257,7 +257,7 @@ una biblioteca) no se evalúa.
 
 ## Limpieza
 
-<p><img src="docs/images/cleanup-es.png" width="360" alt="Panel, pestaña Limpieza"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/cleanup-es-dark.png"><img src="docs/images/cleanup-es.png" width="360" alt="Panel, pestaña Limpieza"></picture></p>
 
 La pestaña **Limpieza** del panel muestra lo que se puede quitar, con el número de archivos y su tamaño, para las
 versiones del juego que copias. Se vuelve a leer cada vez que abres la pestaña y después de cada limpieza; pasa el
@@ -287,7 +287,7 @@ ellos) hace la limpieza.
 
 ## Perfiles de interfaz
 
-<p><img src="docs/images/profiles-es.png" width="360" alt="Panel, pestaña Perfiles"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/profiles-es-dark.png"><img src="docs/images/profiles-es.png" width="360" alt="Panel, pestaña Perfiles"></picture></p>
 
 Un perfil es todo lo que forma la interfaz de un personaje, guardado con su nombre: en la pestaña **Perfiles** del
 panel, **Guardar un perfil → Elegir…** muestra tus personajes (primero los jugados recientemente). **Aplicar…** en un

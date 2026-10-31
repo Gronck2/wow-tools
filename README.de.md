@@ -23,9 +23,9 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
 - Englisch, Russisch, Deutsch, Französisch und Spanisch.
 
 <p>
-  <img src="docs/images/panel-de.png" width="270" alt="Reiter „Sicherung“ im Bereich">
-  <img src="docs/images/addons-de.png" width="270" alt="Reiter „Addons“ im Bereich">
-  <img src="docs/images/menu-de.png" width="210" alt="Menü des Infobereichssymbols">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/panel-de-dark.png"><img src="docs/images/panel-de.png" width="270" alt="Reiter „Sicherung“ im Bereich"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/addons-de-dark.png"><img src="docs/images/addons-de.png" width="270" alt="Reiter „Addons“ im Bereich"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-de-dark.png"><img src="docs/images/menu-de.png" width="210" alt="Menü des Infobereichssymbols"></picture>
 </p>
 
 ## Inhalt
@@ -130,8 +130,8 @@ Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestart
 ## Einstellungen
 
 <p>
-  <img src="docs/images/settings-de.png" width="400" alt="Einstellungen, Reiter „Allgemein“">
-  <img src="docs/images/settings-addons-de.png" width="400" alt="Einstellungen, Reiter „Addons“">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-de-dark.png"><img src="docs/images/settings-de.png" width="400" alt="Einstellungen, Reiter „Allgemein“"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-addons-de-dark.png"><img src="docs/images/settings-addons-de.png" width="400" alt="Einstellungen, Reiter „Addons“"></picture>
 </p>
 
 Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
@@ -267,7 +267,7 @@ Retail, eine Bibliothek) wird nicht beurteilt.
 
 ## Aufräumen
 
-<p><img src="docs/images/cleanup-de.png" width="360" alt="Bereich, Reiter „Aufräumen“"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/cleanup-de-dark.png"><img src="docs/images/cleanup-de.png" width="360" alt="Bereich, Reiter „Aufräumen“"></picture></p>
 
 Der Reiter **Aufräumen** im Bereich zeigt, was weg kann, mit Anzahl der Dateien und ihrer Größe, für die
 Spielversionen, die Sie sichern. Die Liste wird bei jedem Öffnen des Reiters und nach jedem Aufräumen neu eingelesen;
@@ -298,7 +298,7 @@ räumt auf.
 
 ## UI-Profile
 
-<p><img src="docs/images/profiles-de.png" width="360" alt="Bereich, Reiter „Profile“"></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/profiles-de-dark.png"><img src="docs/images/profiles-de.png" width="360" alt="Bereich, Reiter „Profile“"></picture></p>
 
 Ein Profil ist alles, was die Oberfläche eines Charakters ausmacht, unter seinem Namen gespeichert: Im Reiter
 **Profile** des Bereichs zeigt **Profil speichern → Wählen…** deine Charaktere (zuletzt gespielte zuerst).
