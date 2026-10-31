@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Page not found · WoW Tools</title>
+<meta name="theme-color" content="#170e09">
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/style.css">
+<script>
+// GitHub Pages paths are case-sensitive: /RU/ or /Ru is a 404, so send it to the page it meant.
+(function () {
+  var path = location.pathname;
+  var lower = path.toLowerCase();
+  if (lower !== path) {
+    location.replace(lower + location.search + location.hash);
+  } else if (/^\/ru(\/|$)/.test(lower) && lower !== "/ru/") {
+    location.replace("/ru/");
+  }
+})();
+</script>
+</head>
+<body>
+<div class="frame">
+
+<header class="topbar">
+<a class="brand" href="/"><img src="/favicon.ico" alt="" width="32" height="32">WoW Tools</a>
+</header>
+
+<main class="sheet">
+<section aria-labelledby="title">
+<h1 id="title">404</h1>
+<p class="lede">This page does not exist. <span lang="ru">Такой страницы нет.</span></p>
+<div class="actions">
+<a class="btn btn-primary" href="/">Home page</a>
+<a class="btn btn-secondary" href="/ru/" hreflang="ru" lang="ru">Русская версия</a>
+</div>
+</section>
+</main>
+
+</div>
+</body>
+</html>

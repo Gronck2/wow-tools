@@ -2,6 +2,8 @@
 
 [English](README.md) · **Русский** · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md)
 
+Сайт: [wow-tool.gronck.com](https://wow-tool.gronck.com/ru/)
+
 Небольшая программа в трее Windows для World of Warcraft, которая бережёт ваши настройки и аддоны:
 
 - **Бэкапы** `WTF` (бинды, макросы, чат, CVars, настройки аддонов) и `Interface\AddOns` — после каждой игровой

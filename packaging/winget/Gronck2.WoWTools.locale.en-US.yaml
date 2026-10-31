@@ -7,7 +7,7 @@ PublisherUrl: https://github.com/Gronck2
 PublisherSupportUrl: https://github.com/Gronck2/wow-tools/issues
 Author: Aleksandr Stepanov
 PackageName: WoW Tools
-PackageUrl: https://github.com/Gronck2/wow-tools
+PackageUrl: https://wow-tool.gronck.com/
 License: MIT OR Apache-2.0
 LicenseUrl: https://github.com/Gronck2/wow-tools#license
 ShortDescription: "Tray utility for World of Warcraft: backups of WTF and addons, addon updates, UI profiles, cleanup."
