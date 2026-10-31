@@ -59,7 +59,11 @@ Setup 6 locally: `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`; the .iss is UT
 `[CustomMessages]` (5 languages). Portable mode: `portable.txt` next to the exe (`config::portable_dir`) moves the config to
 `<exe dir>\config\config.toml` and `data_dir` to `<exe dir>\data`; `migrate_legacy` is skipped. User docs: `README.md` (English) and `README.{ru,de,fr,es}.md`, kept in step; UI labels in them
 quote the locale files; pictures in `docs/images/<view>-<lang>.png` come from `ui-snapshot` (regenerate after UI
-changes). Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
+changes). Landing page `https://wow-tool.gronck.com`: static `site/` (`index.html` English, `ru/index.html`, kept in
+step; the design system of gold.gronck.com — tokens in `site/style.css`, self-hosted Open Sans with Cyrillic),
+published by `pages.yml` (GitHub Pages, custom domain set in the repo's Pages settings, DNS CNAME `wow-tool` ->
+`gronck2.github.io`), which copies `docs/images/*.png` to `/img` and `assets/wow-tools.ico` to `/favicon.ico`;
+`site.js` fills the download links from the latest release. Bump the version in Cargo.toml (and Cargo.lock via a build) before tagging. `.cargo/config.toml`
 links the MSVC C runtime statically, so the exe needs no VC++ redistributable. Commit and push only when asked.
 License: `MIT OR Apache-2.0` (`LICENSE-MIT`, `LICENSE-APACHE`; every dependency is compatible). `build.rs` writes
 `wow-tools.rc` + a VERSIONINFO (ProductName "WoW Tools", version from Cargo.toml) to `OUT_DIR`. No code signing (the owner
