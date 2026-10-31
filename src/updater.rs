@@ -138,6 +138,74 @@ pub fn quiet_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     cmd
 }
 
+/// Keeps the top-level windows of a process hidden until dropped. Started "hidden", an app can
+/// still show a window of its own above everything (WowUp's Wago ad consent page, since 2.2x).
+pub struct HiddenWindows {
+    #[cfg(windows)]
+    thread: u32,
+}
+
+#[cfg(windows)]
+pub fn hide_windows(pid: u32) -> HiddenWindows {
+    use std::ptr::null_mut;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+    use windows_sys::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent};
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    unsafe fn hide(hwnd: HWND) {
+        if unsafe { GetAncestor(hwnd, GA_ROOT) } == hwnd && unsafe { IsWindowVisible(hwnd) } != 0 {
+            unsafe { ShowWindowAsync(hwnd, SW_HIDE) };
+        }
+    }
+    unsafe extern "system" fn on_show(_: HWINEVENTHOOK, _: u32, hwnd: HWND, object: i32, child: i32, _: u32, _: u32) {
+        if object == OBJID_WINDOW && child == CHILDID_SELF as i32 {
+            unsafe { hide(hwnd) };
+        }
+    }
+    unsafe extern "system" fn hide_if_of(hwnd: HWND, pid: LPARAM) -> i32 {
+        let mut owner = 0;
+        unsafe { GetWindowThreadProcessId(hwnd, &mut owner) };
+        if owner as LPARAM == pid {
+            unsafe { hide(hwnd) };
+        }
+        1
+    }
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || unsafe {
+        let mut msg: MSG = std::mem::zeroed();
+        // The message queue must exist before the thread id is handed out for WM_QUIT.
+        PeekMessageW(&mut msg, null_mut(), 0, 0, PM_NOREMOVE);
+        let hook = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, null_mut(), Some(on_show), pid, 0, WINEVENT_OUTOFCONTEXT);
+        let _ = tx.send(GetCurrentThreadId());
+        // Shown before the hook was set.
+        EnumWindows(Some(hide_if_of), pid as LPARAM);
+        while GetMessageW(&mut msg, null_mut(), 0, 0) > 0 {
+            DispatchMessageW(&msg);
+        }
+        if !hook.is_null() {
+            UnhookWinEvent(hook);
+        }
+    });
+    HiddenWindows {
+        thread: rx.recv().unwrap_or(0),
+    }
+}
+
+#[cfg(not(windows))]
+pub fn hide_windows(_pid: u32) -> HiddenWindows {
+    HiddenWindows {}
+}
+
+#[cfg(windows)]
+impl Drop for HiddenWindows {
+    fn drop(&mut self) {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
+        unsafe { PostThreadMessageW(self.thread, WM_QUIT, 0, 0) };
+    }
+}
+
 /// Closes an app: politely first, then for sure.
 pub fn close(exe_name: &str) {
     close_within(exe_name, Duration::from_secs(15));
@@ -239,6 +307,49 @@ fn append_history(path: &Path, entry: Entry) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A window of this process, off screen and never activated, is hidden as soon as it shows.
+    #[cfg(windows)]
+    #[test]
+    fn hides_windows_of_the_process() {
+        use std::ptr::null_mut;
+        use std::sync::mpsc;
+        use windows_sys::Win32::Foundation::HWND;
+        use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+        let _hidden = hide_windows(std::process::id());
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || unsafe {
+            let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+            let hwnd = CreateWindowExW(
+                WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                class.as_ptr(),
+                null_mut(),
+                WS_POPUP,
+                -32000,
+                -32000,
+                10,
+                10,
+                null_mut(),
+                null_mut(),
+                null_mut(),
+                null_mut(),
+            );
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            let _ = tx.send(hwnd as usize);
+            let mut msg: MSG = std::mem::zeroed();
+            while GetMessageW(&mut msg, null_mut(), 0, 0) > 0 {
+                DispatchMessageW(&msg);
+            }
+        });
+        let hwnd = rx.recv().unwrap() as HWND;
+        let until = Instant::now() + Duration::from_secs(3);
+        while unsafe { IsWindowVisible(hwnd) } != 0 && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(unsafe { IsWindowVisible(hwnd) }, 0);
+        unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) };
+    }
 
     #[test]
     fn history_keeps_the_newest_first() {

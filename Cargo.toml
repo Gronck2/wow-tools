@@ -1,6 +1,6 @@
 [package]
 name = "wow-tools"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 description = "WoW Tools: snapshots of WTF and addons, settings between characters"
 repository = "https://github.com/Gronck2/wow-tools"
@@ -58,6 +58,7 @@ features = [
     "Win32_System_LibraryLoader",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_UI_Accessibility",
     "Win32_UI_HiDpi",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",

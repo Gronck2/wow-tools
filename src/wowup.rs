@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::updater::{Outcome, close, modified, quiet_command, running, to_tab_json};
+use crate::updater::{Outcome, close, hide_windows, modified, quiet_command, running, to_tab_json};
 
 /// The log line of the auto-update run.
 const STARTED_MARK: &str = "onAutoUpdateInterval";
@@ -134,6 +134,8 @@ impl WowUp {
             .args(["--hidden", "--quit"])
             .spawn()
             .with_context(|| tr!("addons.start_failed", path = exe.display()))?;
+        // `--hidden` hides its main window, not the Wago consent page it opens on every start.
+        let _hidden = hide_windows(child.id());
 
         let mut last = modified(&self.addons_file());
         let mut quiet_since = Instant::now();

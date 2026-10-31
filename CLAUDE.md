@@ -148,7 +148,10 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   (`app-preferences-storage.state.gameInstallation.wowPath`).
 - `wowup.rs`: WowUp and WowUp-CF (same source, data in `%APPDATA%\WowUp` / `WowUpCf`). `--hidden --quit` runs one
   auto-update round and quits (it waits for its toast to close when something was updated, so: process exit, or
-  "onAutoUpdateInterval" in `logs\main.log` + `addons.json` unchanged for 90 s, 10 min cap). Only per-addon
+  "onAutoUpdateInterval" in `logs\main.log` + `addons.json` unchanged for 90 s, 10 min cap). `--hidden` does not cover
+the Wago ad consent page (a modal window it opens on every start since 2.2x, shown over everything until a choice
+is made), so `updater::hide_windows(pid)` (a `SetWinEventHook` on `EVENT_OBJECT_SHOW`) hides every top-level window
+of the process while it runs. Only per-addon
   `autoUpdateEnabled` (off by default) decides, so it is forced on for non-ignored addons in `addons.json` (tab-indented
   electron-store JSON, byte-exact rewrite, `real_file` test) and restored via `data\wowup[-cf]-forced.json`.
   Updated = `installedExternalReleaseId` changed, matched on installationId/providerName/externalId (re-syncs replace
