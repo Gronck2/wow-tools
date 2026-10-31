@@ -428,28 +428,18 @@ section {
 /* ---- Screenshots ---- */
 
 .gallery {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--sp-5);
-  overflow-x: auto;
-  padding-bottom: var(--sp-3);
-  scroll-snap-type: x proximity;
+  align-items: start;
 }
 
 .gallery figure {
   margin: 0;
-  flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  scroll-snap-align: start;
-}
-
-.gallery .shot.panel {
-  width: 300px;
-}
-
-.gallery .shot.wide {
-  width: 420px;
+  min-width: 0;
 }
 
 .gallery figcaption {
@@ -510,6 +500,21 @@ td:first-child a:hover strong {
 
 td:last-child {
   max-width: 65ch;
+}
+
+tr.soon td {
+  color: var(--ink-muted);
+}
+
+tr.soon td:first-child strong {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ink-muted);
+}
+
+tr.soon code {
+  color: var(--ink-muted);
 }
 
 /* ---- Notices, two columns ---- */
@@ -588,6 +593,14 @@ ul.plain {
   max-width: 65ch;
 }
 
+/* ---- Thanks and feedback ---- */
+
+.thanks {
+  padding: var(--sp-6);
+  background: var(--bg-raised);
+  border-left: 3px solid var(--gold);
+}
+
 /* ---- Footer ---- */
 
 footer {
@@ -618,6 +631,10 @@ footer nav {
 
   .cols {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hero {

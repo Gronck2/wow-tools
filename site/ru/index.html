@@ -52,10 +52,7 @@
 <a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools">Код на GitHub</a>
 </div>
 <p class="release-note" data-release="Версия {version}" hidden></p>
-<div class="cmd">
-<code>winget install Gronck2.WoWTools</code>
-<button type="button" data-done="Скопировано">Копировать</button>
-</div>
+<p class="release-note">Windows SmartScreen может попросить подтвердить запуск — <a href="#download">почему и что нажать</a>.</p>
 </div>
 <div class="shot"><img src="/img/panel-ru-dark.png" width="540" height="907" alt="Панель WoW Tools: последний бэкап, «Сделать бэкап сейчас» и последние точки восстановления"></div>
 </section>
@@ -81,14 +78,13 @@
 <section aria-labelledby="shots-title">
 <div class="section-head">
 <h2 id="shots-title">Как это выглядит</h2>
-<p class="muted">Левый клик по значку в трее открывает панель, правый — меню.</p>
+<p class="muted">Левый клик по значку в трее открывает панель, настройки — в один клик оттуда.</p>
 </div>
 <div class="gallery">
-<figure><div class="shot panel"><img src="/img/addons-ru-dark.png" width="540" height="907" alt="Вкладка «Аддоны»: последнее обновление и история" loading="lazy"></div><figcaption>Аддоны: последние запуски и что обновилось</figcaption></figure>
-<figure><div class="shot panel"><img src="/img/cleanup-ru-dark.png" width="540" height="907" alt="Вкладка «Уборка» с размерами и кнопкой у каждого пункта" loading="lazy"></div><figcaption>Уборка: что можно убрать и сколько места</figcaption></figure>
-<figure><div class="shot panel"><img src="/img/profiles-ru-dark.png" width="540" height="907" alt="Вкладка «Профили» с сохранёнными профилями" loading="lazy"></div><figcaption>Профили: сохранить и применить интерфейс</figcaption></figure>
-<figure><div class="shot wide"><img src="/img/settings-ru-dark.png" width="840" height="1290" alt="Окно настроек, вкладка «Общие»" loading="lazy"></div><figcaption>Настройки: всё применяется сразу</figcaption></figure>
-<figure><div class="shot panel"><img src="/img/menu-ru-dark.png" width="420" height="513" alt="Меню в трее" loading="lazy"></div><figcaption>Меню в трее</figcaption></figure>
+<figure><div class="shot"><img src="/img/addons-ru-dark.png" width="540" height="907" alt="Вкладка «Аддоны»: последнее обновление и история" loading="lazy"></div><figcaption>Аддоны: последние запуски и что обновилось</figcaption></figure>
+<figure><div class="shot"><img src="/img/cleanup-ru-dark.png" width="540" height="907" alt="Вкладка «Уборка» с размерами и кнопкой у каждого пункта" loading="lazy"></div><figcaption>Уборка: что можно убрать и сколько места</figcaption></figure>
+<figure><div class="shot"><img src="/img/profiles-ru-dark.png" width="540" height="907" alt="Вкладка «Профили» с сохранёнными профилями" loading="lazy"></div><figcaption>Профили: сохранить и применить интерфейс</figcaption></figure>
+<figure><div class="shot"><img src="/img/settings-ru-dark.png" width="840" height="1290" alt="Окно настроек, вкладка «Общие»" loading="lazy"></div><figcaption>Настройки: всё применяется сразу</figcaption></figure>
 </div>
 </section>
 
@@ -97,6 +93,7 @@
 <h2 id="download-title">Скачать</h2>
 <p class="lede">В каждом релизе одна и та же программа в трёх видах — выберите любой. Больше ничего ставить не нужно: ни рантаймов, ни прав администратора.</p>
 </div>
+<div class="notice warn"><span class="icon" aria-hidden="true">⚠</span><span><strong>SmartScreen может предупредить о неизвестном издателе.</strong> У WoW Tools нет цифровой подписи; нажмите «Подробнее → Выполнить в любом случае». У каждого файла есть SHA-256 в описании релиза и аттестация сборки — см. <a href="https://github.com/Gronck2/wow-tools/blob/main/README.ru.md#проверка-загрузок">Проверка загрузок</a>.</span></div>
 <div class="table-wrap">
 <table>
 <thead><tr><th scope="col">Файл</th><th scope="col">Что это</th></tr></thead>
@@ -104,11 +101,10 @@
 <tr><td><a data-asset="setup" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>Установщик</strong></a><code>WoW-Tools-Setup-x.y.z.exe</code></td><td>Ставит программу для вашего пользователя в <code>%LOCALAPPDATA%\Programs\WoW Tools</code>, добавляет ярлык в меню «Пуск» и, если галочка оставлена, запуск вместе с Windows. Удаляется в «Параметры → Приложения».</td></tr>
 <tr><td><a data-asset="portable" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>Портативная</strong></a><code>WoW-Tools-x.y.z-portable.zip</code></td><td>Распакуйте папку <code>WoW Tools</code> куда угодно, хоть на флешку, и запустите <code>wow-tools.exe</code>. Настройки, бэкапы и лог остаются в этой папке.</td></tr>
 <tr><td><a data-asset="exe" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>Просто exe</strong></a><code>WoW-Tools-x.y.z.exe</code></td><td>Положите в постоянную папку (автозапуск запоминает путь) и запустите.</td></tr>
-<tr><td><strong>winget</strong><code>Gronck2.WoWTools</code></td><td>Тот же установщик, без вопросов: <code>winget install Gronck2.WoWTools</code>; <code>winget upgrade</code> и <code>winget uninstall</code> — всё остальное.</td></tr>
+<tr class="soon"><td><strong>winget <span class="pill">Скоро</span></strong><code>Gronck2.WoWTools</code></td><td>Установщик из командной строки: <code>winget install Gronck2.WoWTools</code>. Пакет добавляется в каталог winget; пока пользуйтесь одним из файлов выше.</td></tr>
 </tbody>
 </table>
 </div>
-<div class="notice warn"><span class="icon" aria-hidden="true">⚠</span><span><strong>SmartScreen может предупредить о неизвестном издателе.</strong> У WoW Tools нет цифровой подписи; нажмите «Подробнее → Выполнить в любом случае». У каждого файла есть SHA-256 в описании релиза и аттестация сборки — см. <a href="https://github.com/Gronck2/wow-tools/blob/main/README.ru.md#проверка-загрузок">Проверка загрузок</a>.</span></div>
 </section>
 
 <section class="cols" aria-label="Приватность и вопросы">
@@ -131,6 +127,16 @@
 </div>
 <p class="muted">Всё остальное — в <a href="https://github.com/Gronck2/wow-tools/blob/main/README.ru.md">полном руководстве на GitHub</a>.</p>
 </div>
+</section>
+
+<section class="thanks" aria-labelledby="thanks-title">
+<h2 id="thanks-title">Спасибо</h2>
+<p class="lede">Спасибо, что пользуетесь WoW Tools! Это бесплатный проект, который делается в свободное время и растёт из того, что нужно игрокам. Расскажите, что работает, что мешает и чего не хватает: каждую идею и каждое сообщение об ошибке мы читаем, и они делают следующую версию лучше.</p>
+<div class="actions">
+<a class="btn btn-primary" href="https://github.com/Gronck2/wow-tools/issues/new?labels=enhancement">Предложить идею</a>
+<a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools/issues/new?labels=bug">Сообщить о проблеме</a>
+</div>
+<p class="muted">Отзывы принимаются в GitHub Issues; чтобы написать, нужен бесплатный аккаунт GitHub. Можно писать по-русски.</p>
 </section>
 
 </main>

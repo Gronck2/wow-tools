@@ -52,10 +52,7 @@ Download for Windows</a>
 <a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools">Source on GitHub</a>
 </div>
 <p class="release-note" data-release="Version {version}" hidden></p>
-<div class="cmd">
-<code>winget install Gronck2.WoWTools</code>
-<button type="button" data-done="Copied">Copy</button>
-</div>
+<p class="release-note">Windows SmartScreen may ask to confirm the start — <a href="#download">why and what to press</a>.</p>
 </div>
 <div class="shot"><img src="/img/panel-en-dark.png" width="540" height="907" alt="The WoW Tools panel: last backup, Back up now and the latest restore points"></div>
 </section>
@@ -81,14 +78,13 @@ Download for Windows</a>
 <section aria-labelledby="shots-title">
 <div class="section-head">
 <h2 id="shots-title">A look inside</h2>
-<p class="muted">Left click on the tray icon opens the panel, right click the menu.</p>
+<p class="muted">Left click on the tray icon opens the panel; the settings are one click away.</p>
 </div>
 <div class="gallery">
-<figure><div class="shot panel"><img src="/img/addons-en-dark.png" width="540" height="907" alt="Addons tab: last update and the update history" loading="lazy"></div><figcaption>Addons: last runs and what was updated</figcaption></figure>
-<figure><div class="shot panel"><img src="/img/cleanup-en-dark.png" width="540" height="907" alt="Cleanup tab with sizes and a button per item" loading="lazy"></div><figcaption>Cleanup: what can go, with sizes</figcaption></figure>
-<figure><div class="shot panel"><img src="/img/profiles-en-dark.png" width="540" height="907" alt="Profiles tab with saved UI profiles" loading="lazy"></div><figcaption>Profiles: save and apply a UI</figcaption></figure>
-<figure><div class="shot wide"><img src="/img/settings-en-dark.png" width="840" height="1290" alt="Settings window, General tab" loading="lazy"></div><figcaption>Settings: every change applies at once</figcaption></figure>
-<figure><div class="shot panel"><img src="/img/menu-en-dark.png" width="420" height="513" alt="Tray menu" loading="lazy"></div><figcaption>The tray menu</figcaption></figure>
+<figure><div class="shot"><img src="/img/addons-en-dark.png" width="540" height="907" alt="Addons tab: last update and the update history" loading="lazy"></div><figcaption>Addons: last runs and what was updated</figcaption></figure>
+<figure><div class="shot"><img src="/img/cleanup-en-dark.png" width="540" height="907" alt="Cleanup tab with sizes and a button per item" loading="lazy"></div><figcaption>Cleanup: what can go, with sizes</figcaption></figure>
+<figure><div class="shot"><img src="/img/profiles-en-dark.png" width="540" height="907" alt="Profiles tab with saved UI profiles" loading="lazy"></div><figcaption>Profiles: save and apply a UI</figcaption></figure>
+<figure><div class="shot"><img src="/img/settings-en-dark.png" width="840" height="1290" alt="Settings window, General tab" loading="lazy"></div><figcaption>Settings: every change applies at once</figcaption></figure>
 </div>
 </section>
 
@@ -97,6 +93,7 @@ Download for Windows</a>
 <h2 id="download-title">Download</h2>
 <p class="lede">Every release has the same program in three forms — pick one. Nothing else to install: no runtime, no administrator rights.</p>
 </div>
+<div class="notice warn"><span class="icon" aria-hidden="true">⚠</span><span><strong>SmartScreen may warn about an unknown publisher.</strong> WoW Tools is not code-signed; choose More info → Run anyway. Every file has a SHA-256 in the release notes and a build provenance attestation — see <a href="https://github.com/Gronck2/wow-tools#verifying-downloads">Verifying downloads</a>.</span></div>
 <div class="table-wrap">
 <table>
 <thead><tr><th scope="col">File</th><th scope="col">What it is</th></tr></thead>
@@ -104,11 +101,10 @@ Download for Windows</a>
 <tr><td><a data-asset="setup" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>Installer</strong></a><code>WoW-Tools-Setup-x.y.z.exe</code></td><td>Installs for your Windows user into <code>%LOCALAPPDATA%\Programs\WoW Tools</code>, adds a Start menu shortcut and, if you leave the box ticked, starts with Windows. Removed in Settings → Apps.</td></tr>
 <tr><td><a data-asset="portable" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>Portable</strong></a><code>WoW-Tools-x.y.z-portable.zip</code></td><td>Unpack the <code>WoW Tools</code> folder anywhere, a USB stick too, and run <code>wow-tools.exe</code>. Settings, backups and the log stay in that folder.</td></tr>
 <tr><td><a data-asset="exe" href="https://github.com/Gronck2/wow-tools/releases/latest"><strong>Bare exe</strong></a><code>WoW-Tools-x.y.z.exe</code></td><td>Put it in a permanent folder (autostart remembers its path) and run it.</td></tr>
-<tr><td><strong>winget</strong><code>Gronck2.WoWTools</code></td><td>The installer, run silently: <code>winget install Gronck2.WoWTools</code>; <code>winget upgrade</code> and <code>winget uninstall</code> do the rest.</td></tr>
+<tr class="soon"><td><strong>winget <span class="pill">Coming soon</span></strong><code>Gronck2.WoWTools</code></td><td>The installer from the command line: <code>winget install Gronck2.WoWTools</code>. The package is on its way into the winget catalog; until then, use one of the files above.</td></tr>
 </tbody>
 </table>
 </div>
-<div class="notice warn"><span class="icon" aria-hidden="true">⚠</span><span><strong>SmartScreen may warn about an unknown publisher.</strong> WoW Tools is not code-signed; choose More info → Run anyway. Every file has a SHA-256 in the release notes and a build provenance attestation — see <a href="https://github.com/Gronck2/wow-tools#verifying-downloads">Verifying downloads</a>.</span></div>
 </section>
 
 <section class="cols" aria-label="Privacy and questions">
@@ -131,6 +127,16 @@ Download for Windows</a>
 </div>
 <p class="muted">Everything else is in the <a href="https://github.com/Gronck2/wow-tools#readme">full manual on GitHub</a>.</p>
 </div>
+</section>
+
+<section class="thanks" aria-labelledby="thanks-title">
+<h2 id="thanks-title">Thank you</h2>
+<p class="lede">Thank you for trying WoW Tools! It is a free project made in spare time, and it grows from what players need. Tell us what works, what gets in the way and what you would like it to do: every idea and bug report is read and helps make the next version better.</p>
+<div class="actions">
+<a class="btn btn-primary" href="https://github.com/Gronck2/wow-tools/issues/new?labels=enhancement">Suggest a feature</a>
+<a class="btn btn-secondary" href="https://github.com/Gronck2/wow-tools/issues/new?labels=bug">Report a problem</a>
+</div>
+<p class="muted">Feedback goes to GitHub Issues; writing there needs a free GitHub account.</p>
 </section>
 
 </main>
