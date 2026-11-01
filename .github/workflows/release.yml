@@ -81,6 +81,14 @@ jobs:
           $notes = ($files | ForEach-Object {
             "SHA-256: ``$((Get-FileHash $_ -Algorithm SHA256).Hash)`` $(Split-Path $_ -Leaf)"
           }) -join "`n"
+          # What changed: this version's section of CHANGELOG.md, required.
+          $v = [regex]::Escape("${{ steps.version.outputs.version }}")
+          $m = [regex]::Match((Get-Content CHANGELOG.md -Raw), "(?ms)^## \[$v\][^\n]*\n(.*?)(?=^## \[|\z)")
+          if (-not $m.Success -or -not $m.Groups[1].Value.Trim()) {
+            Write-Error "CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"
+            exit 1
+          }
+          $notes = "$($m.Groups[1].Value.Trim())`n`n$notes"
           # GitHub lists assets by name and 0.2.x installs the first .exe: the bare exe must sort before
           # the installer (WoW-Tools-1.2.3.exe < WoW-Tools-Setup-1.2.3.exe).
           $exes = $files | Where-Object { $_ -like '*.exe' } | ForEach-Object { Split-Path $_ -Leaf } | Sort-Object

@@ -48,7 +48,9 @@ installer is `WoW-Tools-Setup-1.2.3.exe`, sorted after it — never name an exe 
 reads the first `SHA-256` line of the notes; newer versions skip names with "setup"), the installer (Inno Setup, `packaging/installer.iss`, per user into
 `%LOCALAPPDATA%\Programs\WoW Tools`; its AppId is also `selfupdate::UNINSTALL_KEY`, whose `DisplayVersion` the
 self-update keeps current) and `-portable.zip` (`WoW Tools\` with `packaging/portable.txt`) — each with a SHA-256
-line and a build provenance attestation (`gh attestation verify`). Publish it by hand; `winget.yml` (release
+line and a build provenance attestation (`gh attestation verify`). The notes start with the version's
+`## [x.y.z] - date` section of `CHANGELOG.md` (English, user-facing, newest first; release.yml fails without it), so
+add to it with every user-visible change. Publish it by hand; `winget.yml` (release
 published, or by hand with a tag) fills `packaging/winget/*.yaml` and submits them with wingetcreate as
 `Gronck2.WoWTools` (a PR to microsoft/winget-pkgs from the owner's fork) — needs the `WINGET_TOKEN` secret (classic
 PAT, public_repo; set 2026-10-31), skipped without it. `winget validate --manifest <dir>` checks filled manifests.
