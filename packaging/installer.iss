@@ -31,7 +31,8 @@ ShowLanguageDialog=no
 UsedUserAreasWarning=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-MinVersion=10.0
+; Windows 10 1607: user32 AdjustWindowRectExForDpi / GetDpiForWindow (also MinimumOSVersion in packaging\winget).
+MinVersion=10.0.14393
 OutputBaseFilename=WoW-Tools-Setup-{#AppVersion}
 SetupIconFile=..\assets\wow-tools.ico
 UninstallDisplayIcon={app}\wow-tools.exe
