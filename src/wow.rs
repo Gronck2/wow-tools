@@ -107,9 +107,26 @@ fn is_client_exe(file_name: &str) -> bool {
     GAME_EXES.contains(&n.as_str()) || (n.starts_with("wow") && n.ends_with(".exe"))
 }
 
-/// A flavor folder: Battle.net's `.flavor.info`, settings or addons, or at least a client.
+/// A WoW product code: `wow`, `wowt`, `wow_classic_era`, `wowdev`, ... Other Blizzard games use
+/// the same `_retail_`/`_ptr_` folders (Warcraft III Reforged: `w3`, Diablo IV: `fenris`).
+fn is_wow_product(code: &str) -> bool {
+    let c = code.trim().to_ascii_lowercase();
+    c.starts_with("wow") && c.chars().all(|c| c == '_' || c.is_ascii_alphanumeric())
+}
+
+/// The product code in Battle.net's `.flavor.info` (`Product Flavor!STRING:0` then the code).
+fn flavor_info_product(dir: &Path) -> Option<String> {
+    let text = fs::read_to_string(dir.join(".flavor.info")).ok()?;
+    text.lines().skip(1).map(str::trim).find(|l| !l.is_empty()).map(str::to_string)
+}
+
+/// A flavor folder: Battle.net's `.flavor.info` of a WoW product, settings or addons, or at least
+/// a client. A `.flavor.info` of another game rules the folder out.
 fn looks_like_flavor(dir: &Path) -> bool {
-    if dir.join(".flavor.info").is_file() || dir.join("WTF").is_dir() || dir.join("Interface").is_dir() {
+    if let Some(code) = flavor_info_product(dir) {
+        return is_wow_product(&code);
+    }
+    if dir.join("WTF").is_dir() || dir.join("Interface").is_dir() {
         return true;
     }
     fs::read_dir(dir).is_ok_and(|entries| entries.flatten().any(|e| is_client_exe(&e.file_name().to_string_lossy())))
@@ -238,6 +255,10 @@ fn installs_from_product_db(db: &[u8]) -> Vec<Flavor> {
         let (1, Proto::Bytes(product)) = (field, value) else { continue };
         let mut strings = Vec::new();
         proto_strings(product, &mut strings, 0);
+        // Warcraft III and Diablo IV have `_retail_` too: only WoW products count.
+        if !strings.iter().any(|s| is_wow_product(s)) {
+            continue;
+        }
         let Some(path) = strings.iter().find(|s| is_abs_path(s)) else { continue };
         let version = strings.iter().find(|s| is_version(s)).cloned();
         for name in strings.iter().filter(|s| is_flavor_name(s)) {
@@ -409,13 +430,15 @@ mod tests {
         // Like the real file: product -> {uid, code, settings{path}, state{..., version, flavor}}.
         let product = |uid: &str, path: &str, version: &str, flavor: &str| {
             let mut body = string_field(1, uid);
-            body.extend(string_field(2, "wow"));
+            body.extend(string_field(2, uid.split('_').next().unwrap()));
             body.extend(message_field(3, &string_field(1, path)));
             let state = [vec![0x08, 0x01], string_field(5, version), string_field(6, flavor)].concat();
             body.extend(message_field(4, &state));
             message_field(1, &body)
         };
-        let mut db = product("wow", "C:/Games/World of Warcraft", "12.1.0.69933", "_retail_");
+        // Warcraft III Reforged has a `_retail_` too, and may come first.
+        let mut db = product("w3", "C:/Games/Warcraft III", "2.0.3.23067", "_retail_");
+        db.extend(product("wow", "C:/Games/World of Warcraft", "12.1.0.69933", "_retail_"));
         db.extend(product("wow_classic_beta", "D:/WoW", "1.60.1.70009", "_classic_beta_"));
         db.extend(product("wow_anniversary", "E:/Classic", "2.5.5.65000", "_anniversary_"));
         db.extend(message_field(1, &string_field(1, "battle.net")));
@@ -432,6 +455,18 @@ mod tests {
         ]
         .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()));
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn other_blizzard_games_are_not_wow() {
+        // Warcraft III Reforged: `Warcraft III\_retail_\.flavor.info` says `w3`.
+        let root = tempfile::tempdir().unwrap();
+        let retail = root.path().join("_retail_");
+        fs::create_dir_all(retail.join("x86_64")).unwrap();
+        fs::write(retail.join(".flavor.info"), "Product Flavor!STRING:0\nw3\n").unwrap();
+        assert!(flavors(root.path()).is_empty());
+        assert!(is_wow_product("wow") && is_wow_product("wow_classic_era") && is_wow_product("wowxptr"));
+        assert!(!is_wow_product("w3") && !is_wow_product("fenris") && !is_wow_product("World of Warcraft"));
     }
 
     #[test]
@@ -458,6 +493,8 @@ mod tests {
         fs::create_dir_all(dir("_dark_realm_2_").join("WTF")).unwrap();
         dir("_empty_");
         dir("Data");
+        // Another Blizzard game's flavor folder.
+        fs::write(dir("_ptr_").join(".flavor.info"), "Product Flavor!STRING:0\nw3t\n").unwrap();
         let names: Vec<String> = flavors(p).into_iter().map(|f| f.name).collect();
         assert_eq!(
             names,

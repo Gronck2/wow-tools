@@ -10,9 +10,10 @@ use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows::core::HSTRING;
 use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
-use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+use windows_sys::Win32::Graphics::Dwm::{DwmExtendFrameIntoClientArea, DwmSetWindowAttribute};
 use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::UI::Controls::MARGINS;
 use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows_sys::Win32::UI::Shell::{ABM_GETTASKBARPOS, APPBARDATA, SHAppBarMessage};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
@@ -451,13 +452,16 @@ pub fn cursor_monitor() -> (POINT, RECT, f32) {
 }
 
 /// Creates a hidden-until-shown topmost popup with Windows 11 rounded corners.
-/// Position and size are in pixels.
-pub fn create_popup(class: &str, wndproc: WNDPROC, (x, y, w, h): (i32, i32, i32, i32), dark: bool, small_corners: bool) -> HWND {
+/// Position and size are in pixels. `menu`: small corners and the classic `CS_DROPSHADOW`, which
+/// is a separate window that does not follow z-order changes — fine for a menu, which closes on
+/// focus loss; others (the pinnable panel, which can end up under another window) get DWM's shadow,
+/// part of the window itself, or the classic one stays on top as a ghost of the panel.
+pub fn create_popup(class: &str, wndproc: WNDPROC, (x, y, w, h): (i32, i32, i32, i32), dark: bool, menu: bool) -> HWND {
     unsafe {
         let hinst = GetModuleHandleW(null());
         let class: Vec<u16> = class.encode_utf16().chain([0]).collect();
         let mut wc: WNDCLASSW = zeroed();
-        wc.style = CS_DROPSHADOW;
+        wc.style = if menu { CS_DROPSHADOW } else { 0 };
         wc.lpfnWndProc = wndproc;
         wc.hInstance = hinst;
         wc.hCursor = LoadCursorW(null_mut(), IDC_ARROW);
@@ -478,8 +482,21 @@ pub fn create_popup(class: &str, wndproc: WNDPROC, (x, y, w, h): (i32, i32, i32,
             null(),
         );
         // DWMWA_WINDOW_CORNER_PREFERENCE: 2 = round, 3 = round small (menus).
-        let round: u32 = if small_corners { 3 } else { 2 };
+        let round: u32 = if menu { 3 } else { 2 };
         DwmSetWindowAttribute(hwnd, 33, &round as *const u32 as _, 4);
+        if !menu {
+            // DWMWA_NCRENDERING_POLICY = DWMNCRP_ENABLED and a frame of 1 px: DWM draws the shadow
+            // of a frameless popup. The render target is opaque, so the frame shows nothing.
+            let policy: u32 = 2;
+            DwmSetWindowAttribute(hwnd, 2, &policy as *const u32 as _, 4);
+            let margins = MARGINS {
+                cxLeftWidth: 1,
+                cxRightWidth: 1,
+                cyTopHeight: 1,
+                cyBottomHeight: 1,
+            };
+            DwmExtendFrameIntoClientArea(hwnd, &margins);
+        }
         // DWMWA_USE_IMMERSIVE_DARK_MODE: dark border in dark mode.
         let dark = dark as u32;
         DwmSetWindowAttribute(hwnd, 20, &dark as *const u32 as _, 4);

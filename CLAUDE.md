@@ -101,6 +101,8 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   `Command::spawn` with inherited stdio fails with os error 50, so files are opened with `ShellExecuteW`.
 - `gfx.rs`: Direct2D/DirectWrite helpers shared by the UI, modeled on RGBTray (`C:\test\Accs\src\ui.rs`): system
   theme + accent, `R` geometry in DIPs, `text_format`/`text_width`, `Painter`, `Surface`, `create_popup`, `render_png`.
+  Only the menu has `CS_DROPSHADOW`: that shadow is a separate window that ignores z-order, so a pinned panel sent under
+  another window left its shadow on top as a ghost; the panel gets DWM's shadow (NC rendering on + a 1 px frame).
 - `panel.rs`: left-click flyout with tabs (remembered while the tray runs): "Бэкап" (status card, backup button, restore
   points with inline confirm), "Аддоны" (last update, "update now", the last `HISTORY_ROWS` runs from
   `updater::history`, kept in `data\addon-updates.json`, 20 max, written by `app::update_addons`), "Уборка"
@@ -128,7 +130,9 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 - `config.rs`: `%APPDATA%\WoW Tools\config\config.toml`, all fields `#[serde(default)]`.
 - `wow.rs`: install detection (registry, Battle.net, then common paths incl. `X:\Games\World of Warcraft`). A flavor is
   any `_name_` dir (letters, digits: `_dark_realm_2_`) with Battle.net's `.flavor.info` (product code), `WTF`,
-  `Interface` or a `Wow*.exe`, so installed-never-started and unknown future flavors count. `all_flavors` adds
+  `Interface` or a `Wow*.exe`, so installed-never-started and unknown future flavors count. Warcraft III Reforged
+  (and other Blizzard games) also have `_retail_` with a `.flavor.info`: only `wow*` product codes count there and in
+  `product.db` (`is_wow_product`). `all_flavors` adds
   flavors Battle.net installed elsewhere, from `%ProgramData%\Battle.net\Agent\product.db` (protobuf; every string of a
   product is collected and the path, `_name_` and version picked out, no schema) — so scratch-config runs still see
   the real installs. `KNOWN` lists folders with titles and product codes (from WowUp and instawow): `_retail_`, `_ptr_`,
