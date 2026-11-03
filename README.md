@@ -132,7 +132,9 @@ Every change is saved at once and applied without a restart.
 
 - **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), language,
   start with Windows, **Notifications**, **Check for updates** and the current version with **Check** / **Install**, and a link to
-  `config.toml` for the rarely needed options.
+  `config.toml` for the rarely needed options. **Diagnostics** → **Copy** puts the version, settings, addon update
+  history and the end of the log on the clipboard, to send along when something does not work (your user folder is
+  replaced with `%USERPROFILE%`).
 - **Backup**: when to back up (*After the game* closes, *By weekday* — chosen weekdays at a set time, or *Every N days*
   — every 2 … 30 days at a set time, counted from the day of the last snapshot), how many snapshots to keep, the
   **Back up addons** and **Wait for the game to exit** switches, the backups folder.
@@ -198,7 +200,8 @@ Every run, automatic or manual:
    until the game is closed.
 2. An `AddOns` snapshot labelled *before update* is taken — `wow-tools restore <id> --kind addons` undoes the update.
 3. The program is started without a window, updates, and is closed. **A program you already had open is left
-   alone** — it is not started a second time and not closed.
+   alone** — it is not started a second time and not closed. If its own auto-update is off, nothing gets updated then:
+   the history shows *not updated*, and a scheduled update tries again every half hour until the program is closed.
 4. The result goes to the update history: which addons were updated, which still wait (for example set to manual
    updates in the program), or why it failed.
 

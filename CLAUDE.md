@@ -79,7 +79,7 @@ Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -129,7 +129,9 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   which `gfx::theme_for` swaps for blue, made selected chips look disabled); `Row::Note` = a text-only card (the
   addons tab's hand-edits warning above the main switch, the screenshots tab's "moved only by hand"),
   switches, backup folder, autostart, a link to
-  `config.toml` for the rest (`exclude_ext`). Every click saves the config at once. A second start of the exe
+  `config.toml` for the rest (`exclude_ext`). "Диагностика" (`diag::report` -> clipboard): version, game, addon managers
+  (`describe`), update settings + history, config and the log tail, the user folder as `%USERPROFILE%`; `live_report`
+  (ignored) prints it. Every click saves the config at once. A second start of the exe
   posts `WM_SHOW_SETTINGS` to the running tray instead of exiting silently.
 - Windows are shown with `gfx::show` (SetWindowPos), not `ShowWindow`: the first `ShowWindow` of a process started
   hidden (autostart via `conhost --headless`) takes the start mode and the window stays invisible.
@@ -184,7 +186,9 @@ of the process while it runs. Only per-addon
   ourselves). `update()` starts `CurseForge.exe --minimized` (tray, no window; the flag its own login item uses),
   waits until its log (`%APPDATA%\CurseForge\agent\logs\CurseClient\*.json`) has "Completed checking for updates"
   and no install lines for 60 s (10 min cap), then closes it (taskkill, then /F) — only if we started it; an already
-  open app is left alone. `agent\GameInstances\AddonGameInstance.json` before/after gives the updated addons
+  open app is left alone. Open with auto-update off (CurseForge or WowUp) = `updater::NotRun`: an error that is not a run
+  (no `last_run`, retried in 30 min like a failure), a history row with `skipped` (yellow "not updated", a repeat of an
+  automatic one is not added again), a balloon once per message (`shown_error`). `agent\GameInstances\AddonGameInstance.json` before/after gives the updated addons
   (`installedFile.id` per `addonID`) and the outdated ones (`latestFile.id` differs). `app::update_addons` first takes
   an addons snapshot labelled `pre-update` (not listed in the panel; `restore <id> --kind addons`). The update runs on
   its own schedule (`update_addons`, `update_when`: `schedule` = `update_days`/`update_time`, or `interval` = every

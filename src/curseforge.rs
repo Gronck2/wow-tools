@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::updater::{Outcome, close, modified, quiet_command, running};
+use crate::updater::{NotRun, Outcome, close, modified, quiet_command, running};
 
 pub const EXE: &str = "CurseForge.exe";
 /// Log lines that mean the app is still working on updates.
@@ -163,12 +163,10 @@ pub fn update(exe: &Path) -> Result<Outcome> {
         bail!(tr!("curseforge.no_instances"));
     }
     if running(EXE) {
-        let note = if before.iter().all(|i| i.auto_update) {
-            tr!("curseforge.open_auto")
-        } else {
-            tr!("curseforge.open_manual")
-        };
-        return Ok(Outcome::note(note));
+        if before.iter().all(|i| i.auto_update) {
+            return Ok(Outcome::note(tr!("curseforge.open_auto")));
+        }
+        return Err(NotRun(tr!("curseforge.open_manual").into()).into());
     }
 
     // With "install updates automatically" off the app only checks; switch it on for this run.

@@ -167,6 +167,7 @@ enum Row {
     CheckUpdates,
     Version,
     File,
+    Diag,
     Outdated,
     ShotsDir,
     ShotsBy,
@@ -213,6 +214,7 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
             Row::CheckUpdates,
             Row::Version,
             Row::File,
+            Row::Diag,
         ]),
         Tab::Backup => {
             rows.extend([Row::Section(tr!("settings.section_schedule")), Row::When]);
@@ -320,6 +322,7 @@ enum Hit {
     CheckNow,
     InstallUpdate,
     File,
+    Diag,
     ShotsChange,
     /// Back to `Pictures\World of Warcraft`.
     ShotsAuto,
@@ -683,6 +686,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             }
         }
         Row::File => button(&mut out, tr!("settings.open"), Hit::File),
+        Row::Diag => button(&mut out, tr!("settings.copy"), Hit::Diag),
         Row::ShotsDir => {
             button(&mut out, tr!("settings.change"), Hit::ShotsChange);
             if m.cfg.screenshots_dir.is_some() {
@@ -881,6 +885,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             ("\u{E946}", concat!("WoW Tools ", env!("CARGO_PKG_VERSION")), sub, error)
         }
         Row::File => ("\u{E8A5}", tr!("settings.file"), tr!("settings.file_sub").into(), false),
+        Row::Diag => ("\u{E9D9}", tr!("settings.diag"), tr!("settings.diag_sub").into(), false),
         Row::ShotsDir => ("\u{E722}", tr!("settings.shots_dir"), path_text(&maintenance::screenshots_dir(&m.cfg)), false),
         Row::ShotsBy => ("\u{E787}", tr!("settings.shots_by"), tr!("settings.shots_by_sub").into(), false),
         Row::ShotsFlavor => ("\u{E8F1}", tr!("settings.shots_flavor"), tr!("settings.shots_flavor_sub").into(), false),
@@ -1279,6 +1284,15 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
         Hit::CheckNow => return Some(Action::CheckUpdate),
         Hit::InstallUpdate => return Some(Action::InstallUpdate),
         Hit::File => return Some(Action::OpenConfigFile),
+        Hit::Diag => {
+            // Nothing to save: the text goes to the clipboard, the result under the cards.
+            let text = crate::diag::report(&tray::config_path()?);
+            m.message = Some(match crate::diag::copy_to_clipboard(hwnd, &text) {
+                Ok(()) => (tr!("settings.diag_copied").to_string(), false),
+                Err(e) => (tr!("settings.diag_failed", error = format!("{e:#}")), true),
+            });
+            return None;
+        }
         Hit::ShotsChange => {
             let cur = maintenance::screenshots_dir(&m.cfg);
             let picked = gfx::pick_folder(hwnd, tr!("settings.pick_screenshots"), Some(&cur))?;

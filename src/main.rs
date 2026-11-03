@@ -4,6 +4,7 @@ mod app;
 mod chars;
 mod config;
 mod curseforge;
+mod diag;
 mod elvui;
 #[cfg(windows)]
 mod gfx;
@@ -173,7 +174,7 @@ enum Cmd {
     #[command(hide = true)]
     UiSnapshot {
         out: PathBuf,
-        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
+        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
         #[arg(default_value = "panel")]
         view: String,
         #[arg(long)]
@@ -677,6 +678,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             ok,
             text,
             manual,
+            skipped: false,
         })
         .to_vec(),
         self_update: if view.starts_with("update") { new_release() } else { Default::default() },
@@ -826,6 +828,20 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         "addons-busy" | "busy-addons" => {
             demo.status.phase = Phase::Busy;
             demo.status.work = watch::Work::Addons;
+        }
+        "addons-skipped" => {
+            let text = tr!("curseforge.open_manual").to_string();
+            demo.updates.insert(
+                0,
+                updater::Entry {
+                    time: now - Duration::minutes(3),
+                    app: "CurseForge".into(),
+                    ok: false,
+                    text,
+                    manual: true,
+                    skipped: true,
+                },
+            );
         }
         "addons-empty" => {
             demo.updates.clear();

@@ -2,6 +2,15 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [0.4.1] - 2026-11-03
+
+- Settings → General → Diagnostics: a Copy button puts the version, settings, addon managers, addon update history
+  and the end of the log on the clipboard (the user folder replaced with `%USERPROFILE%`), to send when something
+  does not work.
+- An addon update that could not run because CurseForge or WowUp was already open with its own auto-update off no
+  longer says "No updates": the history shows it as *not updated* (in yellow), and a scheduled update tries again every
+  half hour instead of waiting for the next one. A repeated failure of a scheduled update pops up once, not every time.
+
 ## [0.4.0] - 2026-11-03
 
 - Sharp text on high-DPI screens: at 150-200% display scaling the windows were drawn at 100% and stretched by

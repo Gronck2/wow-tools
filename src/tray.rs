@@ -902,11 +902,17 @@ fn on_event(event: Event) {
                     }
                     Ok(_) => {}
                     Err(e) => {
-                        st.balloon = Some(Balloon {
-                            title: tr!("tray.update_failed"),
-                            text: format!("{e:#}"),
-                            error: true,
-                        })
+                        // A scheduled run is retried every half hour: the same message pops up once.
+                        let msg = format!("{e:#}");
+                        if manual || st.shown_error.as_ref() != Some(&msg) {
+                            let not_run = e.is::<crate::updater::NotRun>();
+                            st.balloon = Some(Balloon {
+                                title: if not_run { tr!("tray.update_not_run") } else { tr!("tray.update_failed") },
+                                text: msg.clone(),
+                                error: !not_run,
+                            });
+                            st.shown_error = Some(msg);
+                        }
                     }
                 }
             }

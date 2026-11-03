@@ -176,7 +176,10 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
                 // `update_addons` saved its start time.
                 Ok(_) => last_update = updater::last_run(),
                 Err(e) => {
-                    log::error!("{}", tr!("watch.update_failed", error = format!("{e:#}")));
+                    // An app open with auto-update off is logged by `update_addons` (a warning).
+                    if !e.is::<updater::NotRun>() {
+                        log::error!("{}", tr!("watch.update_failed", error = format!("{e:#}")));
+                    }
                     update_retry_at = Instant::now() + 3 * RETRY;
                 }
             }

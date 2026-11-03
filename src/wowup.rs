@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::updater::{Outcome, close, hide_windows, modified, quiet_command, running, to_tab_json};
+use crate::updater::{NotRun, Outcome, close, hide_windows, modified, quiet_command, running, to_tab_json};
 
 /// The log line of the auto-update run.
 const STARTED_MARK: &str = "onAutoUpdateInterval";
@@ -108,12 +108,10 @@ impl WowUp {
             bail!(tr!("wowup.no_addons", app = self.title));
         }
         if running(self.exe) {
-            let note = if before.iter().all(|a| a.auto_update || a.ignored) {
-                tr!("wowup.open_auto", app = self.title)
-            } else {
-                tr!("wowup.open_manual", app = self.title)
-            };
-            return Ok(Outcome::note(note));
+            if before.iter().all(|a| a.auto_update || a.ignored) {
+                return Ok(Outcome::note(tr!("wowup.open_auto", app = self.title)));
+            }
+            return Err(NotRun(tr!("wowup.open_manual", app = self.title)).into());
         }
 
         self.restore_auto_update();

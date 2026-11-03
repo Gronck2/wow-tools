@@ -142,7 +142,9 @@ Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 
 - **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), langue,
   lancement avec Windows, **Notifications**, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** /
-  **Installer**, et un lien vers `config.toml` pour les options rarement utiles.
+  **Installer**, et un lien vers `config.toml` pour les options rarement utiles. **Diagnostic** → **Copier** met la
+  version, les réglages, l’historique des mises à jour d’addons et la fin du journal dans le presse-papiers, à joindre
+  quand quelque chose ne marche pas (le dossier utilisateur devient `%USERPROFILE%`).
 - **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, *Par jour* — les jours de la semaine choisis à
   une heure donnée, ou *Tous les N jours* — tous les 2 … 30 jours à une heure donnée, à compter du jour de la dernière
   sauvegarde), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la
@@ -219,7 +221,9 @@ qu'un, il est utilisé automatiquement.
 2. Une sauvegarde de `AddOns` étiquetée *avant mise à jour* est créée — `wow-tools restore <id> --kind addons`
    annule la mise à jour.
 3. Le programme est lancé sans fenêtre, fait la mise à jour, puis est fermé. **Un programme que vous aviez déjà ouvert
-   n'est pas touché** — il n'est ni relancé, ni fermé.
+   n'est pas touché** — il n'est ni relancé, ni fermé. Si sa propre mise à jour auto est désactivée, rien n'est
+   mis à jour alors : l'historique indique *non mis à jour*, et une mise à jour planifiée réessaie toutes les demi-heures
+   jusqu'à ce que le programme soit fermé.
 4. Le résultat va dans l'historique des mises à jour : les addons mis à jour, ceux qui attendent encore (par exemple
    réglés en mise à jour manuelle dans le programme), ou la raison de l'échec.
 

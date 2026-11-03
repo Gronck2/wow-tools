@@ -142,7 +142,9 @@ Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 
 - **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile),
   Sprache, Start mit Windows, **Benachrichtigungen**, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** /
-  **Installieren** sowie ein Link zu `config.toml` für selten benötigte Optionen.
+  **Installieren** sowie ein Link zu `config.toml` für selten benötigte Optionen. **Diagnose** → **Kopieren** legt Version,
+  Einstellungen, Addon-Update-Verlauf und das Ende des Logs in die Zwischenablage, zum Mitschicken, wenn etwas nicht
+  klappt (der Benutzerordner wird durch `%USERPROFILE%` ersetzt).
 - **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, *Nach Wochentagen* – an gewählten Tagen zu
   einer festen Uhrzeit – oder *Alle N Tage* – alle 2 … 30 Tage zu einer festen Uhrzeit, gezählt ab dem Tag der letzten
   Sicherung), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und **Auf Spielende warten**, der
@@ -217,7 +219,9 @@ Bei jedem Lauf, automatisch oder manuell:
 2. Eine `AddOns`-Sicherung mit der Bezeichnung *vor Update* wird erstellt – `wow-tools restore <id> --kind addons`
    macht das Update rückgängig.
 3. Das Programm wird ohne Fenster gestartet, aktualisiert und wird geschlossen. **Ein Programm, das Sie bereits
-   geöffnet hatten, bleibt unangetastet** – es wird weder ein zweites Mal gestartet noch geschlossen.
+   geöffnet hatten, bleibt unangetastet** – es wird weder ein zweites Mal gestartet noch geschlossen. Ist dort das
+   eigene Auto-Update aus, wird dann nichts aktualisiert: Der Verlauf zeigt *nicht aktualisiert*, und ein geplantes Update
+   versucht es jede halbe Stunde erneut, bis das Programm geschlossen ist.
 4. Das Ergebnis landet im Update-Verlauf: welche Addons aktualisiert wurden, welche noch warten (zum Beispiel weil sie
    im Programm auf manuelle Updates gestellt sind) oder warum es fehlgeschlagen ist.
 

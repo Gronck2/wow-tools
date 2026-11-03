@@ -94,6 +94,19 @@ pub struct Outcome {
     pub note: Option<String>,
 }
 
+/// The app could not run its update (it is open with auto-update off): nothing was checked. Not
+/// counted as a run, so the schedule tries again; the history shows it as a warning, not an error.
+#[derive(Debug)]
+pub struct NotRun(pub String);
+
+impl std::fmt::Display for NotRun {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for NotRun {}
+
 impl Outcome {
     pub fn note(text: impl Into<String>) -> Outcome {
         Outcome {
@@ -272,6 +285,9 @@ pub struct Entry {
     pub text: String,
     /// Started from the menu or the panel, not by the schedule.
     pub manual: bool,
+    /// Not run (`NotRun`): `ok` is false, shown as a warning.
+    #[serde(default)]
+    pub skipped: bool,
 }
 
 fn history_file() -> PathBuf {
@@ -363,6 +379,7 @@ mod tests {
                 ok: m % 2 == 0,
                 text: format!("run {m}"),
                 manual: false,
+                skipped: false,
             };
             append_history(&path, entry).unwrap();
         }

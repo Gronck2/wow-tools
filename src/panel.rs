@@ -992,7 +992,7 @@ fn draw_tip(p: &Painter, t: &Theme, f: &Formats, at: R, text: &str, error: bool)
 /// the rows next to it.
 fn draw_history_tip(p: &Painter, v: &View, t: &Theme, f: &Formats, i: usize) {
     let Some(e) = v.updates.get(i) else { return };
-    draw_row_tip(p, v, t, f, row_rect(i), &e.text, !e.ok);
+    draw_row_tip(p, v, t, f, row_rect(i), &e.text, !e.ok && !e.skipped);
 }
 
 /// A tip card for `row`: under it when it fits above the footer, else over it.
@@ -1140,10 +1140,13 @@ fn draw_addons(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
     let s = &v.status;
     let busy = s.phase == Phase::Busy;
     let updating = busy && s.work == Work::Addons;
-    let failed = v.updates.first().is_some_and(|e| !e.ok);
+    let failed = v.updates.first().is_some_and(|e| !e.ok && !e.skipped);
+    // The app was open and nothing was checked (`updater::NotRun`): a warning, not an error.
+    let skipped = v.updates.first().is_some_and(|e| e.skipped);
     let (icon, icon_color) = match () {
         _ if updating => ("\u{E895}", t.accent),
         _ if v.update_app.is_none() || failed => ("\u{E783}", t.error),
+        _ if skipped => ("\u{E7BA}", t.warn),
         _ if v.last_update.is_some() => ("\u{E930}", t.ok),
         _ => ("\u{E895}", t.text2),
     };
@@ -1155,6 +1158,7 @@ fn draw_addons(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
         _ if updating => (busy_line(s), t.text2),
         None => (tr!("panel.no_addon_app").to_string(), t.error),
         Some(_) if failed => (tr!("panel.last_failed").to_string(), t.error),
+        Some(_) if skipped => (tr!("panel.last_skipped").to_string(), t.warn),
         Some(app) if v.update_waits_for_game => (tr!("panel.update_after_game", app = app), t.text2),
         Some(app) => (format!("{} · {app}", v.update_text), t.text2),
     };
@@ -1200,7 +1204,8 @@ fn draw_addons(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
         let tags = [
             Some((e.app.as_str(), t.text2)),
             (!e.manual).then_some((tr!("panel.tag_auto"), t.text2)),
-            (!e.ok).then_some((tr!("panel.tag_error"), t.error)),
+            e.skipped.then_some((tr!("panel.tag_skipped"), t.warn)),
+            (!e.ok && !e.skipped).then_some((tr!("panel.tag_error"), t.error)),
         ];
         for (tag, color) in tags.into_iter().flatten() {
             let r = R {
@@ -1221,7 +1226,11 @@ fn draw_addons(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
                 w: text_w,
                 h: 18.0,
             },
-            if e.ok { t.text2 } else { t.error },
+            match () {
+                _ if e.skipped => t.warn,
+                _ if e.ok => t.text2,
+                _ => t.error,
+            },
         );
     }
 }

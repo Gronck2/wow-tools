@@ -248,15 +248,23 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
     }
     let app = crate::updater::chosen(ctx.cfg.update_app);
     let record = |title: &str, result: &Result<String>| {
+        let skipped = result.as_ref().is_err_and(|e| e.is::<crate::updater::NotRun>());
+        let text = match result {
+            Ok(text) => text.clone(),
+            Err(e) => format!("{e:#}"),
+        };
+        // An automatic run is retried while the app stays open: one row for the lot.
+        let repeat = |e: &crate::updater::Entry| e.skipped && !e.manual && e.app == title && e.text == text;
+        if skipped && !manual && crate::updater::history().first().is_some_and(repeat) {
+            return;
+        }
         crate::updater::record(crate::updater::Entry {
             time: started,
             app: title.to_string(),
             ok: result.is_ok(),
-            text: match result {
-                Ok(text) => text.clone(),
-                Err(e) => format!("{e:#}"),
-            },
+            text,
             manual,
+            skipped,
         })
     };
     let flavors = if app.is_none() && !ctx.cfg.update_elvui {
@@ -274,8 +282,10 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
     };
     let app_result = app.map(|app| {
         let result = app.update((ctx.cfg.wago_weakauras, ctx.cfg.wago_ui_packs)).map(|o| o.summary());
-        if let Ok(summary) = &result {
-            log::info!("{}: {}", app.title(), summary.replace('\n', " | "));
+        match &result {
+            Ok(summary) => log::info!("{}: {}", app.title(), summary.replace('\n', " | ")),
+            Err(e) if e.is::<crate::updater::NotRun>() => log::warn!("{}: {e:#}", app.title()),
+            Err(_) => {}
         }
         record(app.title(), &result);
         result

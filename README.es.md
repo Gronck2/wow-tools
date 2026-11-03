@@ -137,7 +137,9 @@ Cada cambio se guarda al instante y se aplica sin reiniciar.
 
 - **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego trabajar (copias, limpieza, perfiles),
   idioma, inicio con Windows, **Notificaciones**, **Buscar actualizaciones** y la versión actual con **Comprobar** /
-  **Instalar**, y un enlace a `config.toml` para las opciones que rara vez se necesitan.
+  **Instalar**, y un enlace a `config.toml` para las opciones que rara vez se necesitan. **Diagnóstico** → **Copiar**
+  copia al portapapeles la versión, los ajustes, el historial de actualizaciones de addons y el final del registro, para
+  enviarlo cuando algo no funciona (la carpeta de usuario se sustituye por `%USERPROFILE%`).
 - **Copias**: cuándo hacer la copia (*Tras el juego*, al cerrarlo; *Por días*: los días de la semana elegidos a una
   hora fija; o *Cada N días*: cada 2 … 30 días a una hora fija, contando desde el día de la última instantánea),
   cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**, la
@@ -208,7 +210,9 @@ En cada ejecución, automática o manual:
 2. Se crea una instantánea de `AddOns` con la etiqueta *antes de actualizar*: `wow-tools restore <id> --kind addons`
    deshace la actualización.
 3. El programa se inicia sin ventana, actualiza y se cierra. **Si ya tenías el programa abierto, no se toca**: no se
-   inicia por segunda vez ni se cierra.
+   inicia por segunda vez ni se cierra. Si su propia actualización automática está desactivada, no se actualiza nada:
+   el historial muestra *sin actualizar*, y una actualización programada lo reintenta cada media hora hasta que se cierre
+   el programa.
 4. El resultado va al historial de actualizaciones: qué addons se actualizaron, cuáles siguen pendientes (por ejemplo,
    los que tienen actualización manual en el programa) o por qué falló.
 
