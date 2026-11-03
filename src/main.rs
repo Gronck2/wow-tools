@@ -173,7 +173,7 @@ enum Cmd {
     #[command(hide = true)]
     UiSnapshot {
         out: PathBuf,
-        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, menu, settings, settings-backup, settings-exit, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
+        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
         #[arg(default_value = "panel")]
         view: String,
         #[arg(long)]
@@ -551,11 +551,12 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         let model = settings::Model {
             cfg: Config {
                 flavors: vec!["_retail_".into(), "_classic_beta_".into(), "_classic_era_".into()],
-                backup_when: if view == "settings-exit" {
-                    config::When::GameExit
-                } else {
-                    config::When::Schedule
+                backup_when: match view {
+                    "settings-exit" => config::When::GameExit,
+                    "settings-days" => config::When::EveryDays,
+                    _ => config::When::Schedule,
                 },
+                backup_every_days: 14,
                 backup_days: vec![config::Day::Mon, config::Day::Wed, config::Day::Fri, config::Day::Sat],
                 update_addons: view != "settings-exit",
                 update_days: vec![config::Day::Tue, config::Day::Sat],
@@ -602,7 +603,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             ]),
         };
         let tab = match view {
-            "settings-backup" | "settings-exit" => settings::Tab::Backup,
+            "settings-backup" | "settings-exit" | "settings-days" => settings::Tab::Backup,
             "settings-addons" | "settings-every" | "settings-one" | "settings-wago" => settings::Tab::Addons,
             "settings-screenshots" => settings::Tab::Screenshots,
             _ => settings::Tab::General,
@@ -626,6 +627,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             work: watch::Work::Backup,
             last: Some(now),
             game: None,
+            progress: None,
         },
         points: vec![
             point("_retail_", 0, "", Some(75_300_000)),
@@ -803,7 +805,14 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         _ => panel::Tab::Backup,
     };
     match view {
-        "busy" => demo.status.phase = Phase::Busy,
+        "busy" => {
+            demo.status.phase = Phase::Busy;
+            demo.status.progress = Some(snapshot::Progress {
+                what: "Retail · AddOns".into(),
+                done: 45,
+                total: 100,
+            });
+        }
         "cleanup-busy" => {
             demo.status.phase = Phase::Busy;
             demo.status.work = watch::Work::Cleanup;

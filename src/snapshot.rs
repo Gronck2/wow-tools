@@ -10,6 +10,7 @@ use chrono::{Local, NaiveDateTime};
 use std::fs::{self, File};
 use std::io::{self, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
@@ -32,6 +33,14 @@ impl Kind {
         match self {
             Kind::Wtf => "wtf",
             Kind::Addons => "addons",
+        }
+    }
+
+    /// How the series is called in the progress line.
+    pub fn label(self) -> &'static str {
+        match self {
+            Kind::Wtf => "WTF",
+            Kind::Addons => "AddOns",
         }
     }
 
@@ -115,7 +124,8 @@ impl Store {
         let id = new_id(&series, label)?;
         let final_path = series.join(format!("{id}.zip"));
         let tmp_path = series.join(format!("{id}.zip.partial"));
-        if let Err(e) = write_zip(&tmp_path, &files) {
+        let what = format!("{} · {}", flavor.title(), kind.label());
+        if let Err(e) = write_zip(&tmp_path, &files, &what) {
             let _ = fs::remove_file(&tmp_path);
             return Err(e);
         }
@@ -294,10 +304,67 @@ fn fingerprint(files: &[SourceFile]) -> String {
     format!("{h:016x}-{}", files.len())
 }
 
-fn write_zip(dest: &Path, files: &[SourceFile]) -> Result<()> {
+/// How far the snapshot being written is: what ("Retail · AddOns") and bytes done of all.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Progress {
+    pub what: String,
+    pub done: u64,
+    pub total: u64,
+}
+
+impl Progress {
+    pub fn percent(&self) -> u8 {
+        (self.done.min(self.total) * 100 / self.total.max(1)) as u8
+    }
+}
+
+static PROGRESS: Mutex<Option<Progress>> = Mutex::new(None);
+static ON_PROGRESS: OnceLock<fn()> = OnceLock::new();
+
+/// The snapshot being written now, if any.
+pub fn progress() -> Option<Progress> {
+    PROGRESS.lock().unwrap().clone()
+}
+
+/// Called (from the writing thread) when the progress moves by a percent, starts or ends.
+pub fn on_progress(f: fn()) {
+    let _ = ON_PROGRESS.set(f);
+}
+
+fn set_progress(p: Option<Progress>) {
+    let changed = {
+        let mut cur = PROGRESS.lock().unwrap();
+        let changed = cur.as_ref().map(Progress::percent) != p.as_ref().map(Progress::percent) || cur.is_none() != p.is_none();
+        *cur = p;
+        changed
+    };
+    if changed && let Some(f) = ON_PROGRESS.get() {
+        f();
+    }
+}
+
+/// Clears the progress however the writing ends.
+struct ProgressGuard;
+
+impl Drop for ProgressGuard {
+    fn drop(&mut self) {
+        set_progress(None);
+    }
+}
+
+fn write_zip(dest: &Path, files: &[SourceFile], what: &str) -> Result<()> {
     let mut zip = ZipWriter::new(BufWriter::new(File::create(dest)?));
     let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    let mut p = Progress {
+        what: what.to_string(),
+        done: 0,
+        total: files.iter().map(|f| f.size).sum(),
+    };
+    let _guard = ProgressGuard;
+    set_progress(Some(p.clone()));
     for f in files {
+        set_progress(Some(p.clone()));
+        p.done += f.size;
         let mut src = match File::open(&f.abs) {
             Ok(file) => file,
             Err(e) => {

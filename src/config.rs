@@ -15,6 +15,9 @@ pub enum When {
     /// On `backup_days` at `backup_time`; a time missed while the computer was off is caught up
     /// as soon as it is on.
     Schedule,
+    /// Every `backup_every_days` days (counted from the last snapshot's day) at `backup_time`,
+    /// caught up like the schedule.
+    EveryDays,
 }
 
 /// When addons are updated automatically (the manual "update now" is always there).
@@ -26,6 +29,8 @@ pub enum UpdateWhen {
     /// On `update_days` at `update_time`, caught up like the backup schedule.
     #[default]
     Schedule,
+    /// Once when WoW Tools starts (with Windows, before playing), unless it updated within the last hour.
+    Startup,
 }
 
 /// How the cleanup files moved screenshots: a folder per year, month or day of the shot, or none.
@@ -46,6 +51,15 @@ impl ShotsBy {
 
 /// Choices of the "update every" stepper, in minutes.
 pub const UPDATE_EVERY: &[u64] = &[30, 60, 120, 180, 360, 720];
+
+/// Choices of the "back up every" stepper, in days.
+pub const BACKUP_EVERY_DAYS: &[u64] = &[2, 3, 4, 5, 7, 10, 14, 21, 30];
+
+/// How long after its start WoW Tools runs a `UpdateWhen::Startup` update (the network and the
+/// rest of the sign-in come first).
+const STARTUP_DELAY_MIN: i64 = 1;
+/// An update this recent makes the one at start unnecessary (a restart after a self-update).
+const STARTUP_SKIP_MIN: i64 = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -93,8 +107,10 @@ pub struct Config {
     pub backup_when: When,
     /// Days of `When::Schedule`.
     pub backup_days: Vec<Day>,
-    /// Time of `When::Schedule`, "HH:MM" local.
+    /// Time of `When::Schedule` and `When::EveryDays`, "HH:MM" local.
     pub backup_time: String,
+    /// Days between snapshots of `When::EveryDays`.
+    pub backup_every_days: u64,
     /// Update addons automatically through an addon manager app (started hidden, closed after).
     pub update_addons: bool,
     /// The app to update through; unset or not installed = the first one installed.
@@ -132,6 +148,9 @@ pub struct Config {
     pub screenshots_by: ShotsBy,
     /// A folder per game version ("Retail", "Classic Era") above the date folders.
     pub screenshots_per_flavor: bool,
+    /// With `screenshots_per_flavor`: a folder chosen for a game version (`_retail_` -> path) instead of
+    /// `<screenshots_dir>\<title>`. Last: TOML wants tables after the plain values.
+    pub screenshots_dirs: std::collections::BTreeMap<String, PathBuf>,
 }
 
 impl Default for Config {
@@ -143,6 +162,7 @@ impl Default for Config {
             backup_when: When::GameExit,
             backup_days: Day::ALL.to_vec(),
             backup_time: "10:00".into(),
+            backup_every_days: 7,
             update_addons: false,
             update_app: None,
             update_skip_in_game: true,
@@ -163,6 +183,7 @@ impl Default for Config {
             screenshots_dir: None,
             screenshots_by: ShotsBy::Month,
             screenshots_per_flavor: true,
+            screenshots_dirs: Default::default(),
         }
     }
 }
@@ -176,7 +197,13 @@ impl Config {
     /// A scheduled snapshot is due: a scheduled moment has passed with no snapshot since.
     /// This is also what catches up a moment missed while the computer was off.
     pub fn schedule_due(&self, now: NaiveDateTime, last_backup: Option<NaiveDateTime>) -> bool {
-        self.backup_when == When::Schedule && due(&self.backup_days, self.time(), now, last_backup)
+        match self.backup_when {
+            When::GameExit => false,
+            When::Schedule => due(&self.backup_days, self.time(), now, last_backup),
+            // The latest `backup_time` (today's or yesterday's) is `backup_every_days` days after the last snapshot's day.
+            When::EveryDays => last_scheduled(&Day::ALL, self.time(), now)
+                .is_some_and(|at| last_backup.is_none_or(|l| (at.date() - l.date()).num_days() >= self.backup_every_days.max(1) as i64)),
+        }
     }
 
     /// `update_time`, or 09:00 when it does not parse.
@@ -186,13 +213,18 @@ impl Config {
 
     /// An automatic addon update is due: by the schedule (same rules as the backups) or when
     /// `update_every` minutes have passed since the last one.
-    pub fn update_due(&self, now: NaiveDateTime, last_update: Option<NaiveDateTime>) -> bool {
+    /// `started`: when WoW Tools started (`UpdateWhen::Startup`).
+    pub fn update_due(&self, now: NaiveDateTime, last_update: Option<NaiveDateTime>, started: NaiveDateTime) -> bool {
         if !self.update_addons {
             return false;
         }
         match self.update_when {
             UpdateWhen::Schedule => due(&self.update_days, self.update_at(), now, last_update),
             UpdateWhen::Interval => last_update.is_none_or(|l| now - l >= chrono::Duration::minutes(self.update_every.max(1) as i64)),
+            UpdateWhen::Startup => {
+                now - started >= chrono::Duration::minutes(STARTUP_DELAY_MIN)
+                    && last_update.is_none_or(|l| l < started - chrono::Duration::minutes(STARTUP_SKIP_MIN))
+            }
         }
     }
 
@@ -200,6 +232,7 @@ impl Config {
     pub fn update_text(&self) -> String {
         match self.update_when {
             UpdateWhen::Interval => every_text(self.update_every),
+            UpdateWhen::Startup => tr!("schedule.at_startup").into(),
             UpdateWhen::Schedule => tr!(
                 "schedule.update_at",
                 days = days_text(&self.update_days),
@@ -213,6 +246,11 @@ impl Config {
         match self.backup_when {
             When::GameExit => tr!("schedule.after_exit").into(),
             When::Schedule => tr!("schedule.backup_at", days = days_text(&self.backup_days), time = self.time().format("%H:%M")),
+            When::EveryDays => tr!(
+                "schedule.backup_every",
+                days = every_days_text(self.backup_every_days),
+                time = self.time().format("%H:%M")
+            ),
         }
     }
 
@@ -344,6 +382,15 @@ pub fn every_text(minutes: u64) -> String {
     }
 }
 
+/// "every 3 days", "every 2 weeks" (a whole number of weeks is said in weeks).
+pub fn every_days_text(days: u64) -> String {
+    match days.max(1) {
+        7 => tr!("schedule.every_week").into(),
+        d if d.is_multiple_of(7) => tr!("schedule.every_weeks", n = d / 7),
+        d => tr!("schedule.every_days", n = d),
+    }
+}
+
 /// "daily", "on weekdays", "Mon, Wed, Fri", ...
 pub fn days_text(days: &[Day]) -> String {
     let set: Vec<Day> = Day::ALL.into_iter().filter(|d| days.contains(d)).collect();
@@ -412,30 +459,68 @@ mod tests {
     #[test]
     fn addon_updates_have_their_own_schedule() {
         let mut cfg = Config::default();
-        assert!(!cfg.update_due(at(12, 23, 0), None), "off by default");
+        assert!(!cfg.update_due(at(12, 23, 0), None, at(1, 0, 0)), "off by default");
         cfg.update_addons = true;
         cfg.update_days = vec![Day::Tue];
         cfg.update_time = "09:00".into();
         // Monday: last Tuesday 09:00 was already done.
-        assert!(!cfg.update_due(at(12, 12, 0), Some(at(6, 9, 1))));
-        assert!(!cfg.update_due(at(13, 8, 59), Some(at(6, 9, 1))));
-        assert!(cfg.update_due(at(13, 9, 0), Some(at(6, 9, 1))));
+        assert!(!cfg.update_due(at(12, 12, 0), Some(at(6, 9, 1)), at(1, 0, 0)));
+        assert!(!cfg.update_due(at(13, 8, 59), Some(at(6, 9, 1)), at(1, 0, 0)));
+        assert!(cfg.update_due(at(13, 9, 0), Some(at(6, 9, 1)), at(1, 0, 0)));
         // Backups on their own schedule do not count as an update.
         cfg.backup_when = When::Schedule;
-        assert!(cfg.update_due(at(13, 9, 0), Some(at(6, 9, 1))));
+        assert!(cfg.update_due(at(13, 9, 0), Some(at(6, 9, 1)), at(1, 0, 0)));
     }
 
     #[test]
     fn addon_updates_every_n_minutes() {
         let cfg: Config = toml::from_str("update_addons = true\nupdate_when = 'interval'\nupdate_every = 120\n").unwrap();
         assert_eq!(cfg.update_text(), "каждые 2 ч");
-        assert!(cfg.update_due(at(12, 9, 0), None), "never updated: right away");
-        assert!(!cfg.update_due(at(12, 10, 59), Some(at(12, 9, 0))));
-        assert!(cfg.update_due(at(12, 11, 0), Some(at(12, 9, 0))));
+        assert!(cfg.update_due(at(12, 9, 0), None, at(1, 0, 0)), "never updated: right away");
+        assert!(!cfg.update_due(at(12, 10, 59), Some(at(12, 9, 0)), at(1, 0, 0)));
+        assert!(cfg.update_due(at(12, 11, 0), Some(at(12, 9, 0)), at(1, 0, 0)));
         assert_eq!(every_text(60), "каждый час");
         assert_eq!(every_text(30), "каждые 30 мин");
         // Configs from before the interval mode keep their schedule.
         let old: Config = toml::from_str("update_addons = true\nupdate_time = '16:00'\n").unwrap();
         assert_eq!(old.update_when, UpdateWhen::Schedule);
+    }
+
+    #[test]
+    fn backup_every_n_days() {
+        let cfg: Config = toml::from_str("backup_when = 'every_days'\nbackup_every_days = 14\nbackup_time = '10:00'\n").unwrap();
+        assert_eq!(cfg.schedule_text(), "Периодически: раз в 2 недели в 10:00");
+        let last = Some(at(12, 10, 1));
+        // Thirteen days later: not yet; the fourteenth day at 10:00: due.
+        assert!(!cfg.schedule_due(at(25, 23, 0), last));
+        assert!(!cfg.schedule_due(at(26, 9, 59), last));
+        assert!(cfg.schedule_due(at(26, 10, 0), last));
+        // The computer was off that day: caught up the next morning.
+        assert!(cfg.schedule_due(at(27, 8, 0), last));
+        // Never backed up: right away.
+        assert!(cfg.schedule_due(at(12, 12, 0), None));
+        assert_eq!(every_days_text(3), "каждые 3 дн.");
+        assert_eq!(every_days_text(7), "раз в неделю");
+    }
+
+    #[test]
+    fn addon_update_at_startup() {
+        let cfg: Config = toml::from_str("update_addons = true\nupdate_when = 'startup'\n").unwrap();
+        let started = at(12, 8, 0);
+        // A minute for the sign-in to settle, then once.
+        assert!(!cfg.update_due(at(12, 8, 0), None, started));
+        assert!(cfg.update_due(at(12, 8, 1), Some(at(11, 20, 0)), started));
+        assert!(!cfg.update_due(at(12, 9, 0), Some(at(12, 8, 1)), started), "done since the start");
+        // A restart soon after an update (a self-update) does not update again.
+        assert!(!cfg.update_due(at(12, 8, 30), Some(at(12, 7, 30)), started));
+    }
+
+    #[test]
+    fn screenshot_folders_per_flavor_round_trip() {
+        let mut cfg = Config::default();
+        cfg.screenshots_dirs.insert("_retail_".into(), PathBuf::from(r"D:\Shots\Retail"));
+        let text = toml::to_string_pretty(&cfg).unwrap();
+        let back: Config = toml::from_str(&text).unwrap();
+        assert_eq!(back.screenshots_dirs.get("_retail_"), Some(&PathBuf::from(r"D:\Shots\Retail")));
     }
 }

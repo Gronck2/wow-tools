@@ -34,6 +34,8 @@ const FOOTER_H: f32 = 44.0;
 /// The tab strip at the top; the cards start below it.
 const TABS_H: f32 = 52.0;
 const CHIP_STEP: f32 = 38.0;
+/// Room for the check mark of a selected chip; every chip has it, so a click does not move the others.
+const CHECK_W: f32 = 18.0;
 const WM_MOUSELEAVE: u32 = 0x02A3;
 const WM_MOUSEWHEEL: u32 = 0x020A;
 
@@ -137,10 +139,13 @@ impl Model {
 #[derive(Clone, Copy, PartialEq)]
 enum Row {
     Section(&'static str),
+    /// A card of text only, wrapped; `true` = a warning.
+    Note(&'static str, bool),
     Wow,
     Flavors,
     When,
     Days,
+    BackupEvery,
     Time,
     Keep,
     Addons,
@@ -166,6 +171,8 @@ enum Row {
     ShotsDir,
     ShotsBy,
     ShotsFlavor,
+    /// The folder of one game version (index into `Model::flavors`).
+    ShotsFlavorDir(usize),
 }
 
 /// The pages of the window, switched by the tabs at the top.
@@ -209,31 +216,50 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
         ]),
         Tab::Backup => {
             rows.extend([Row::Section(tr!("settings.section_schedule")), Row::When]);
-            if m.cfg.backup_when == When::Schedule {
-                rows.extend([Row::Days, Row::Time]);
+            match m.cfg.backup_when {
+                When::GameExit => {}
+                When::Schedule => rows.extend([Row::Days, Row::Time]),
+                When::EveryDays => rows.extend([Row::BackupEvery, Row::Time]),
             }
             rows.extend([Row::Section(tr!("settings.section_storage")), Row::Keep, Row::Addons, Row::Game, Row::Backups]);
         }
         Tab::Addons => {
-            rows.extend([Row::Section(tr!("settings.section_updates")), Row::UpdateApp]);
+            // The main switch first: off, nothing runs on its own (the panel's button still updates, with
+            // the app and the options below).
+            rows.extend([
+                Row::Section(tr!("settings.section_updates")),
+                Row::Note(tr!("settings.addons_app_note"), false),
+                Row::Note(tr!("settings.addons_edits_note"), true),
+                Row::Updates,
+            ]);
+            if m.cfg.update_addons {
+                rows.push(Row::UpdateWhen);
+                match m.cfg.update_when {
+                    UpdateWhen::Interval => rows.push(Row::UpdateEvery),
+                    UpdateWhen::Schedule => rows.extend([Row::UpdateDays, Row::UpdateTime]),
+                    UpdateWhen::Startup => {}
+                }
+            }
+            rows.push(Row::UpdateApp);
             if m.chosen() == Some(AddonApp::Wago) {
                 rows.extend([Row::WagoWeakAuras, Row::WagoUiPacks]);
             }
-            rows.push(Row::Elvui);
-            rows.push(Row::UpdateGame);
-            rows.push(Row::Updates);
-            if m.cfg.update_addons {
-                rows.push(Row::UpdateWhen);
-                if m.cfg.update_when == UpdateWhen::Interval {
-                    rows.push(Row::UpdateEvery);
-                }
-                if m.cfg.update_when == UpdateWhen::Schedule {
-                    rows.extend([Row::UpdateDays, Row::UpdateTime]);
-                }
-            }
+            rows.extend([Row::Elvui, Row::UpdateGame]);
             rows.extend([Row::Section(tr!("cleanup.section_compat")), Row::Outdated]);
         }
-        Tab::Screenshots => rows.extend([Row::Section(tr!("settings.section_screenshots")), Row::ShotsDir, Row::ShotsBy, Row::ShotsFlavor]),
+        Tab::Screenshots => {
+            rows.extend([
+                Row::Section(tr!("settings.section_screenshots")),
+                Row::Note(tr!("settings.shots_manual_note"), false),
+                Row::ShotsDir,
+                Row::ShotsBy,
+                Row::ShotsFlavor,
+            ]);
+            if m.cfg.screenshots_per_flavor {
+                let selected = m.flavors.iter().enumerate().filter(|(_, f)| m.flavor_on(&f.name));
+                rows.extend(selected.map(|(i, _)| Row::ShotsFlavorDir(i)));
+            }
+        }
     }
     rows
 }
@@ -262,6 +288,9 @@ enum Hit {
     Flavor(usize),
     WhenExit,
     WhenSchedule,
+    WhenEvery,
+    BackupEveryDown,
+    BackupEveryUp,
     Day(usize),
     TimeDown,
     TimeUp,
@@ -279,6 +308,7 @@ enum Hit {
     Updates,
     UpdateInterval,
     UpdateSchedule,
+    UpdateStartup,
     EveryDown,
     EveryUp,
     UpdateDay(usize),
@@ -295,6 +325,8 @@ enum Hit {
     ShotsAuto,
     ShotsBy(ShotsBy),
     ShotsFlavor,
+    ShotsFlavorChange(usize),
+    ShotsFlavorAuto(usize),
 }
 
 /// The chips of a card (versions, days): label, on, what a click does.
@@ -328,6 +360,22 @@ fn chip_items(kind: Row, m: &Model) -> Vec<(String, bool, Hit)> {
             .enumerate()
             .map(|(i, d)| (d.short().to_string(), m.cfg.update_days.contains(d), Hit::UpdateDay(i)))
             .collect(),
+        Row::When => [
+            (tr!("settings.after_game"), When::GameExit, Hit::WhenExit),
+            (tr!("settings.by_weekdays"), When::Schedule, Hit::WhenSchedule),
+            (tr!("settings.every_n_days"), When::EveryDays, Hit::WhenEvery),
+        ]
+        .into_iter()
+        .map(|(label, when, hit)| (label.to_string(), m.cfg.backup_when == when, hit))
+        .collect(),
+        Row::UpdateWhen => [
+            (tr!("settings.by_weekdays"), UpdateWhen::Schedule, Hit::UpdateSchedule),
+            (tr!("settings.periodically"), UpdateWhen::Interval, Hit::UpdateInterval),
+            (tr!("settings.at_startup"), UpdateWhen::Startup, Hit::UpdateStartup),
+        ]
+        .into_iter()
+        .map(|(label, when, hit)| (label.to_string(), m.cfg.update_when == when, hit))
+        .collect(),
         _ => Vec::new(),
     }
 }
@@ -338,7 +386,7 @@ fn chips(r: R, kind: Row, m: &Model, f: &Formats) -> Vec<(R, String, bool, Hit)>
     let (mut x, mut y) = (left, r.y + ROW_H - 4.0);
     let mut out = Vec::new();
     for (label, on, hit) in chip_items(kind, m) {
-        let w = (gfx::text_width(&f.button, &label) + 28.0).max(48.0);
+        let w = (gfx::text_width(&f.button, &label) + 28.0 + CHECK_W).max(48.0);
         if x > left && x + w > right {
             x = left;
             y += CHIP_STEP;
@@ -352,7 +400,7 @@ fn chips(r: R, kind: Row, m: &Model, f: &Formats) -> Vec<(R, String, bool, Hit)>
 fn row_height(row: Row, m: &Model, f: &Formats) -> f32 {
     match row {
         Row::Section(_) => SECTION_H,
-        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy => {
+        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy | Row::When | Row::UpdateWhen => {
             let probe = R {
                 x: PAD,
                 y: 0.0,
@@ -365,9 +413,13 @@ fn row_height(row: Row, m: &Model, f: &Formats) -> f32 {
             blocks if blocks.is_empty() => ROW_H,
             blocks => BLOCKS_Y + blocks_height(&blocks, f) + 8.0,
         },
+        Row::Note(text, _) => gfx::text_height(&f.wrap, text, BLOCK_W) + 2.0 * NOTE_PAD,
         _ => ROW_H,
     }
 }
+
+/// Space above and below the text of a `Row::Note`.
+const NOTE_PAD: f32 = 14.0;
 
 /// How a paragraph of the outdated card looks.
 #[derive(Clone, Copy)]
@@ -439,8 +491,6 @@ enum Ctl {
     Card,
     Button(&'static str),
     Chip(String, bool),
-    /// One half of a two-way choice; `true` when selected.
-    Segment(&'static str, bool),
     /// The value box of a stepper; its arrows are separate controls.
     Value(String),
     Arrow(&'static str, bool),
@@ -576,7 +626,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
                 button(&mut out, tr!("settings.auto"), Hit::WowAuto);
             }
         }
-        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy => {
+        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy | Row::When | Row::UpdateWhen => {
             for (r, label, on, hit) in chips(row, kind, m, f) {
                 out.push(Control {
                     r,
@@ -585,34 +635,17 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
                 });
             }
         }
-        Row::When | Row::UpdateWhen => {
-            let segments = if kind == Row::When {
-                let schedule = m.cfg.backup_when == When::Schedule;
-                [
-                    (tr!("settings.by_schedule"), schedule, Hit::WhenSchedule),
-                    (tr!("settings.after_game"), !schedule, Hit::WhenExit),
-                ]
-            } else {
-                let schedule = m.cfg.update_when == UpdateWhen::Schedule;
-                [
-                    (tr!("settings.by_schedule"), schedule, Hit::UpdateSchedule),
-                    (tr!("settings.periodically"), !schedule, Hit::UpdateInterval),
-                ]
-            };
-            // Placed right to left.
-            for (label, selected, hit) in segments {
-                out.push(Control {
-                    r: place(gfx::text_width(&f.button, label) + 28.0, 32.0),
-                    hit: (!selected).then_some(hit),
-                    ctl: Ctl::Segment(label, selected),
-                });
-            }
-        }
         Row::UpdateEvery => {
             let cur = m.cfg.update_every;
             let down = value_of(config::UPDATE_EVERY, cur, false).map(|_| Hit::EveryDown);
             let up = value_of(config::UPDATE_EVERY, cur, true).map(|_| Hit::EveryUp);
             stepper(&mut out, every_label(cur), down, up);
+        }
+        Row::BackupEvery => {
+            let cur = m.cfg.backup_every_days;
+            let down = value_of(config::BACKUP_EVERY_DAYS, cur, false).map(|_| Hit::BackupEveryDown);
+            let up = value_of(config::BACKUP_EVERY_DAYS, cur, true).map(|_| Hit::BackupEveryUp);
+            stepper(&mut out, tr!("settings.days_value", n = cur), down, up);
         }
         Row::Time => stepper(&mut out, m.cfg.time().format("%H:%M").to_string(), Some(Hit::TimeDown), Some(Hit::TimeUp)),
         Row::Keep => {
@@ -657,7 +690,13 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             }
         }
         Row::ShotsFlavor => switch(&mut out, m.cfg.screenshots_per_flavor, Hit::ShotsFlavor),
-        Row::Outdated => {}
+        Row::ShotsFlavorDir(i) => {
+            button(&mut out, tr!("settings.change"), Hit::ShotsFlavorChange(i));
+            if m.flavors.get(i).is_some_and(|f| m.cfg.screenshots_dirs.contains_key(&f.name)) {
+                button(&mut out, tr!("settings.auto"), Hit::ShotsFlavorAuto(i));
+            }
+        }
+        Row::Outdated | Row::Note(..) => {}
     }
     out
 }
@@ -723,7 +762,13 @@ fn path_text(p: &Path) -> String {
 /// Icon, title and subtitle of a card; the subtitle may be an error.
 fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
     match kind {
-        Row::Section(_) => ("", "", String::new(), false),
+        Row::Section(_) | Row::Note(..) => ("", "", String::new(), false),
+        Row::BackupEvery => ("\u{E916}", tr!("settings.backup_every"), tr!("settings.backup_every_sub").into(), false),
+        // The title is the flavor's, put in by `draw`.
+        Row::ShotsFlavorDir(i) => {
+            let path = maintenance::flavor_screenshots_dir(&m.cfg, m.flavors.get(i));
+            ("\u{E8B7}", "", path_text(&path), false)
+        }
         Row::Wow => match (&m.cfg.wow_path, &m.detected) {
             (Some(p), _) => ("\u{E7FC}", tr!("settings.wow"), path_text(p), m.flavors.is_empty()),
             (None, Some(p)) => ("\u{E7FC}", tr!("settings.wow"), tr!("settings.wow_found", path = path_text(p)), false),
@@ -741,6 +786,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             let sub = match m.cfg.backup_when {
                 When::GameExit => tr!("settings.when_exit_sub"),
                 When::Schedule => tr!("settings.when_schedule_sub"),
+                When::EveryDays => tr!("settings.when_every_sub"),
             };
             ("\u{E823}", tr!("settings.when"), sub.into(), false)
         }
@@ -792,6 +838,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
             let sub = match m.cfg.update_when {
                 UpdateWhen::Interval => tr!("settings.update_interval_sub"),
                 UpdateWhen::Schedule => tr!("settings.when_schedule_sub"),
+                UpdateWhen::Startup => tr!("settings.update_startup_sub"),
             };
             ("\u{E823}", tr!("settings.update_when"), sub.into(), false)
         }
@@ -870,6 +917,21 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
             );
             continue;
         }
+        if let Row::Note(text, warn) = kind {
+            let color = if warn { t.warn } else { t.text2 };
+            p.fill(r, 6.0, t.card);
+            p.stroke(r, 6.0, if warn { t.warn } else { t.stroke }, 1.0);
+            let icon = if warn { "\u{E7BA}" } else { "\u{E946}" };
+            p.text(icon, &f.icon, R { x: r.x + 14.0, w: 28.0, ..r }, color);
+            let body = R {
+                x: r.x + 56.0,
+                y: r.y + NOTE_PAD,
+                w: BLOCK_W,
+                h: r.h - 2.0 * NOTE_PAD,
+            };
+            p.text(text, &f.wrap, body, if warn { t.text } else { t.text2 });
+            continue;
+        }
         let ctls = controls(r, kind, m, f);
         let card_hover = ctls.iter().any(|c| matches!(c.ctl, Ctl::Card) && c.hit.is_some() && c.hit == hover);
         p.fill(r, 6.0, if card_hover { t.card_hover } else { t.card });
@@ -878,6 +940,11 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
         p.stroke(r, 6.0, if blocks.is_empty() { t.stroke } else { t.warn }, 1.0);
 
         let (icon, title, sub, sub_error) = texts(kind, m);
+        let flavor_title = match kind {
+            Row::ShotsFlavorDir(i) => m.flavors.get(i).map(wow::Flavor::title).unwrap_or_default(),
+            _ => String::new(),
+        };
+        let title = if flavor_title.is_empty() { title } else { flavor_title.as_str() };
         p.text(
             icon,
             &f.icon,
@@ -924,7 +991,7 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
         }
         p.text(
             &sub,
-            if matches!(kind, Row::Wow | Row::Backups | Row::ShotsDir) {
+            if matches!(kind, Row::Wow | Row::Backups | Row::ShotsDir | Row::ShotsFlavorDir(_)) {
                 &f.path
             } else {
                 &f.sub
@@ -951,7 +1018,7 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
                     let radius = c.r.h / 2.0;
                     if *on {
                         p.fill(c.r, radius, if hovered { lighten(t.accent, t) } else { t.accent });
-                        p.text(label, &f.button, c.r, t.on_accent);
+                        checked(p, label, c.r, f, t.on_accent);
                     } else {
                         p.fill(c.r, radius, if hovered { t.card_hover } else { t.card });
                         p.stroke(c.r, radius, t.text2, 1.0);
@@ -970,17 +1037,6 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
                     p.text(icon, &f.icon_small, c.r, if *enabled { t.text } else { faint(t) });
                 }
                 Ctl::Switch(on) => p.switch(c.r, *on, t),
-                Ctl::Segment(label, selected) => {
-                    let radius = c.r.h / 2.0;
-                    if *selected {
-                        p.fill(c.r, radius, t.accent);
-                        p.text(label, &f.button, c.r, t.on_accent);
-                    } else {
-                        p.fill(c.r, radius, if hovered { t.card_hover } else { t.card });
-                        p.stroke(c.r, radius, t.text2, 1.0);
-                        p.text(label, &f.button, c.r, t.text);
-                    }
-                }
             }
         }
     }
@@ -1040,6 +1096,24 @@ fn draw(p: &Painter, m: &Model, t: &Theme, f: &Formats, tab: Tab, hover: Option<
             );
         }
     }
+}
+
+/// A selected chip's label with a check mark before it, centered together; the color alone is not enough
+/// (a grey accent, color blindness).
+fn checked(p: &Painter, label: &str, r: R, f: &Formats, c: D2D1_COLOR_F) {
+    let tw = gfx::text_width(&f.button, label);
+    let x = r.cx() - (tw + CHECK_W) / 2.0;
+    p.text("\u{E73E}", &f.icon_small, R { x, w: CHECK_W - 4.0, ..r }, c);
+    p.text(
+        label,
+        &f.button,
+        R {
+            x: x + CHECK_W,
+            w: tw + 2.0,
+            ..r
+        },
+        c,
+    );
 }
 
 fn faint(t: &Theme) -> D2D1_COLOR_F {
@@ -1125,6 +1199,10 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
                 m.cfg.backup_days = Day::ALL.to_vec();
             }
         }
+        Hit::WhenEvery => m.cfg.backup_when = When::EveryDays,
+        Hit::BackupEveryDown | Hit::BackupEveryUp => {
+            m.cfg.backup_every_days = value_of(config::BACKUP_EVERY_DAYS, m.cfg.backup_every_days, hit == Hit::BackupEveryUp)?;
+        }
         Hit::TimeDown | Hit::TimeUp => {
             let step = if hit == Hit::TimeUp { 30 } else { -30 };
             m.cfg.backup_time = shift_time(m.cfg.time(), step).format("%H:%M").to_string();
@@ -1159,6 +1237,7 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
             }
         }
         Hit::UpdateInterval => m.cfg.update_when = UpdateWhen::Interval,
+        Hit::UpdateStartup => m.cfg.update_when = UpdateWhen::Startup,
         Hit::UpdateSchedule => {
             m.cfg.update_when = UpdateWhen::Schedule;
             if m.cfg.update_days.is_empty() {
@@ -1211,6 +1290,20 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
         Hit::ShotsAuto => m.cfg.screenshots_dir = None,
         Hit::ShotsBy(by) => m.cfg.screenshots_by = by,
         Hit::ShotsFlavor => m.cfg.screenshots_per_flavor = !m.cfg.screenshots_per_flavor,
+        Hit::ShotsFlavorChange(i) => {
+            let fl = m.flavors.get(i)?.clone();
+            let cur = maintenance::flavor_screenshots_dir(&m.cfg, Some(&fl));
+            let title = tr!("settings.pick_flavor_screenshots", flavor = fl.title());
+            let picked = gfx::pick_folder(hwnd, &title, Some(&cur))?;
+            if picked == cur {
+                return None;
+            }
+            m.cfg.screenshots_dirs.insert(fl.name, picked);
+        }
+        Hit::ShotsFlavorAuto(i) => {
+            let name = &m.flavors.get(i)?.name;
+            m.cfg.screenshots_dirs.remove(name);
+        }
     }
     let path = tray::config_path()?;
     m.message = match m.cfg.save(&path) {
@@ -1345,6 +1438,8 @@ fn click(hwnd: HWND, hit: Hit) {
             w.tab = tab;
             w.scroll = 0.0;
             w.hover = None;
+            // A note about a change on another tab ("old snapshots go with the next backup") is out of place here.
+            w.model.message = None;
             w.model.read_for(tab);
         });
         fit(hwnd);

@@ -108,7 +108,9 @@ El icono muestra el estado actual:
 **Clic izquierdo** abre el panel (estilo Windows 11, sigue el tema claro/oscuro y el color de énfasis):
 
 - Pestaña **Copias**: cuándo se hizo la última copia y cuándo se hacen las copias, **Hacer copia ahora** y los últimos
-  puntos de restauración de cada versión del juego con un botón **Restaurar** (se confirma en la misma fila).
+  puntos de restauración de cada versión del juego con un botón **Restaurar** (se confirma en la misma fila). Mientras
+  se escribe una instantánea, la pestaña y la descripción del icono muestran qué se guarda y cuánto falta
+  («Instantánea Retail · AddOns: 45 %»), y el botón se llena como una barra de progreso.
 - Pestaña **Accesorios**: cuándo se actualizaron los addons por última vez, **Actualizar accesorios** y las cinco
   últimas actualizaciones: qué se actualizó o qué salió mal (pasa el ratón por una fila para ver el texto completo).
 - Pestaña **Limpieza**: lo que se puede ordenar en WTF y en la carpeta del juego, con tamaños y un botón para cada
@@ -136,13 +138,23 @@ Cada cambio se guarda al instante y se aplica sin reiniciar.
 - **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego trabajar (copias, limpieza, perfiles),
   idioma, inicio con Windows, **Notificaciones**, **Buscar actualizaciones** y la versión actual con **Comprobar** /
   **Instalar**, y un enlace a `config.toml` para las opciones que rara vez se necesitan.
-- **Copias**: cuándo hacer la copia (*Tras el juego*, al cerrarlo, o *Programada*: los días de la semana elegidos a una
-  hora fija), cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**,
-  la carpeta de copias.
-- **Accesorios**: el programa con el que actualizar, **No actualizar mientras juegas**, **Actualizar automáticamente** y
-  cuándo: *Periódica* (cada 30 min … 12 h) o *Programada* (días y hora); debajo, todos los addons que no están hechos
-  para la versión actual del juego (mira [Parches del juego](#parches-del-juego)).
+- **Copias**: cuándo hacer la copia (*Tras el juego*, al cerrarlo; *Por días*: los días de la semana elegidos a una
+  hora fija; o *Cada N días*: cada 2 … 30 días a una hora fija, contando desde el día de la última instantánea),
+  cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**, la
+  carpeta de copias.
+- **Accesorios**: primero una aclaración: WoW Tools no descarga los addons él mismo (salvo ElvUI); abre el gestor
+  elegido, y qué addons se actualizan y qué versión llega (estable, beta, alfa) lo deciden los ajustes del gestor.
+  Después un aviso: el gestor de addons instala la nueva versión encima de la anterior, así que los
+  cambios hechos a mano en los archivos de un addon se pierden; marca esos addons como no actualizables en el gestor
+  (CurseForge: actualización automática desactivada, WowUp: Ignorar). Antes de cada actualización, WoW Tools guarda una
+  copia de la carpeta AddOns. Luego **Actualizar automáticamente** y cuándo: *Por días* (días y hora), *Periódica*
+  (cada 30 min … 12 h) o *Al iniciar* (un minuto después de iniciar WoW Tools, normalmente al entrar en Windows; se
+  omite si los addons se actualizaron en la última hora); después **Actualizar con**, ElvUI y **No actualizar mientras
+  juegas**, que también valen para el botón de actualizar del panel. Debajo, todos los addons que no están hechos para
+  la versión actual del juego (mira [Parches del juego](#parches-del-juego)).
 - **Capturas**: adónde mueve la limpieza las capturas y cómo las ordena (ver [Limpieza](#limpieza)).
+
+La opción elegida lleva una marca de verificación.
 
 ## Copias de seguridad: cómo funcionan
 
@@ -153,8 +165,8 @@ Cada cambio se guarda al instante y se aplica sin reiniciar.
 - **Mientras una versión del juego está abierta, sus instantáneas se omiten**: WoW escribe `WTF` y la configuración de
   los addons al cerrar sesión o salir, así que una copia hecha durante la partida estaría a medias. Las demás versiones
   se copian como siempre. En el modo *Tras el juego* la copia se hace unos segundos después de cerrar el cliente.
-- **Programada**: si el ordenador estaba apagado a la hora prevista, la copia se hace al encenderlo; si el juego estaba
-  abierto, justo al cerrarlo. Una copia manual cuenta como programada.
+- **Por días** y **Cada N días**: si el ordenador estaba apagado a la hora prevista, la copia se hace al encenderlo; si
+  el juego estaba abierto, justo al cerrarlo. Una copia manual cuenta como programada.
 - **Conservación**: se guardan las últimas `keep` instantáneas (30 por defecto) de cada serie; las más antiguas se
   eliminan.
 - Los archivos `*.bak` y `*.old` se excluyen (por eso un `WTF` de 155 MB suele quedarse en unos 13 MB). La lista está en
@@ -275,10 +287,12 @@ grandes* abre la lista completa, con tamaños, sobre la pestaña (rueda para des
 | Capturas | `Screenshots\*` | se mueven, por defecto a `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (no se sobrescribe nada); el icono de carpeta abre esa carpeta |
 | Caché y errores | `Cache` y `Errors` | se eliminan; el juego reconstruye la caché: el remedio habitual para rarezas tras un parche |
 
-La pestaña **Capturas** de los ajustes decide adónde van y cómo se ordenan: carpetas
-**Por días**, **Por meses**, **Por años** o **Sin carpetas** (la fecha sale del nombre de archivo de WoW,
-`WoWScrnShot_MMDDYY_HHMMSS`), y **Una carpeta por versión del juego** sí o no. Ordenarlas por personaje no es posible:
-WoW no anota quién hizo la captura.
+Las capturas solo se mueven a mano, con este botón; las copias y las programaciones no las tocan. La pestaña
+**Capturas** de los ajustes decide adónde van y cómo se ordenan: carpetas **Por días**, **Por meses**, **Por años** o
+**Sin carpetas** (la fecha sale del nombre de archivo de WoW, `WoWScrnShot_MMDDYY_HHMMSS`), y **Una carpeta por versión
+del juego** sí o no. Si está activada, cada versión del juego elegida tiene su propia tarjeta: **Cambiar…** le asigna
+cualquier carpeta, **Auto** vuelve a `<carpeta común>\<versión>`. Ordenarlas por personaje no es posible: WoW no
+anota quién hizo la captura.
 
 Cada botón pregunta antes **¿Seguro?**. Mientras trabaja, un icono gira en lugar del
 botón y después el resultado aparece en la fila. Solo la caché de una versión del juego abierta espera a que se cierre;

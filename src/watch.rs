@@ -109,6 +109,8 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
     let mut last_update = updater::last_run();
     let mut update_retry_at = Instant::now();
     let mut patch_check_at = Instant::now();
+    // `UpdateWhen::Startup` updates once after this.
+    let started = Local::now().naive_local();
     loop {
         match Ctx::load(config_path, explicit_config) {
             Ok(fresh) => ctx = fresh,
@@ -147,7 +149,7 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
             }
             None => match ctx.cfg.backup_when {
                 When::GameExit => just_closed,
-                When::Schedule => ctx.cfg.schedule_due(now, last_done) && Instant::now() >= retry_at,
+                When::Schedule | When::EveryDays => ctx.cfg.schedule_due(now, last_done) && Instant::now() >= retry_at,
             },
         };
         if due {
@@ -167,7 +169,7 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
         // Automatic addon update (schedule or interval): with `update_skip_in_game` only with the game
         // closed (addons are swapped under it otherwise); then it runs right after the game exits.
         let game_ok = was_running.is_none() || !ctx.cfg.update_skip_in_game;
-        if ctx.cfg.update_due(now, last_update) && game_ok && Instant::now() >= update_retry_at {
+        if ctx.cfg.update_due(now, last_update, started) && game_ok && Instant::now() >= update_retry_at {
             emit(Event::Busy(Work::Addons));
             let result = app::update_addons(&ctx, false);
             match &result {

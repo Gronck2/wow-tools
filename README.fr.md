@@ -113,7 +113,8 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
 
 - Onglet **Sauvegarde** : l'heure de la dernière sauvegarde et quand les sauvegardes ont lieu, **Sauvegarder**, et les
   derniers points de restauration de chaque version du jeu avec un bouton **Restaurer** (confirmation directement dans
-  la ligne).
+  la ligne). Pendant l'écriture d'une sauvegarde, l'onglet et l'info-bulle de l'icône montrent ce qui est sauvegardé
+  et où on en est (« Sauvegarde Retail · AddOns : 45 % »), et le bouton se remplit comme une barre de progression.
 - Onglet **Addons** : la date de la dernière mise à jour des addons, **Mettre à jour les addons**, et les cinq
   dernières mises à jour — ce qui a été mis à jour ou ce qui a échoué (survolez une ligne pour voir le texte complet).
 - Onglet **Nettoyage** : ce qui peut être rangé dans WTF et le dossier du jeu, avec les tailles et un bouton pour
@@ -142,13 +143,24 @@ Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 - **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), langue,
   lancement avec Windows, **Notifications**, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** /
   **Installer**, et un lien vers `config.toml` pour les options rarement utiles.
-- **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, ou *Planifié* — les jours choisis à une heure
-  donnée), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la fermeture du jeu**,
-  dossier des sauvegardes.
-- **Addons** : le programme de mise à jour, **Pas de mise à jour en jeu**, **Mise à jour automatique**, et quand —
-  *Périodique* (toutes les 30 min … 12 h) ou *Planifié* (jours et heure) ; en dessous, tous les addons qui ne sont pas
-  faits pour la version actuelle du jeu (voir [Patchs du jeu](#patchs-du-jeu)).
+- **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, *Par jour* — les jours de la semaine choisis à
+  une heure donnée, ou *Tous les N jours* — tous les 2 … 30 jours à une heure donnée, à compter du jour de la dernière
+  sauvegarde), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la
+  fermeture du jeu**, dossier des sauvegardes.
+- **Addons** : d'abord une explication — WoW Tools ne télécharge pas les addons lui-même (sauf ElvUI) : il lance le
+  gestionnaire choisi, et quels addons sont mis à jour et quelle version arrive (release, bêta, alpha) dépend des
+  réglages du gestionnaire. Puis un avertissement — le gestionnaire d'addons installe la nouvelle version par-dessus l'ancienne,
+  donc les modifications faites à la main dans les fichiers d'un addon sont perdues : marquez ces addons comme non mis
+  à jour dans le gestionnaire (CurseForge : mise à jour auto désactivée, WowUp : Ignorer) ; avant chaque mise à jour,
+  WoW Tools garde une copie du dossier AddOns. Puis **Mise à jour automatique**, et quand — *Par jour* (jours et
+  heure), *Périodique* (toutes les 30 min … 12 h) ou *Au démarrage* (une minute après le démarrage de WoW Tools, en
+  général à l'ouverture de session Windows ; sautée si les addons ont été mis à jour dans l'heure) ; ensuite
+  **Mettre à jour avec**, ElvUI et **Pas de mise à jour en jeu**, qui valent aussi pour le bouton de mise à jour du
+  panneau. En dessous, tous les addons qui ne sont pas faits pour la version actuelle du jeu (voir
+  [Patchs du jeu](#patchs-du-jeu)).
 - **Captures** : où le nettoyage déplace les captures d'écran et comment il les classe (voir [Nettoyage](#nettoyage)).
+
+Une option choisie est marquée d'une coche.
 
 ## Fonctionnement des sauvegardes
 
@@ -161,8 +173,9 @@ Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
   à la déconnexion ou en quittant, une copie faite en cours de partie serait donc à moitié périmée. Les autres versions
   sont sauvegardées normalement. En mode *Après le jeu*, la sauvegarde a lieu quelques secondes après la fermeture du
   client.
-- **Planifié** : si l'ordinateur était éteint à l'heure prévue, la sauvegarde se fait à son allumage ; si le jeu était
-  lancé, juste après sa fermeture. Une sauvegarde manuelle compte comme une sauvegarde planifiée.
+- **Par jour** et **Tous les N jours** : si l'ordinateur était éteint à l'heure prévue, la sauvegarde se fait à son
+  allumage ; si le jeu était lancé, juste après sa fermeture. Une sauvegarde manuelle compte comme une sauvegarde
+  planifiée.
 - **Conservation** : les `keep` dernières sauvegardes (30 par défaut) de chaque série sont conservées, les plus
   anciennes sont supprimées.
 - Les fichiers `*.bak` et `*.old` sont exclus (c'est pourquoi un `WTF` de 155 Mo tient généralement dans ~13 Mo). La
@@ -287,10 +300,12 @@ fermer).
 | Captures d'écran | `Screenshots\*` | déplacées, par défaut vers `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (« Images » dans l'Explorateur ; rien n'est écrasé) ; l'icône de dossier ouvre ce dossier |
 | Cache et erreurs | `Cache` et `Errors` | supprimés ; le jeu reconstruit le cache — le remède habituel aux bizarreries après un patch |
 
+Les captures ne sont déplacées qu'à la main, avec ce bouton ; les sauvegardes et les planifications n'y touchent pas.
 L'onglet **Captures** des paramètres règle où elles vont et comment elles sont classées :
 dossiers **Par jour**, **Par mois**, **Par année** ou **Sans dossiers** (la date vient du nom de fichier de WoW,
-`WoWScrnShot_MMDDYY_HHMMSS`), et **Un dossier par version du jeu** activé ou non. Classer par personnage est
-impossible : WoW n'écrit pas qui a pris la capture.
+`WoWScrnShot_MMDDYY_HHMMSS`), et **Un dossier par version du jeu** activé ou non. Activé, chaque version du jeu
+choisie a sa propre carte : **Modifier…** lui donne n'importe quel dossier, **Auto** revient à
+`<dossier commun>\<version>`. Classer par personnage est impossible : WoW n'écrit pas qui a pris la capture.
 
 Chaque bouton demande d'abord **Sûr ?**. Pendant le travail, une roue tourne à la place
 du bouton, puis le résultat s'affiche dans la ligne. Seul le cache d'une version du jeu lancée attend sa fermeture ; le

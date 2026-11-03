@@ -1059,6 +1059,14 @@ pub fn busy_text(work: Work) -> &'static str {
     }
 }
 
+/// What the worker is busy with, and how far the snapshot it writes is ("Snapshot Retail · AddOns: 45%").
+pub fn busy_line(s: &Status) -> String {
+    match &s.progress {
+        Some(p) => tr!("panel.busy_progress", what = &p.what, percent = p.percent()),
+        None => busy_text(s.work).to_string(),
+    }
+}
+
 /// The card at the top of a tab: a big icon, a bold line and a smaller one under it.
 fn draw_status(p: &Painter, t: &Theme, f: &Formats, icon: (&str, D2D1_COLOR_F), line1: &str, line2: (&str, D2D1_COLOR_F)) {
     let card = status_card();
@@ -1144,7 +1152,7 @@ fn draw_addons(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
         None => tr!("panel.never_updated").to_string(),
     };
     let (line2, line2_color) = match v.update_app {
-        _ if updating => (busy_text(s.work).to_string(), t.text2),
+        _ if updating => (busy_line(s), t.text2),
         None => (tr!("panel.no_addon_app").to_string(), t.error),
         Some(_) if failed => (tr!("panel.last_failed").to_string(), t.error),
         Some(app) if v.update_waits_for_game => (tr!("panel.update_after_game", app = app), t.text2),
@@ -1391,7 +1399,10 @@ fn draw_cleanup(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit
     }
 }
 
-const PROF_LABEL_Y: f32 = CLEAN_Y + ROW_STEP + 8.0;
+/// The "at your own risk" note under the save card.
+const PROF_WARN_Y: f32 = CLEAN_Y + ROW_STEP;
+const PROF_WARN_H: f32 = 66.0;
+const PROF_LABEL_Y: f32 = PROF_WARN_Y + PROF_WARN_H + 8.0;
 const PROF_LIST_Y: f32 = PROF_LABEL_Y + LABEL_H;
 
 /// The "save a profile" card at the top of the profiles tab.
@@ -1618,6 +1629,37 @@ fn draw_profiles(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hi
         button(p, f, save, "", tr!("profiles.save_button"), style, t);
     }
 
+    // Applying writes into another character's settings and addons' tables: say that it can go wrong.
+    let warn = R {
+        x: PAD,
+        y: PROF_WARN_Y,
+        w: W - 2.0 * PAD,
+        h: PROF_WARN_H,
+    };
+    p.fill(warn, 6.0, t.card);
+    p.stroke(warn, 6.0, t.warn, 1.0);
+    p.text(
+        "\u{E7BA}",
+        &f.icon,
+        R {
+            x: warn.x + 8.0,
+            w: 24.0,
+            ..warn
+        },
+        t.warn,
+    );
+    p.text(
+        tr!("profiles.risk_note"),
+        &f.wrap,
+        R {
+            x: warn.x + 40.0,
+            y: warn.y + 8.0,
+            w: warn.w - 48.0,
+            h: warn.h - 16.0,
+        },
+        t.text,
+    );
+
     let label = R {
         x: PAD,
         y: PROF_LABEL_Y,
@@ -1726,16 +1768,29 @@ fn draw_backup(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
         None => tr!("panel.no_backups").to_string(),
     };
     let (line2, line2_color) = match (phase, &s.game) {
-        (Phase::Busy, _) => (busy_text(s.work).to_string(), t.text2),
+        (Phase::Busy, _) => (busy_line(s), t.text2),
         (Phase::Error(e), _) => (tr!("panel.error", error = e.lines().next().unwrap_or_default()), t.error),
         (Phase::Idle, Some(_)) => (tr!("panel.backup_after_game").to_string(), t.text2),
         (Phase::Idle, None) => (v.schedule.clone(), t.text2),
     };
     draw_status(p, t, f, (icon, icon_color), &line1, (&line2, line2_color));
 
-    // Backup button.
+    // Backup button; while a snapshot is written it fills up like a progress bar.
     if *phase == Phase::Busy {
-        button(p, f, button_rect(), "\u{E895}", busy_text(s.work), Style::Disabled, t);
+        let r = button_rect();
+        button(p, f, r, "\u{E895}", busy_text(s.work), Style::Disabled, t);
+        if let Some(progress) = &s.progress {
+            let mut c = t.accent;
+            c.a = 0.3;
+            p.fill(
+                R {
+                    w: r.w * progress.percent() as f32 / 100.0,
+                    ..r
+                },
+                4.0,
+                c,
+            );
+        }
     } else if busy {
         button(p, f, button_rect(), "\u{E74E}", tr!("panel.backup_now"), Style::Disabled, t);
     } else {

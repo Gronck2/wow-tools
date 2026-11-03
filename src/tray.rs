@@ -64,6 +64,8 @@ pub struct Status {
     pub work: Work,
     pub last: Option<NaiveDateTime>,
     pub game: Option<String>,
+    /// The snapshot being written (`snapshot::progress`), filled in when shown.
+    pub progress: Option<crate::snapshot::Progress>,
 }
 
 /// One WTF snapshot and the addons snapshot a restore to it would use.
@@ -218,6 +220,7 @@ static STATE: Mutex<State> = Mutex::new(State {
         work: Work::Backup,
         last: None,
         game: None,
+        progress: None,
     },
     balloon: None,
     shown_error: None,
@@ -338,6 +341,8 @@ pub fn run(ctx: Ctx) -> Result<()> {
             bail!(tr!("tray.no_window"));
         }
         HWND_MAIN.store(hwnd as isize, Ordering::Relaxed);
+        // The tooltip and the panel show how far a snapshot is.
+        crate::snapshot::on_progress(post_state);
         TASKBAR_CREATED.store(RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()), Ordering::Relaxed);
         hwnd
     };
@@ -480,7 +485,8 @@ pub fn view() -> View {
         tr!("panel.auto_update_off").into()
     };
     let st = STATE.lock().unwrap();
-    let (status, self_update, scan, cleaning, cleaned) = (st.status.clone(), st.update.clone(), st.scan.clone(), st.cleaning, st.cleaned.clone());
+    let (mut status, self_update, scan, cleaning, cleaned) = (st.status.clone(), st.update.clone(), st.scan.clone(), st.cleaning, st.cleaned.clone());
+    status.progress = crate::snapshot::progress();
     let (chars, profile_job, profile_done) = (st.chars.clone(), st.profile_job.clone(), st.profile_done.clone());
     drop(st);
     View {
@@ -1042,7 +1048,7 @@ fn tooltip(s: &Status) -> String {
     };
     tip.push_str(&format!("\n{line}"));
     let line = match &s.phase {
-        Phase::Busy => panel::busy_text(s.work).to_string(),
+        Phase::Busy => panel::busy_line(s),
         Phase::Error(e) => tr!("panel.error", error = e),
         Phase::Idle if s.game.is_some() => tr!("panel.backup_after_game").to_string(),
         Phase::Idle => String::new(),
@@ -1056,6 +1062,7 @@ fn tooltip(s: &Status) -> String {
 unsafe fn update_tray(hwnd: HWND, action: u32) {
     let (id, badge, tip, balloon) = {
         let mut st = STATE.lock().unwrap();
+        st.status.progress = crate::snapshot::progress();
         let s = &st.status;
         // Gold while the game runs, grey otherwise; a dot for work (blue) or a failure (red).
         let id = if s.game.is_some() { ICON_APP } else { ICON_IDLE };

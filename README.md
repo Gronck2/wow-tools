@@ -105,7 +105,9 @@ The icon shows the current state:
 **Left click** opens the panel (Windows 11 style, follows the light/dark theme and the accent colour):
 
 - **Backup** tab: when the last backup was taken and when backups run, **Back up now**, and the latest restore
-  points of every game version with a **Restore** button (confirmed right in the row).
+  points of every game version with a **Restore** button (confirmed right in the row). While a snapshot is written,
+  the tab and the icon's tooltip show what is being saved and how far it is ("Snapshot Retail · AddOns: 45%"), and
+  the button fills up like a progress bar.
 - **Addons** tab: when addons were last updated, **Update addons**, and the last five update runs — what was updated
   or what went wrong (hover a row for the full text).
 - **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
@@ -131,12 +133,21 @@ Every change is saved at once and applied without a restart.
 - **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), language,
   start with Windows, **Notifications**, **Check for updates** and the current version with **Check** / **Install**, and a link to
   `config.toml` for the rarely needed options.
-- **Backup**: when to back up (*after the game* closes, or *on schedule* — chosen weekdays at a set time), how many
-  snapshots to keep, the **Back up addons** and **Wait for the game to exit** switches, the backups folder.
-- **Addons**: the program to update with, **Don't update while playing**, **Update automatically**, and when —
-  *periodically* (every 30 min … 12 h) or *on schedule* (days and time); below, every addon that is not made for the
-  current game version (see [Game patches](#game-patches)).
+- **Backup**: when to back up (*After the game* closes, *By weekday* — chosen weekdays at a set time, or *Every N days*
+  — every 2 … 30 days at a set time, counted from the day of the last snapshot), how many snapshots to keep, the
+  **Back up addons** and **Wait for the game to exit** switches, the backups folder.
+- **Addons**: a note first — WoW Tools does not download addons itself (except ElvUI): it starts the chosen manager,
+  and which addons are updated and which version comes (release, beta, alpha) is up to the manager's own settings.
+  Then a warning — the addon manager installs a new version over the old one, so changes you made to an
+  addon's files by hand are lost: mark such addons as not updated in the manager (CurseForge: auto-update off, WowUp:
+  Ignore); WoW Tools saves a copy of the AddOns folder before every update. Then **Update automatically** and when —
+  *By weekday* (days and time), *Periodically* (every 30 min … 12 h) or *At start* (a minute after WoW Tools starts,
+  usually when you sign in to Windows; skipped if addons were updated within the last hour); then **Update with**,
+  ElvUI and **Don't update while playing**, which also apply to the panel's update button. Below, every addon that is
+  not made for the current game version (see [Game patches](#game-patches)).
 - **Screenshots**: where the cleanup moves screenshots and how it sorts them (see [Cleanup](#cleanup)).
+
+A selected option is marked with a check mark.
 
 ## Backups: how they work
 
@@ -147,8 +158,8 @@ Every change is saved at once and applied without a restart.
 - **While a game version runs, its snapshots are skipped**: WoW writes `WTF` and addon settings when you log out or
   exit, so a copy made during play would be half old. Other versions are backed up as usual. In *after the game*
   mode the backup is taken a few seconds after the client closes.
-- **On schedule**: if the computer was off at the scheduled time, the backup is taken when it is back on; if the game
-  was running, right after it closes. A manual backup counts as a scheduled one.
+- **By weekday** and **Every N days**: if the computer was off at the scheduled time, the backup is taken when it is
+  back on; if the game was running, right after it closes. A manual backup counts as a scheduled one.
 - **Retention**: the latest `keep` snapshots (30 by default) of each series are kept, older ones are deleted.
 - `*.bak` and `*.old` files are left out (that is why a 155 MB `WTF` usually fits in ~13 MB). The list is
   `exclude_ext` in `config.toml`.
@@ -259,9 +270,12 @@ button of *Removed addons* and of *Biggest addon settings* opens the full list, 
 | Screenshots | `Screenshots\*` | moved, by default to `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nothing is overwritten); the folder icon opens that folder |
 | Cache and errors | `Cache` and `Errors` | deleted; the game rebuilds the cache — the usual cure for oddities after a patch |
 
-The **Screenshots** tab of the settings sets where they go and how they are sorted: folders **By day**, **By month**,
-**By year** or **No folders** (the date comes from WoW's file name, `WoWScrnShot_MMDDYY_HHMMSS`), and **A folder per
-game version** on or off. Sorting by character is not possible: WoW does not write who took a screenshot.
+Screenshots are moved only by hand, with this button; backups and schedules leave them alone. The **Screenshots** tab
+of the settings sets where they go and how they are sorted: folders **By day**, **By month**, **By year** or
+**No folders** (the date comes from WoW's file name, `WoWScrnShot_MMDDYY_HHMMSS`), and **A folder per game version**
+on or off. With it on, every selected game version has its own card: **Change…** picks any folder for it, **Auto**
+goes back to `<common folder>\<version>`. Sorting by character is not possible: WoW does not write who took a
+screenshot.
 
 Every button asks **Sure?** first. While it works, a spinner stands in for the button, and the result shows in the row. Only the cache
 of a running game version waits for it to close; everything else is tidied up while you play (the game does not hold

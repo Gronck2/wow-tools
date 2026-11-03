@@ -338,6 +338,22 @@ pub fn screenshots_dir(cfg: &Config) -> PathBuf {
     pictures.join("World of Warcraft")
 }
 
+/// Where the screenshots of `fl` go (above the date folders): its own folder when one was chosen, else
+/// `<screenshots_dir>\<title>` with `screenshots_per_flavor`, else `screenshots_dir`.
+pub fn flavor_screenshots_dir(cfg: &Config, fl: Option<&Flavor>) -> PathBuf {
+    if !cfg.screenshots_per_flavor {
+        return screenshots_dir(cfg);
+    }
+    match fl {
+        Some(fl) => cfg
+            .screenshots_dirs
+            .get(&fl.name)
+            .cloned()
+            .unwrap_or_else(|| screenshots_dir(cfg).join(fl.title())),
+        None => screenshots_dir(cfg).join("World of Warcraft"),
+    }
+}
+
 fn installed_addons(fl: &Flavor) -> Option<HashSet<String>> {
     let entries = fs::read_dir(fl.dir.join(r"Interface\AddOns")).ok()?;
     Some(entries.flatten().map(|e| e.file_name().to_string_lossy().to_lowercase()).collect())
@@ -540,16 +556,9 @@ fn shot_date(path: &Path) -> Option<chrono::NaiveDate> {
     })
 }
 
-/// `<flavor>\Screenshots\x.jpg` -> `<screenshots_dir>\[<flavor title>\][<date folder>\]x.jpg`.
+/// `<flavor>\Screenshots\x.jpg` -> `<flavor_screenshots_dir>\[<date folder>\]x.jpg`.
 fn move_screenshot(path: &Path, flavors: &[Flavor], cfg: &Config) -> Result<()> {
-    let mut dir = screenshots_dir(cfg);
-    if cfg.screenshots_per_flavor {
-        let title = flavors
-            .iter()
-            .find(|fl| path.starts_with(&fl.dir))
-            .map_or_else(|| "World of Warcraft".to_string(), Flavor::title);
-        dir.push(title);
-    }
+    let mut dir = flavor_screenshots_dir(cfg, flavors.iter().find(|fl| path.starts_with(&fl.dir)));
     let format = match cfg.screenshots_by {
         ShotsBy::Year => Some("%Y"),
         ShotsBy::Month => Some("%Y-%m"),
@@ -729,6 +738,18 @@ mod tests {
         touch(&shot, 2);
         move_screenshot(&shot, std::slice::from_ref(&fl), &cfg).unwrap();
         assert!(root.join("b.png").exists());
+        // A folder of its own for this game version, anywhere; only with the per-version switch.
+        let own = root.parent().unwrap().join("retail-shots");
+        cfg.screenshots_dirs.insert(fl.name.clone(), own.clone());
+        let shot = fl.dir.join(r"Screenshots\c.png");
+        touch(&shot, 2);
+        move_screenshot(&shot, std::slice::from_ref(&fl), &cfg).unwrap();
+        assert!(root.join("c.png").exists(), "switch off: the common folder");
+        cfg.screenshots_per_flavor = true;
+        let shot = fl.dir.join(r"Screenshots\d.png");
+        touch(&shot, 2);
+        move_screenshot(&shot, std::slice::from_ref(&fl), &cfg).unwrap();
+        assert!(own.join("d.png").exists());
     }
 
     #[test]

@@ -96,10 +96,21 @@ pub fn theme() -> Theme {
     theme_for(dark)
 }
 
+/// An 0xAABBGGRR color with almost no hue (HSV saturation under 25%).
+fn is_greyish(c: u32) -> bool {
+    let (r, g, b) = (c as u8, (c >> 8) as u8, (c >> 16) as u8);
+    let (max, min) = (r.max(g).max(b) as f32, r.min(g).min(b) as f32);
+    max == 0.0 || (max - min) / max < 0.25
+}
+
 /// A light or dark theme with the system accent (`--ui-snapshot` forces either).
 pub fn theme_for(dark: bool) -> Theme {
     // AccentColor is stored as 0xAABBGGRR.
-    let a = read_dword(r"Software\Microsoft\Windows\DWM", "AccentColor").unwrap_or(0xFFD47800);
+    const BLUE: u32 = 0xFFD47800;
+    let a = read_dword(r"Software\Microsoft\Windows\DWM", "AccentColor").unwrap_or(BLUE);
+    // A grey accent (picked by hand or from a grey wallpaper) makes a selected chip or a switch that is on look
+    // disabled, so the Windows default blue stands in for it.
+    let a = if is_greyish(a) { BLUE } else { a };
     let (mut r, mut g, mut b) = (a as u8, (a >> 8) as u8, (a >> 16) as u8);
     if dark {
         // A lighter accent reads better on dark backgrounds, like Windows does.
@@ -615,4 +626,20 @@ pub fn render_png(path: &str, w: f32, h: f32, scale: f32, draw: impl FnOnce(&Pai
         encoder.Commit()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn grey_accent_is_replaced() {
+        // 0xAABBGGRR
+        assert!(is_greyish(0xFF4C4C4C)); // the "Steel" greys of the Windows palette
+        assert!(is_greyish(0xFF767676));
+        assert!(is_greyish(0xFF000000));
+        assert!(!is_greyish(0xFFD47800)); // default blue
+        assert!(!is_greyish(0xFF2311E8)); // red
+        assert!(!is_greyish(0xFF5E7C2D)); // dark green
+    }
 }

@@ -79,7 +79,7 @@ Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|busy-addons|addons|addons-busy|addons-tip|addons-empty|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -92,7 +92,8 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 - `watch.rs`: the loop (config re-read every round): `When::GameExit` backs up when a client closes; `When::Schedule`
   at `backup_days` + `backup_time`: `Config::schedule_due(now, last)` is true when the latest scheduled moment (last
   8 days) is after the last snapshot, which also catches up a moment missed while the PC was off; manual and earlier
-  snapshots count. If the game held it back or it failed, retried after 10 min or right when the game closes;
+  snapshots count. `When::EveryDays`: `backup_every_days` after the last snapshot's day, at `backup_time` (caught up the
+  same way). If the game held it back or it failed, retried after 10 min or right when the game closes;
   `watch --interval N` is a plain timer instead. `Request` channel (backup now,
   restore) and `Event` callback. Used by `watch` (no requests) and by the tray worker thread.
 - `tray.rs`: hidden window, single-instance mutex, tray icon from the exe's resources (`build.rs` +
@@ -123,7 +124,10 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 - `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game + system only), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
   top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
   switches and on changes that add or remove cards, top edge kept): game folder
-  (folder picker, "Авто"), flavors as chips, "when" (after game / by schedule) + weekday chips, keep stepper,
+  (folder picker, "Авто"), flavors as chips, "when" as chips (after game / by weekday / every N days; addons: by weekday /
+  periodically / at start) + weekday chips, keep stepper; a selected chip has a check mark (`checked`: a grey accent,
+  which `gfx::theme_for` swaps for blue, made selected chips look disabled); `Row::Note` = a text-only card (the
+  addons tab's hand-edits warning above the main switch, the screenshots tab's "moved only by hand"),
   switches, backup folder, autostart, a link to
   `config.toml` for the rest (`exclude_ext`). Every click saves the config at once. A second start of the exe
   posts `WM_SHOW_SETTINGS` to the running tray instead of exiting silently.
@@ -146,6 +150,8 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 - `snapshot.rs`: `<backup_dir>/<flavor>/<wtf|addons>/<YYYYmmdd-HHMMSS>[-label].zip`, paths inside relative to the
   flavor dir. A fingerprint (paths+sizes+mtimes) in `last.fingerprint` skips unchanged trees. Restore extracts to a
   staging dir and swaps folders. `restore` and `copy-char` first take a forced `pre-restore`/`pre-copy` snapshot.
+  `snapshot::progress()` is the zip being written (what, bytes done/all); the tray registers `on_progress` (`post_state`
+  on every percent), the panel's status line + backup button and the tooltip show it (`panel::busy_line`).
 - `updater.rs`: `AddonApp` (CurseForge, WowUp, WowUp-CF, Wago App), detection by exe under
   `%LOCALAPPDATA%\Programs`, `chosen(cfg.update_app)` (one app only: two managers over one AddOns folder fight;
   unset/uninstalled = first installed; the settings show a lone app as a single selected chip), the shared
@@ -182,7 +188,8 @@ of the process while it runs. Only per-addon
   (`installedFile.id` per `addonID`) and the outdated ones (`latestFile.id` differs). `app::update_addons` first takes
   an addons snapshot labelled `pre-update` (not listed in the panel; `restore <id> --kind addons`). The update runs on
   its own schedule (`update_addons`, `update_when`: `schedule` = `update_days`/`update_time`, or `interval` = every
-  `update_every` minutes since the last run; game closed) (`update_skip_in_game`, on by default: also refuses a manual
+  `update_every` minutes since the last run, or `startup` = a minute after the loop starts unless it updated in the hour
+  before; game closed) (`update_skip_in_game`, on by default: also refuses a manual
   run while a client runs, before anything is recorded; the panel button is off then); the last run is in `data\addon-update.last`.
   Spawned tools use null stdio (`quiet_command`), which also avoids os error 50 in the tray.
   With the instance-level `preferenceAutoInstallUpdates` off the app only checks, so for our run it is switched on in
@@ -221,7 +228,8 @@ of the process while it runs. Only per-addon
   (`.lua`, `.lua.bak`) under any `SavedVariables` folder whose addon folder is not in `Interface\AddOns` (no AddOns
   folder = not judged; `Blizzard*` kept); `Backups` = other `.bak`/`.old` in WTF; `Logs` = `Logs\WoWCombatLog*.txt`
   older than 7 days; `Screenshots` = moved to `screenshots_dir(cfg)` (default `Pictures\World of Warcraft`),
-  `<flavor title>\` if `screenshots_per_flavor`, a date folder per `ShotsBy` (date from `WoWScrnShot_MMDDYY_HHMMSS`,
+  `<flavor title>\` (or the flavor's own folder from `screenshots_dirs`, `flavor_screenshots_dir`) if
+  `screenshots_per_flavor`, a date folder per `ShotsBy` (date from `WoWScrnShot_MMDDYY_HHMMSS`,
   else mtime; never overwrites, copy+remove across drives); `Cache` = `Cache` + `Errors`. Orphans take a `pre-cleanup` WTF
   snapshot first (`.bak`/`.old` are not in snapshots, so Backups need none); only the cache of a running flavor is skipped (`Item::needs_closed_game`: orphans belong to
   addons the game has not loaded, `.bak` copies are made again on exit, logs and screenshots are never read back).

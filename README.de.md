@@ -112,7 +112,9 @@ Das Symbol zeigt den aktuellen Zustand:
 
 - Reiter **Sicherung**: wann die letzte Sicherung erstellt wurde und wann gesichert wird, **Jetzt sichern** und die
   neuesten Wiederherstellungspunkte jeder Spielversion mit der Schaltfläche **Zurück** (bestätigt wird direkt in der
-  Zeile mit **Wiederherstellen**).
+  Zeile mit **Wiederherstellen**). Während eine Sicherung geschrieben wird, zeigen der Reiter und der Tooltip des
+  Symbols, was gesichert wird und wie weit es ist („Sicherung Retail · AddOns: 45 %“), und die Schaltfläche füllt sich
+  wie ein Fortschrittsbalken.
 - Reiter **Addons**: wann die Addons zuletzt aktualisiert wurden, **Addons aktualisieren** und die letzten fünf
   Update-Läufe – was aktualisiert wurde oder was schiefging (für den vollständigen Text den Mauszeiger auf die Zeile
   halten).
@@ -141,13 +143,23 @@ Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 - **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile),
   Sprache, Start mit Windows, **Benachrichtigungen**, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** /
   **Installieren** sowie ein Link zu `config.toml` für selten benötigte Optionen.
-- **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, oder *Nach Zeitplan* – an gewählten
-  Wochentagen zu einer festen Uhrzeit), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und
-  **Auf Spielende warten**, der Sicherungsordner.
-- **Addons**: das Programm für die Updates, **Nicht während des Spielens**, **Automatisch aktualisieren** und wann –
-  *Regelmäßig* (alle 30 Min. … 12 Std.) oder *Nach Zeitplan* (Tage und Uhrzeit); darunter jedes Addon, das nicht
-  für die aktuelle Spielversion gemacht ist (siehe [Spiel-Patches](#spiel-patches)).
+- **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, *Nach Wochentagen* – an gewählten Tagen zu
+  einer festen Uhrzeit – oder *Alle N Tage* – alle 2 … 30 Tage zu einer festen Uhrzeit, gezählt ab dem Tag der letzten
+  Sicherung), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und **Auf Spielende warten**, der
+  Sicherungsordner.
+- **Addons**: zuerst eine Erklärung – WoW Tools lädt Addons nicht selbst herunter (außer ElvUI): Es startet den
+  gewählten Manager, und welche Addons aktualisiert werden und welche Version kommt (Release, Beta, Alpha), bestimmen
+  dessen eigene Einstellungen. Dann ein Hinweis – der Addon-Manager installiert die neue Version über die alte, Änderungen, die Sie
+  von Hand an den Dateien eines Addons gemacht haben, gehen also verloren: Markieren Sie solche Addons im Manager als
+  nicht zu aktualisieren (CurseForge: automatische Updates aus, WowUp: Ignorieren); vor jedem Update sichert WoW Tools
+  eine Kopie des AddOns-Ordners. Dann **Automatisch aktualisieren** und wann – *Nach Wochentagen* (Tage und Uhrzeit),
+  *Regelmäßig* (alle 30 Min. … 12 Std.) oder *Beim Start* (eine Minute nach dem Start von WoW Tools, meist bei der
+  Windows-Anmeldung; entfällt, wenn die Addons in der letzten Stunde aktualisiert wurden); danach **Aktualisieren mit**,
+  ElvUI und **Nicht während des Spielens**, die auch für die Update-Schaltfläche im Bereich gelten. Darunter jedes
+  Addon, das nicht für die aktuelle Spielversion gemacht ist (siehe [Spiel-Patches](#spiel-patches)).
 - **Screenshots**: wohin das Aufräumen Screenshots verschiebt und wie es sie sortiert (siehe [Aufräumen](#aufräumen)).
+
+Eine gewählte Option trägt ein Häkchen.
 
 ## Sicherungen: so funktionieren sie
 
@@ -160,8 +172,8 @@ Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
   Addon-Einstellungen beim Ausloggen oder Beenden, eine Kopie während des Spielens wäre also halb veraltet. Andere
   Versionen werden wie gewohnt gesichert. Im Modus *Nach dem Spiel* wird die Sicherung wenige Sekunden nach dem
   Schließen des Clients erstellt.
-- **Nach Zeitplan**: War der PC zur geplanten Zeit aus, wird nach dem Einschalten gesichert; lief das Spiel, direkt
-  nach dem Beenden. Eine manuelle Sicherung zählt als geplante.
+- **Nach Wochentagen** und **Alle N Tage**: War der PC zur geplanten Zeit aus, wird nach dem Einschalten gesichert;
+  lief das Spiel, direkt nach dem Beenden. Eine manuelle Sicherung zählt als geplante.
 - **Aufbewahrung**: Die neuesten `keep` Sicherungen (standardmäßig 30) jeder Reihe bleiben erhalten, ältere werden
   gelöscht.
 - `*.bak`- und `*.old`-Dateien werden ausgelassen (deshalb passt ein 155 MB großer `WTF`-Ordner meist in ~13 MB). Die
@@ -286,10 +298,13 @@ und *Größte Addon-Einstellungen* öffnet die vollständige Liste mit Größen 
 | Screenshots | `Screenshots\*` | verschoben, standardmäßig nach `Pictures\World of Warcraft\<version>\<YYYY-MM>\` (nichts wird überschrieben); das Ordnersymbol öffnet diesen Ordner |
 | Cache und Fehler | `Cache` und `Errors` | gelöscht; das Spiel baut den Cache neu auf – das übliche Mittel gegen Merkwürdigkeiten nach einem Patch |
 
-Der Reiter **Screenshots** der Einstellungen legt fest, wohin sie kommen und wie sie sortiert werden: Ordner
-**Nach Tag**, **Nach Monat**, **Nach Jahr** oder **Ohne Ordner** (das Datum stammt aus dem Dateinamen von WoW,
-`WoWScrnShot_MMDDYY_HHMMSS`), und **Ein Ordner je Spielversion** an oder aus. Nach Charakter sortieren geht nicht: WoW
-schreibt nicht mit, wer einen Screenshot gemacht hat.
+Screenshots werden nur von Hand verschoben, mit dieser Schaltfläche; Sicherungen und Zeitpläne lassen sie in Ruhe. Der
+Reiter **Screenshots** der Einstellungen legt fest, wohin sie kommen und wie sie sortiert werden: Ordner **Nach Tag**,
+**Nach Monat**, **Nach Jahr** oder **Ohne Ordner** (das Datum stammt aus dem Dateinamen von WoW,
+`WoWScrnShot_MMDDYY_HHMMSS`), und **Ein Ordner je Spielversion** an oder aus. Ist er an, hat jede gewählte
+Spielversion eine eigene Karte: **Ändern…** wählt einen beliebigen Ordner für sie, **Auto** kehrt zu
+`<gemeinsamer Ordner>\<Version>` zurück. Nach Charakter sortieren geht nicht: WoW schreibt nicht mit, wer einen
+Screenshot gemacht hat.
 
 Jede Schaltfläche fragt vorher **Sicher?**. Während es läuft, dreht sich ein Symbol
 statt der Schaltfläche, das Ergebnis steht danach in der Zeile. Nur der Cache einer laufenden Spielversion wartet, bis
