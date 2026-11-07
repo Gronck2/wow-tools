@@ -79,7 +79,7 @@ Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -120,7 +120,15 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   (`Request::SaveProfile`/`ApplyProfile`), spinner and result in the row); autostart switch under all. The height fits the tallest tab, so switching tabs
   does not resize it.
   Pure `draw(view, …)`; closes on deactivate/Esc; the header paperclip (`PINNED`, kept while the tray runs) keeps it
-  open on deactivate and after the folder/settings buttons (Esc and the tray icon still close it). `menu.rs`: right-click menu in the same style.
+  open on deactivate and after the folder/settings buttons (Esc and the tray icon still close it). The panel is not
+  topmost (only the menu is); a tray click on a pinned panel that another window overlaps (`panel::covered`: visible,
+  not minimized/cloaked/topmost windows above it) brings it to the front instead of closing it.
+  The header lock left of the paperclip (`UNLOCKED`, closed at tray start, kept while it runs): open, the header
+  outside its buttons answers `WM_NCHITTEST` with `HTCAPTION`; the top left corner goes to `data\panel-position.txt`
+  on `WM_EXITSIZEMOVE`, and `open` puts it there whether the lock is open or not (kept on that monitor's work area; at
+  the tray when there is no file or the monitor is gone, `gfx::monitor_at`). Every header button has a hover tip
+  (`panel.*_tip`; `ui-snapshot lock-tip|pin-tip|folder-tip|settings-tip|unlocked`); the new version button drops its
+  number for the icon alone when it would run into the title (`pill_label`). `menu.rs`: right-click menu in the same style.
 - `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game + system only), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
   top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
   switches and on changes that add or remove cards, top edge kept): game folder
@@ -216,6 +224,10 @@ of the process while it runs. Only per-addon
   `character-list-order.txt` has the current GUIDs (`<realm id>-<hex>`), names come from addon SavedVariables keyed by
   `["Player-<guid>"]` with a `name` (and `realm`, else from the realm id or the only matching folder). Hidden only
   when sure: the realm's GUIDs are all named, or the realm is not on the list while every listed realm is known.
+  `CharEntry::look` (class + faction; the game keeps neither in WTF) comes from the same GUID records (`class`/
+  `classKey`, `faction`, or the side of `race`/`raceKey`; a GUID is read on until all three are known, ~0.3 s for
+  150 characters) and then ElvUI's `ElvDB.class`/`.faction[realm][name]`; the panel draws a faction badge before the
+  name and the name in the class color (`panel::class_color`, dimmed on light), saved profiles by their character.
   `lua.rs` reads and edits SavedVariables text in place (keeps the rest byte for byte). `wow-tools profile`.
 - `schedule.rs`: schtasks (`backup`) / HKCU Run value "WoW Tools" (`tray`, or `watch` with `--headless`; the UI
   toggles it), both through `conhost.exe --headless` (no console flash); /TR is limited to 261 chars. Whole days

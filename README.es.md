@@ -117,8 +117,11 @@ El icono muestra el estado actual:
   cosa; mira [Limpieza](#limpieza).
 - Pestaña **Perfiles**: los perfiles de interfaz guardados y **Guardar un perfil** — ver
   [Perfiles de interfaz](#perfiles-de-interfaz).
-- Arriba: el clip, la carpeta de copias y la configuración; abajo: **Iniciar con Windows**. El panel se cierra al
-  hacer clic fuera; con el clip pulsado sigue abierto hasta pulsar Esc o hacer clic en el icono de la bandeja.
+- Arriba: el candado, el clip, la carpeta de copias y la configuración (al pasar el ratón se ve qué hace cada uno);
+  abajo: **Iniciar con Windows**. El panel se cierra al hacer clic fuera; con el clip pulsado sigue abierto hasta
+  pulsar Esc o hacer clic en el icono de la bandeja (si otra ventana lo tapa, ese clic lo trae al frente). Con el
+  candado abierto el panel se arrastra por la cabecera y se abre donde lo dejaste; cerrar el candado lo deja en su
+  sitio.
 
 **Clic derecho** abre el menú: el panel, hacer copia ahora, actualizar addons, carpeta de copias, configuración,
 registro, inicio automático, salir.

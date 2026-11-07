@@ -193,7 +193,7 @@ pub fn quote(s: &str) -> String {
 }
 
 /// A quoted Lua string (with its quotes) to text.
-fn decode(q: &[u8]) -> String {
+pub fn decode(q: &[u8]) -> String {
     let inner = &q[1..q.len().saturating_sub(1).max(1)];
     let mut out = Vec::with_capacity(inner.len());
     let mut i = 0;

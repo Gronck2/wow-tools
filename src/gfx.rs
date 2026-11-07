@@ -11,7 +11,7 @@ use windows::Win32::Graphics::DirectWrite::*;
 use windows::core::HSTRING;
 use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
 use windows_sys::Win32::Graphics::Dwm::{DwmExtendFrameIntoClientArea, DwmSetWindowAttribute};
-use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint};
+use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITOR_DEFAULTTONULL, MONITORINFO, MonitorFromPoint};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Controls::MARGINS;
 use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForMonitor, MDT_EFFECTIVE_DPI};
@@ -354,6 +354,26 @@ impl Painter<'_> {
         }
     }
 
+    /// Fills the closed outline through `points`.
+    pub fn polygon(&self, points: &[(f32, f32)], c: D2D1_COLOR_F) {
+        let Some(&(x0, y0)) = points.first() else { return };
+        let point = |(x, y): (f32, f32)| windows_numerics::Vector2 { X: x, Y: y };
+        unsafe {
+            let Ok(factory) = self.rt.GetFactory() else { return };
+            let Ok(path) = factory.CreatePathGeometry() else { return };
+            let Ok(sink) = path.Open() else { return };
+            sink.BeginFigure(point((x0, y0)), D2D1_FIGURE_BEGIN_FILLED);
+            let rest: Vec<_> = points[1..].iter().map(|&p| point(p)).collect();
+            sink.AddLines(&rest);
+            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+            if sink.Close().is_err() {
+                return;
+            }
+            self.brush.SetColor(&c);
+            self.rt.FillGeometry(&path, self.brush, None);
+        }
+    }
+
     pub fn text(&self, s: &str, fmt: &IDWriteTextFormat, r: R, c: D2D1_COLOR_F) {
         unsafe {
             self.brush.SetColor(&c);
@@ -462,11 +482,28 @@ pub fn cursor_monitor() -> (POINT, RECT, f32) {
     }
 }
 
-/// Creates a hidden-until-shown topmost popup with Windows 11 rounded corners.
-/// Position and size are in pixels. `menu`: small corners and the classic `CS_DROPSHADOW`, which
-/// is a separate window that does not follow z-order changes — fine for a menu, which closes on
-/// focus loss; others (the pinnable panel, which can end up under another window) get DWM's shadow,
-/// part of the window itself, or the classic one stays on top as a ghost of the panel.
+/// The work area and scale of the monitor `pt` is on; `None` when it is on none (a monitor that
+/// was unplugged).
+pub fn monitor_at(pt: POINT) -> Option<(RECT, f32)> {
+    unsafe {
+        let monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONULL);
+        if monitor.is_null() {
+            return None;
+        }
+        let mut mi: MONITORINFO = zeroed();
+        mi.cbSize = size_of::<MONITORINFO>() as u32;
+        GetMonitorInfoW(monitor, &mut mi);
+        let (mut dpi, mut dpi_y) = (96u32, 96u32);
+        GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut dpi_y);
+        Some((mi.rcWork, dpi as f32 / 96.0))
+    }
+}
+
+/// Creates a hidden-until-shown popup with Windows 11 rounded corners.
+/// Position and size are in pixels. `menu`: topmost, small corners and the classic `CS_DROPSHADOW`,
+/// which is a separate window that does not follow z-order changes — fine for a menu, which closes
+/// on focus loss; others (the pinnable panel, an ordinary window that other windows can cover) get
+/// DWM's shadow, part of the window itself, or the classic one stays on top as a ghost of the panel.
 pub fn create_popup(class: &str, wndproc: WNDPROC, (x, y, w, h): (i32, i32, i32, i32), dark: bool, menu: bool) -> HWND {
     unsafe {
         let hinst = GetModuleHandleW(null());
@@ -479,7 +516,7 @@ pub fn create_popup(class: &str, wndproc: WNDPROC, (x, y, w, h): (i32, i32, i32,
         wc.lpszClassName = class.as_ptr();
         RegisterClassW(&wc); // fails harmlessly when already registered
         let hwnd = CreateWindowExW(
-            WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+            if menu { WS_EX_TOOLWINDOW | WS_EX_TOPMOST } else { WS_EX_TOOLWINDOW },
             class.as_ptr(),
             class.as_ptr(),
             WS_POPUP,

@@ -749,26 +749,30 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             .to_vec()
         },
         chars: Some(
-            [
-                ("Gronckk", "Tarren Mill"),
-                ("Groncky", "Tarren Mill"),
-                ("Gronckpriest", "Azuregos"),
-                ("Gronklock", "Azuregos"),
-                ("Grumpyfluff", "Tarren Mill"),
-                ("Amenomi", "Draenor"),
-                ("Groncy", "Tarren Mill"),
-                ("Mistweaver", "Kazzak"),
-                ("Gronckdk", "Silvermoon"),
-                ("Gronkshaman", "Gordunni"),
-                ("Gronckhunt", "Tarren Mill"),
-                ("Gronckdh", "Kazzak"),
-                ("Gronckmage", "Silvermoon"),
-                ("Gronkwar", "Howling Fjord"),
-                ("Gronckevo", "Draenor"),
-            ]
+            {
+                use profiles::{Class::*, Faction::*};
+                [
+                    ("Gronckk", "Tarren Mill", Some(Paladin), Some(Horde)),
+                    ("Groncky", "Tarren Mill", Some(Rogue), Some(Horde)),
+                    ("Gronckpriest", "Azuregos", Some(Priest), Some(Alliance)),
+                    ("Gronklock", "Azuregos", Some(Warlock), Some(Alliance)),
+                    ("Grumpyfluff", "Tarren Mill", Some(Druid), Some(Horde)),
+                    ("Amenomi", "Draenor", Some(Monk), Some(Alliance)),
+                    ("Groncy", "Tarren Mill", None, None),
+                    ("Mistweaver", "Kazzak", Some(Monk), Some(Horde)),
+                    ("Gronckdk", "Silvermoon", Some(DeathKnight), Some(Alliance)),
+                    ("Gronkshaman", "Gordunni", Some(Shaman), Some(Horde)),
+                    ("Gronckhunt", "Tarren Mill", Some(Hunter), Some(Horde)),
+                    ("Gronckdh", "Kazzak", Some(DemonHunter), Some(Horde)),
+                    ("Gronckmage", "Silvermoon", Some(Mage), Some(Alliance)),
+                    ("Gronkwar", "Howling Fjord", Some(Warrior), Some(Horde)),
+                    ("Gronckevo", "Draenor", Some(Evoker), None),
+                ]
+            }
             .iter()
             .enumerate()
-            .map(|(i, &(name, realm))| profiles::CharEntry {
+            .map(|(i, &(name, realm, class, faction))| profiles::CharEntry {
+                look: profiles::Look { class, faction },
                 flavor: "_retail_".into(),
                 character: chars::Character {
                     account: "132678446#1".into(),
@@ -856,6 +860,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         "error" => demo.status.phase = Phase::Error(format!("_retail_ WTF: {} (os error 5)", tr!("snapshot.remove_failed", path = "Config.wtf"))),
         "confirm" => confirm = Some(panel::Confirm::Restore(1)),
         "pinned" => panel::set_pinned(true),
+        "unlocked" => panel::set_unlocked(true),
         "empty" => {
             demo.points.clear();
             demo.status.last = None;
@@ -877,7 +882,14 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         view == "panel" || view == "addons" || view == "cleanup" || view == "profiles",
         confirm,
         tip,
-        view == "update-tip",
+        match view {
+            "update-tip" => Some(panel::Header::Update),
+            "lock-tip" | "unlocked" => Some(panel::Header::Lock),
+            "pin-tip" => Some(panel::Header::Pin),
+            "folder-tip" => Some(panel::Header::Folder),
+            "settings-tip" => Some(panel::Header::Settings),
+            _ => None,
+        },
         match view {
             "cleanup-list" => Some(panel::SheetList::Clean(maintenance::List::Orphans)),
             "profiles-pick" => Some(panel::SheetList::SaveFrom),

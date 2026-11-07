@@ -509,6 +509,116 @@ pub struct CharEntry {
     pub character: Character,
     /// When it was last played (`last_played`).
     pub played: Option<NaiveDateTime>,
+    pub look: Look,
+}
+
+/// A character's class and faction, as far as its addons know them (the game keeps neither in WTF).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Look {
+    pub class: Option<Class>,
+    pub faction: Option<Faction>,
+}
+
+impl Look {
+    fn or(self, other: Look) -> Look {
+        Look {
+            class: self.class.or(other.class),
+            faction: self.faction.or(other.faction),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Faction {
+    Alliance,
+    Horde,
+}
+
+impl Faction {
+    fn parse(s: &str) -> Option<Faction> {
+        match s {
+            "Alliance" => Some(Faction::Alliance),
+            "Horde" => Some(Faction::Horde),
+            _ => None,
+        }
+    }
+
+    /// From the race's file name (`BloodElf`, `Scourge`); `None` for races that pick a side
+    /// (Pandaren, Dracthyr, Earthen) and for unknown ones.
+    fn of_race(race: &str) -> Option<Faction> {
+        const ALLIANCE: [&str; 11] = [
+            "Human",
+            "Dwarf",
+            "NightElf",
+            "Gnome",
+            "Draenei",
+            "Worgen",
+            "VoidElf",
+            "LightforgedDraenei",
+            "DarkIronDwarf",
+            "KulTiran",
+            "Mechagnome",
+        ];
+        const HORDE: [&str; 11] = [
+            "Orc",
+            "Scourge",
+            "Tauren",
+            "Troll",
+            "BloodElf",
+            "Goblin",
+            "Nightborne",
+            "HighmountainTauren",
+            "MagharOrc",
+            "ZandalariTroll",
+            "Vulpera",
+        ];
+        if ALLIANCE.contains(&race) {
+            Some(Faction::Alliance)
+        } else if HORDE.contains(&race) {
+            Some(Faction::Horde)
+        } else {
+            None
+        }
+    }
+}
+
+/// A class by the game's token (`DEATHKNIGHT`), the same in every language.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Class {
+    Warrior,
+    Paladin,
+    Hunter,
+    Rogue,
+    Priest,
+    DeathKnight,
+    Shaman,
+    Mage,
+    Warlock,
+    Monk,
+    Druid,
+    DemonHunter,
+    Evoker,
+}
+
+impl Class {
+    fn parse(token: &str) -> Option<Class> {
+        Some(match token {
+            "WARRIOR" => Class::Warrior,
+            "PALADIN" => Class::Paladin,
+            "HUNTER" => Class::Hunter,
+            "ROGUE" => Class::Rogue,
+            "PRIEST" => Class::Priest,
+            "DEATHKNIGHT" => Class::DeathKnight,
+            "SHAMAN" => Class::Shaman,
+            "MAGE" => Class::Mage,
+            "WARLOCK" => Class::Warlock,
+            "MONK" => Class::Monk,
+            "DRUID" => Class::Druid,
+            "DEMONHUNTER" => Class::DemonHunter,
+            "EVOKER" => Class::Evoker,
+            _ => return None,
+        })
+    }
 }
 
 /// The characters of `flavors` that still exist (`Roster`), last played first.
@@ -521,12 +631,18 @@ pub fn characters(flavors: &[Flavor]) -> Vec<CharEntry> {
                 flavor: fl.name.clone(),
                 played: last_played(&c),
                 character: c,
+                look: Look::default(),
             })
         })
-        .filter(|e| {
+        .filter_map(|mut e| {
             let c = &e.character;
             let account = c.dir.parent().and_then(Path::parent).unwrap_or(&c.dir).to_path_buf();
-            rosters.entry(account).or_insert_with_key(|dir| Roster::read(dir)).has(c, e.played)
+            let roster = rosters.entry(account).or_insert_with_key(|dir| Roster::read(dir));
+            if !roster.has(c, e.played) {
+                return None;
+            }
+            e.look = roster.look(c);
+            Some(e)
         })
         .collect();
     out.sort_by_key(|e| std::cmp::Reverse(e.played));
@@ -540,6 +656,8 @@ pub fn characters(flavors: &[Flavor]) -> Vec<CharEntry> {
 /// ["name"] = "Groncky", ["realm"] = "Tarren Mill"` in BigWigs, WorldQuestTracker, AllTheThings,
 /// RCLootCouncil, ...). A character not played since its addons were installed has no name, so
 /// it is judged realm by realm: the realm id of a named one gives the realm's name.
+/// The same records give the class and the race or faction (WorldQuestTracker, AllTheThings,
+/// AltVault); ElvUI keeps class and faction by realm and name (`elvui_looks`).
 #[derive(Debug, Default)]
 struct Roster {
     /// The list was read; when the game wrote it.
@@ -547,14 +665,17 @@ struct Roster {
     listed_at: Option<NaiveDateTime>,
     /// Realm id -> (GUIDs on it, of them named).
     realms: HashMap<String, (usize, usize)>,
-    /// (realm id, lowercase name, realm as `realm_key` when known).
-    known: Vec<(String, String, Option<String>)>,
+    /// (realm id, lowercase name, realm as `realm_key` when known, class and faction).
+    known: Vec<(String, String, Option<String>, Look)>,
+    /// (`realm_key`, lowercase name) -> class and faction from ElvUI.
+    elvui: HashMap<(String, String), Look>,
 }
 
 impl Roster {
     fn read(account: &Path) -> Roster {
+        let elvui = elvui_looks(account);
         let Ok(list) = fs::read_to_string(account.join("character-list-order.txt")) else {
-            return Roster::default();
+            return Roster { elvui, ..Roster::default() };
         };
         let is_guid = |t: &str| {
             t.split_once('-').is_some_and(|(realm, n)| {
@@ -563,7 +684,7 @@ impl Roster {
         };
         let mut wanted: Vec<String> = list.split_whitespace().filter(|t| is_guid(t)).map(|t| format!("Player-{t}")).collect();
         if wanted.is_empty() {
-            return Roster::default();
+            return Roster { elvui, ..Roster::default() };
         }
         let realm_id = |guid: &str| guid.split('-').nth(1).unwrap_or_default().to_string();
         let listed_at = fs::metadata(account.join("character-list-order.txt"))
@@ -573,8 +694,11 @@ impl Roster {
         let mut roster = Roster {
             listed: true,
             listed_at,
+            elvui,
             ..Roster::default()
         };
+        // A GUID is wanted until its name, class and faction are known.
+        let mut found: Vec<(String, Found)> = Vec::new();
         for g in &wanted {
             roster.realms.entry(realm_id(g)).or_default().0 += 1;
         }
@@ -599,26 +723,65 @@ impl Roster {
                 let Some(i) = wanted.iter().position(|w| *w == text[key..key + len]) else {
                     continue;
                 };
-                // `["Player-..."] = {`: the record's name and realm.
+                // `["Player-..."] = {`: the record's name, realm, class, race, faction.
                 let after = key + len + 1;
                 let Some(open) = text[after..].find('{').map(|o| after + o) else { continue };
                 if text[after..open].trim() != "] =" {
                     continue;
                 }
-                let Some(name) = lua::string(&text, open, "name") else { continue };
-                // "Groncky-TarrenMill", or "Groncky" with the realm on its own.
-                let (name, realm) = match name.split_once('-') {
-                    Some((n, r)) => (n.to_string(), Some(r.to_string())),
-                    None => (name, lua::string(&text, open, "realm")),
+                let entries = lua::entries(&text, open);
+                let get = |keys: &[&str]| {
+                    keys.iter().find_map(|k| {
+                        let e = entries.iter().find(|e| e.key.as_deref() == Some(*k))?;
+                        (text.as_bytes()[e.value.start] == b'"').then(|| lua::decode(&text.as_bytes()[e.value.clone()]))
+                    })
                 };
-                let id = realm_id(&wanted[i]);
-                roster.realms.entry(id.clone()).or_default().1 += 1;
-                roster.known.push((id, name.to_lowercase(), realm.map(|r| realm_key(&r))));
-                wanted.remove(i);
+                let at = found.iter().position(|(g, _)| *g == wanted[i]).unwrap_or_else(|| {
+                    found.push((wanted[i].clone(), Found::default()));
+                    found.len() - 1
+                });
+                let f = &mut found[at].1;
+                if f.name.is_none()
+                    && let Some(name) = get(&["name"])
+                {
+                    // "Groncky-TarrenMill", or "Groncky" with the realm on its own.
+                    f.name = Some(match name.split_once('-') {
+                        Some((n, r)) => (n.to_string(), Some(r.to_string())),
+                        None => (name, get(&["realm"])),
+                    });
+                }
+                f.look.class = f.look.class.or_else(|| get(&["class", "classKey"]).and_then(|c| Class::parse(&c)));
+                f.look.faction = f
+                    .look
+                    .faction
+                    .or_else(|| get(&["faction"]).and_then(|c| Faction::parse(&c)))
+                    .or_else(|| get(&["race", "raceKey"]).and_then(|r| Faction::of_race(&r)));
+                if f.name.is_some() && f.look.class.is_some() && f.look.faction.is_some() {
+                    wanted.remove(i);
+                }
             }
+        }
+        for (guid, f) in found {
+            let Some((name, realm)) = f.name else { continue };
+            let id = realm_id(&guid);
+            roster.realms.entry(id.clone()).or_default().1 += 1;
+            roster.known.push((id, name.to_lowercase(), realm.map(|r| realm_key(&r)), f.look));
         }
         roster.fill_realms(account);
         roster
+    }
+
+    /// What the addons know of `c`: its GUID records, then ElvUI.
+    fn look(&self, c: &Character) -> Look {
+        let name = c.name.to_lowercase();
+        let realm = realm_key(&c.realm);
+        let records = self
+            .known
+            .iter()
+            .find(|(_, n, r, _)| *n == name && r.as_ref().is_none_or(|r| *r == realm))
+            .map(|k| k.3)
+            .unwrap_or_default();
+        records.or(self.elvui.get(&(realm, name)).copied().unwrap_or_default())
     }
 
     /// Some addons keep the name without the realm. The realm id tells it when another named
@@ -626,7 +789,7 @@ impl Roster {
     /// minus the realms other ids are, when one is left.
     fn fill_realms(&mut self, account: &Path) {
         let mut by_id: HashMap<String, String> = HashMap::new();
-        for (id, _, realm) in &self.known {
+        for (id, _, realm, _) in &self.known {
             if let Some(r) = realm {
                 by_id.entry(id.clone()).or_insert_with(|| r.clone());
             }
@@ -677,22 +840,67 @@ impl Roster {
         }
         let name = c.name.to_lowercase();
         let realm = realm_key(&c.realm);
-        if self.known.iter().any(|(_, n, r)| *n == name && r.as_ref().is_none_or(|r| *r == realm)) {
+        if self.known.iter().any(|(_, n, r, _)| *n == name && r.as_ref().is_none_or(|r| *r == realm)) {
             return true;
         }
         // The realm ids whose named characters say they are `c`'s realm.
         let ids: Vec<&String> = self
             .realms
             .keys()
-            .filter(|id| self.known.iter().any(|(i, _, r)| i == *id && r.as_ref() == Some(&realm)))
+            .filter(|id| self.known.iter().any(|(i, _, r, _)| i == *id && r.as_ref() == Some(&realm)))
             .collect();
         if !ids.is_empty() {
             return ids.iter().any(|id| self.realms[*id].0 > self.realms[*id].1);
         }
         // Not on a known realm: gone if every realm of the list is known.
-        let named = |id: &String| self.known.iter().any(|(i, _, r)| i == id && r.is_some());
+        let named = |id: &String| self.known.iter().any(|(i, _, r, _)| i == id && r.is_some());
         !self.realms.keys().all(named)
     }
+}
+
+/// What the GUID records of one character say so far.
+#[derive(Default)]
+struct Found {
+    /// Name, and realm when the record has it.
+    name: Option<(String, Option<String>)>,
+    look: Look,
+}
+
+/// ElvUI's `ElvDB.class[realm][name] = "MAGE"` and `ElvDB.faction[realm][name] = "Horde"`, by
+/// (`realm_key`, lowercase name).
+fn elvui_looks(account: &Path) -> HashMap<(String, String), Look> {
+    let mut out: HashMap<(String, String), Look> = HashMap::new();
+    let Ok(bytes) = fs::read(account.join("SavedVariables").join("ElvUI.lua")) else {
+        return out;
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    let Some(db) = lua::globals(&text)
+        .into_iter()
+        .find(|(n, v)| n == "ElvDB" && text.as_bytes()[v.start] == b'{')
+        .map(|(_, v)| v.start)
+    else {
+        return out;
+    };
+    for table in ["class", "faction"] {
+        let Some(open) = lua::subtable(&text, db, table) else { continue };
+        for realm in lua::entries(&text, open) {
+            let Some(r) = realm.key.as_deref().filter(|_| text.as_bytes()[realm.value.start] == b'{') else {
+                continue;
+            };
+            for c in lua::entries(&text, realm.value.start) {
+                let Some(n) = c.key.as_deref().filter(|_| text.as_bytes()[c.value.start] == b'"') else {
+                    continue;
+                };
+                let value = lua::decode(&text.as_bytes()[c.value.clone()]);
+                let look = out.entry((realm_key(r), n.to_lowercase())).or_default();
+                match table {
+                    "class" => look.class = Class::parse(&value),
+                    _ => look.faction = Faction::parse(&value),
+                }
+            }
+        }
+    }
+    out
 }
 
 /// "Tarren Mill" and "TarrenMill", "The Sha'tar" and "TheShatar" are the same realm.
@@ -883,6 +1091,71 @@ WQT = {
         // Played after the list was written (a new character the list has not caught up with).
         let later = Some(Local::now().naive_local() + chrono::Duration::hours(1));
         assert!(moved.has(&ch("Kazzak", "Groncky"), later));
+    }
+
+    #[test]
+    fn class_and_faction_from_addons() {
+        let tmp = tempfile::tempdir().unwrap();
+        let acc = tmp.path().join("Account/ACC");
+        fs::create_dir_all(acc.join("SavedVariables")).unwrap();
+        let ch = |realm: &str, name: &str| Character {
+            account: "ACC".into(),
+            realm: realm.into(),
+            name: name.into(),
+            dir: acc.join(realm).join(name),
+        };
+        let look = |class, faction| Look {
+            class: Some(class),
+            faction: Some(faction),
+        };
+        fs::write(
+            acc.join("character-list-order.txt"),
+            "Version: 2\r\n0 1084-0B52E2A1 1\r\n0 1084-0B52E2A2 2\r\n0 1922-09199798 3\r\n",
+        )
+        .unwrap();
+        // A name and class in one addon, the race in another; nested tables have names of their own.
+        let wqt = "\r\nWQT = {\r\n[\"Player-1084-0B52E2A1\"] = {\r\n[\"class\"] = \"PALADIN\",\r\n[\"name\"] = \"Gronckk\",\r\n[\"realm\"] = \"Tarren Mill\",\r\n},\r\n}\r\n";
+        let att = "\r\nATT = {\r\n[\"Player-1084-0B52E2A1\"] = {\r\n[\"Lockouts\"] = {\r\n{\r\n[\"name\"] = \"Boss\",\r\n},\r\n},\r\n[\"race\"] = \"BloodElf\",\r\n},\r\n[\"Player-1084-0B52E2A2\"] = {\r\n[\"name\"] = \"Pandy\",\r\n[\"realm\"] = \"Tarren Mill\",\r\n[\"class\"] = \"MONK\",\r\n[\"race\"] = \"Pandaren\",\r\n},\r\n}\r\n";
+        // AltVault's own keys; ElvUI by realm and name.
+        let av = "\r\nAV = {\r\n[\"Player-1922-09199798\"] = {\r\n[\"name\"] = \"Теньпитона\",\r\n[\"realm\"] = \"Азурегос\",\r\n[\"classKey\"] = \"DRUID\",\r\n[\"faction\"] = \"Alliance\",\r\n},\r\n}\r\n";
+        let elv = "\r\nElvDB = {\r\n[\"class\"] = {\r\n[\"Tarren Mill\"] = {\r\n[\"Pandy\"] = \"MONK\",\r\n[\"Old\"] = \"MAGE\",\r\n},\r\n},\r\n[\"faction\"] = {\r\n[\"Tarren Mill\"] = {\r\n[\"Pandy\"] = \"Horde\",\r\n[\"Gronckk\"] = \"Alliance\",\r\n},\r\n},\r\n}\r\n";
+        for (file, text) in [("WorldQuestTracker", wqt), ("AllTheThings", att), ("AltVault", av), ("ElvUI", elv)] {
+            fs::write(acc.join(format!("SavedVariables/{file}.lua")), text).unwrap();
+        }
+        let r = Roster::read(&acc);
+        assert_eq!(
+            r.look(&ch("Tarren Mill", "gronckk")),
+            look(Class::Paladin, Faction::Horde),
+            "a record beats ElvUI"
+        );
+        assert_eq!(
+            r.look(&ch("TarrenMill", "Pandy")),
+            look(Class::Monk, Faction::Horde),
+            "a pandaren's side from ElvUI"
+        );
+        assert_eq!(r.look(&ch("Азурегос", "Теньпитона")), look(Class::Druid, Faction::Alliance));
+        let old = r.look(&ch("Tarren Mill", "Old"));
+        assert_eq!((old.class, old.faction), (Some(Class::Mage), None));
+        assert_eq!(r.look(&ch("Kazzak", "Gronckk")), Look::default(), "another realm");
+    }
+
+    /// The class and faction of the real characters (read-only): how many are known.
+    #[test]
+    #[ignore]
+    fn live_looks() {
+        let start = std::time::Instant::now();
+        let all = characters(&crate::wow::all_flavors(crate::wow::detect_root().as_deref()));
+        let known = |f: fn(&Look) -> bool| all.iter().filter(|e| f(&e.look)).count();
+        println!(
+            "{} characters in {:?}: class {}, faction {}",
+            all.len(),
+            start.elapsed(),
+            known(|l| l.class.is_some()),
+            known(|l| l.faction.is_some())
+        );
+        for e in all.iter().filter(|e| e.look.class.is_none() || e.look.faction.is_none()) {
+            println!("  {} {} / {}: {:?}", e.flavor, e.character.name, e.character.realm, e.look);
+        }
     }
 
     #[test]

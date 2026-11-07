@@ -209,6 +209,12 @@ exit = "Quitter"
 failed = "menu : {error}"
 
 [panel]
+lock_closed_tip = "Le panneau reste en place. Cliquez pour pouvoir le déplacer par son en-tête"
+lock_open_tip = "Le panneau se déplace par son en-tête et s’ouvre là où vous le laissez. Cliquez pour le fixer"
+pin_off_tip = "Cliquez pour que le panneau reste ouvert quand vous cliquez ailleurs"
+pin_on_tip = "Le panneau reste ouvert quand vous cliquez ailleurs. Cliquez pour qu’il se ferme à nouveau"
+folder_tip = "Ouvrir le dossier des sauvegardes"
+settings_tip = "Ouvrir les paramètres"
 tab_backup = "Sauvegarde"
 tab_addons = "Addons"
 busy_backup = "Sauvegarde en cours…"

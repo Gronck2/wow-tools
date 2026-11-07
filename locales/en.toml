@@ -209,6 +209,12 @@ exit = "Exit"
 failed = "menu: {error}"
 
 [panel]
+lock_closed_tip = "The panel stays in place. Click to drag it by its header"
+lock_open_tip = "Drag the panel by its header; it opens where you leave it. Click to lock it in place"
+pin_off_tip = "Click to keep the panel open when you click elsewhere"
+pin_on_tip = "The panel stays open when you click elsewhere. Click to let it close again"
+folder_tip = "Open the backups folder"
+settings_tip = "Open the settings"
 tab_backup = "Backup"
 tab_addons = "Addons"
 busy_backup = "Taking a snapshot…"

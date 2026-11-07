@@ -2,6 +2,20 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [0.5.0] - 2026-11-08
+
+- Profiles: characters are shown with a faction badge before the name and the name in its class color, in the
+  character lists and the saved profiles. Both are read from addons that keep them (WorldQuestTracker,
+  AllTheThings, AltVault, ElvUI); a character no such addon has seen stays plain.
+- A lock next to the paperclip in the panel header: open, the panel can be dragged by its header; it then opens
+  where it was left (at the tray when that monitor is gone), and closing the lock keeps it there. Closed when WoW
+  Tools starts.
+- The header buttons (new version, lock, paperclip, folder, settings) say what they do when you hover them. When
+  there is no room, the new version button shows only its icon.
+- The panel is no longer always on top: other windows can cover it. The paperclip only decides whether it closes
+  when you click elsewhere. A click on the tray icon brings a covered pinned panel to the front (and closes it when
+  it is in plain sight, as before).
+
 ## [0.4.1] - 2026-11-03
 
 - Settings → General → Diagnostics: a Copy button puts the version, settings, addon managers, addon update history

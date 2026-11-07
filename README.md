@@ -113,8 +113,11 @@ The icon shows the current state:
 - **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
   [Cleanup](#cleanup).
 - **Profiles** tab: saved UI profiles and **Save a profile** — see [UI profiles](#ui-profiles).
-- At the top: the paperclip, the backups folder and the settings; at the bottom: **Start with Windows**. The panel
-  closes when you click elsewhere; with the paperclip pressed it stays open until Esc or a click on the tray icon.
+- At the top: the lock, the paperclip, the backups folder and the settings (hover one to see what it does); at the
+  bottom: **Start with Windows**. The panel closes when you click elsewhere; with the paperclip pressed it stays open
+  until Esc or a click on the tray icon (when another window covers it, that click brings it to the front instead).
+  With the lock open the panel can be dragged by its header, and it opens where you left it; closing the lock keeps
+  it there.
 
 **Right click** opens the menu: the panel, back up now, update addons, backups folder, settings, log, autostart, exit.
 

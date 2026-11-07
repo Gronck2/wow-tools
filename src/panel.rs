@@ -10,15 +10,15 @@ use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextFormat;
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows_sys::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
+use windows_sys::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT, ScreenToClient};
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_ESCAPE};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
 use crate::maintenance::{self, Item, List};
-use crate::profiles::{CharEntry, Profile};
+use crate::profiles::{CharEntry, Class, Faction, Look, Profile};
 use crate::snapshot;
 use crate::tray::{self, Action, Phase, RestorePoint, Status};
 use crate::tray::{ProfileJob, Tone};
@@ -107,6 +107,8 @@ enum Hit {
     Tab(Tab),
     /// The paperclip: keep the panel open when it loses focus.
     Pin,
+    /// The lock: open = the panel can be dragged by its header.
+    Lock,
     Update,
     /// Hovering a history row shows its full text.
     History(usize),
@@ -361,6 +363,8 @@ struct SheetEntry {
     name: String,
     note: String,
     right: String,
+    /// A character's faction badge and class color.
+    look: Look,
 }
 
 fn sheet_entries(v: &View, s: &Sheet) -> Vec<SheetEntry> {
@@ -374,6 +378,7 @@ fn sheet_entries(v: &View, s: &Sheet) -> Vec<SheetEntry> {
                 name: name.clone(),
                 note: String::new(),
                 right: snapshot::human_size(*size),
+                look: Look::default(),
             })
             .collect(),
         _ => {
@@ -393,6 +398,7 @@ fn sheet_entries(v: &View, s: &Sheet) -> Vec<SheetEntry> {
                         name: e.character.name.clone(),
                         note,
                         right: e.played.map(when).unwrap_or_default(),
+                        look: e.look,
                     }
                 })
                 .collect()
@@ -502,12 +508,17 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
             ..row
         };
         p.text(&e.right, &f.sub_right, right_r, t.text2);
+        let badges = entries.iter().any(|e| e.look.faction.is_some());
+        let name_x = row.x + 12.0 + if badges { BADGE_W } else { 0.0 };
+        if let Some(faction) = e.look.faction {
+            faction_badge(p, row.x + 12.0, row.cy(), faction);
+        }
         let name_r = R {
-            x: row.x + 12.0,
-            w: right_r.x - row.x - 20.0,
+            x: name_x,
+            w: right_r.x - name_x - 8.0,
             ..row
         };
-        p.text(&e.name, &f.text, name_r, t.text);
+        p.text(&e.name, &f.text, name_r, class_color(t, e.look.class));
         if !e.note.is_empty() {
             let x = name_r.x + gfx::text_width(&f.text, &e.name) + 8.0;
             let note_r = R {
@@ -603,6 +614,15 @@ fn height(v: &View) -> f32 {
     divider_y(v) + 1.0 + FOOTER_H + 8.0
 }
 
+fn lock_rect() -> R {
+    R {
+        x: W - PAD - 148.0,
+        y: 14.0,
+        w: 32.0,
+        h: 32.0,
+    }
+}
+
 fn pin_rect() -> R {
     R {
         x: W - PAD - 110.0,
@@ -632,14 +652,26 @@ fn settings_rect() -> R {
 
 /// The "new version" button left of the header icons, while there is one.
 fn update_rect(v: &View, f: &Formats) -> Option<R> {
-    let release = v.self_update.available.as_ref()?;
-    let w = gfx::text_width(&f.button, &release.version) + 44.0;
+    v.self_update.available.as_ref()?;
+    let w = match pill_label(v, f) {
+        "" => 32.0,
+        label => gfx::text_width(&f.button, label) + 44.0,
+    };
     Some(R {
-        x: pin_rect().x - 8.0 - w,
+        x: lock_rect().x - 8.0 - w,
         y: 16.0,
         w,
         h: 28.0,
     })
+}
+
+/// The new version's number on its button, or nothing (an icon only) when the button would run
+/// into the title; the tip has the number either way.
+fn pill_label<'a>(v: &'a View, f: &Formats) -> &'a str {
+    let Some(release) = v.self_update.available.as_ref() else { return "" };
+    let w = gfx::text_width(&f.button, &release.version) + 44.0;
+    let title_end = PAD + gfx::text_width(&f.title, crate::config::APP_NAME);
+    if lock_rect().x - 8.0 - w < title_end + 12.0 { "" } else { &release.version }
 }
 
 fn button_rect() -> R {
@@ -717,6 +749,7 @@ fn tabs(f: &Formats) -> Vec<(R, Tab)> {
 
 fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<Confirm>, sheet: Option<&Sheet>, prof_first: usize) -> Vec<(R, Hit)> {
     let mut out = vec![
+        (lock_rect(), Hit::Lock),
         (pin_rect(), Hit::Pin),
         (folder_rect(), Hit::Folder),
         (settings_rect(), Hit::Settings),
@@ -849,6 +882,8 @@ fn button(p: &Painter, f: &Formats, r: R, icon: &str, label: &str, style: Style,
     };
     if icon.is_empty() {
         p.text(label, &f.button, r, fg);
+    } else if label.is_empty() {
+        p.text(icon, &f.icon, r, fg);
     } else {
         // Icon and label are centered together.
         let text_w = gfx::text_width(&f.button, label);
@@ -890,16 +925,21 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
         },
         t.text,
     );
-    // The paperclip: accent-filled while pinned.
-    let pin = pin_rect();
-    if PINNED.load(Ordering::Relaxed) {
-        p.fill(pin, 4.0, t.accent);
-        p.text("\u{E723}", &f.icon, pin, t.on_accent);
-    } else {
-        if hover == Some(Hit::Pin) {
-            p.fill(pin, 4.0, t.card_hover);
+    // The paperclip and the lock: accent-filled while pinned / locked.
+    let unlocked = UNLOCKED.load(Ordering::Relaxed);
+    for (r, hit, icon, on) in [
+        (lock_rect(), Hit::Lock, if unlocked { "\u{E785}" } else { "\u{E72E}" }, !unlocked),
+        (pin_rect(), Hit::Pin, "\u{E723}", PINNED.load(Ordering::Relaxed)),
+    ] {
+        if on {
+            p.fill(r, 4.0, t.accent);
+            p.text(icon, &f.icon, r, t.on_accent);
+        } else {
+            if hover == Some(hit) {
+                p.fill(r, 4.0, t.card_hover);
+            }
+            p.text(icon, &f.icon, r, t.text);
         }
-        p.text("\u{E723}", &f.icon, pin, t.text);
     }
     for (r, hit, icon) in [(folder_rect(), Hit::Folder, "\u{E838}"), (settings_rect(), Hit::Settings, "\u{E713}")] {
         if hover == Some(hit) {
@@ -907,7 +947,7 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
         }
         p.text(icon, &f.icon, r, t.text);
     }
-    if let (Some(r), Some(release)) = (update_rect(v, f), &v.self_update.available) {
+    if let Some(r) = update_rect(v, f) {
         let style = if v.self_update.installing {
             Style::Disabled
         } else {
@@ -915,7 +955,7 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
                 hover: hover == Some(Hit::SelfUpdate),
             }
         };
-        button(p, f, r, "\u{E896}", &release.version, style, t);
+        button(p, f, r, "\u{E896}", pill_label(v, f), style, t);
     }
     draw_tabs(p, t, f, tab, hover);
     match tab {
@@ -954,8 +994,18 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
         let k = i.saturating_sub(profile_first(v, prof_first));
         draw_row_tip(p, v, t, f, profile_rect(k), &profile_tip(v, i), false);
     }
-    if let (Some(Hit::SelfUpdate), Some(release)) = (hover, &v.self_update.available) {
-        let text = tr!("self_update.pill_tip", version = &release.version);
+    // What a header button does.
+    let header_tip = match hover {
+        Some(Hit::SelfUpdate) => v.self_update.available.as_ref().map(|r| tr!("self_update.pill_tip", version = &r.version)),
+        Some(Hit::Lock) if UNLOCKED.load(Ordering::Relaxed) => Some(tr!("panel.lock_open_tip").into()),
+        Some(Hit::Lock) => Some(tr!("panel.lock_closed_tip").into()),
+        Some(Hit::Pin) if PINNED.load(Ordering::Relaxed) => Some(tr!("panel.pin_on_tip").into()),
+        Some(Hit::Pin) => Some(tr!("panel.pin_off_tip").into()),
+        Some(Hit::Folder) => Some(tr!("panel.folder_tip").into()),
+        Some(Hit::Settings) => Some(tr!("panel.settings_tip").into()),
+        _ => None,
+    };
+    if let Some(text) = header_tip {
         let r = R {
             x: PAD,
             y: TABS_Y + 4.0,
@@ -1585,18 +1635,33 @@ fn profile_tip(v: &View, i: usize) -> String {
 
 /// Title and sub line of a row card, left of `buttons_x`.
 fn row_texts(p: &Painter, f: &Formats, t: &Theme, row: R, buttons_x: f32, title: &str, sub: (&str, D2D1_COLOR_F)) {
+    titled_row(p, f, t, row, buttons_x, (title, Look::default()), sub);
+}
+
+/// `row_texts` whose title is a character: its faction badge before the name, which is in its
+/// class color.
+fn titled_row(p: &Painter, f: &Formats, t: &Theme, row: R, buttons_x: f32, (title, look): (&str, Look), sub: (&str, D2D1_COLOR_F)) {
     let tx = row.x + 16.0;
     let w = buttons_x - tx - 8.0;
+    let title_r = R {
+        x: tx,
+        y: row.y + 7.0,
+        w,
+        h: 20.0,
+    };
+    if let Some(faction) = look.faction {
+        faction_badge(p, tx, title_r.cy(), faction);
+    }
+    let shift = if look.faction.is_some() { BADGE_W } else { 0.0 };
     p.text(
         title,
         &f.text,
         R {
-            x: tx,
-            y: row.y + 7.0,
-            w,
-            h: 20.0,
+            x: tx + shift,
+            w: w - shift,
+            ..title_r
         },
-        t.text,
+        class_color(t, look.class),
     );
     p.text(
         sub.0,
@@ -1609,6 +1674,118 @@ fn row_texts(p: &Painter, f: &Formats, t: &Theme, row: R, buttons_x: f32, title:
         },
         sub.1,
     );
+}
+
+/// Room for the faction badge before a name.
+const BADGE_W: f32 = 17.0;
+
+/// A small badge, 12×14, its left edge at `x`, in a gold rim: for the Alliance a blue shield with
+/// a light banner on it, for the Horde a red one with spikes on top and a dark band across.
+fn faction_badge(p: &Painter, x: f32, cy: f32, faction: Faction) {
+    let (w, h) = (12.0, 14.0);
+    let y = cy - h / 2.0;
+    // `dx`, `dy` in parts of the badge, `ix`, `iy` in DIPs towards the inside (the rim's width).
+    let at = |dx: f32, dy: f32, ix: f32, iy: f32| (x + dx * w + ix, y + dy * h + iy);
+    let gold = gfx::col(0xd9, 0xb0, 0x4c, 1.0);
+    let rim = 1.3;
+    match faction {
+        Faction::Alliance => {
+            let shield = |i: f32| {
+                [
+                    at(0.0, 0.0, i, i),
+                    at(1.0, 0.0, -i, i),
+                    at(1.0, 0.55, -i, 0.0),
+                    at(0.5, 1.0, 0.0, -1.6 * i),
+                    at(0.0, 0.55, i, 0.0),
+                ]
+            };
+            p.polygon(&shield(0.0), gold);
+            p.polygon(&shield(rim), gfx::col(0x1d, 0x4f, 0xb4, 1.0));
+            // The banner: a pole down the middle with a cross bar near the top, a point at its foot.
+            let pale = gfx::col(0xf2, 0xe3, 0xae, 1.0);
+            p.polygon(
+                &[
+                    at(0.5, 0.0, -1.0, 2.5),
+                    at(0.5, 0.0, 1.0, 2.5),
+                    at(0.5, 0.8, 1.0, 0.0),
+                    at(0.5, 0.88, 0.0, 0.0),
+                    at(0.5, 0.8, -1.0, 0.0),
+                ],
+                pale,
+            );
+            p.fill(
+                R {
+                    x: x + 3.0,
+                    y: y + 4.0,
+                    w: w - 6.0,
+                    h: 1.6,
+                },
+                0.0,
+                pale,
+            );
+        }
+        Faction::Horde => {
+            let crest = |i: f32| {
+                [
+                    at(0.0, 0.0, i, 1.8 * i),
+                    at(0.25, 0.3, 0.0, i),
+                    at(0.5, 0.0, 0.0, 1.8 * i),
+                    at(0.75, 0.3, 0.0, i),
+                    at(1.0, 0.0, -i, 1.8 * i),
+                    at(1.0, 0.62, -i, -0.3 * i),
+                    at(0.5, 1.0, 0.0, -1.6 * i),
+                    at(0.0, 0.62, i, -0.3 * i),
+                ]
+            };
+            p.polygon(&crest(0.0), gold);
+            p.polygon(&crest(rim), gfx::col(0xa8, 0x1c, 0x1c, 1.0));
+            p.fill(
+                R {
+                    x: x + rim,
+                    y: y + 0.45 * h,
+                    w: w - 2.0 * rim,
+                    h: 2.0,
+                },
+                0.0,
+                gfx::col(0x2a, 0x0e, 0x0e, 1.0),
+            );
+        }
+    }
+}
+
+/// The game's class colors; darker on a light theme, where some of them (priest, rogue) are
+/// too pale to read. No class: the plain text color.
+fn class_color(t: &Theme, class: Option<Class>) -> D2D1_COLOR_F {
+    let Some(class) = class else { return t.text };
+    let (r, g, b) = match class {
+        Class::Warrior => (0xc6, 0x9b, 0x6d),
+        Class::Paladin => (0xf4, 0x8c, 0xba),
+        Class::Hunter => (0xaa, 0xd3, 0x72),
+        Class::Rogue => (0xff, 0xf4, 0x68),
+        Class::Priest => (0xff, 0xff, 0xff),
+        Class::DeathKnight => (0xc4, 0x1e, 0x3a),
+        Class::Shaman => (0x00, 0x70, 0xdd),
+        Class::Mage => (0x3f, 0xc7, 0xeb),
+        Class::Warlock => (0x87, 0x88, 0xee),
+        Class::Monk => (0x00, 0xff, 0x98),
+        Class::Druid => (0xff, 0x7c, 0x0a),
+        Class::DemonHunter => (0xa3, 0x30, 0xc9),
+        Class::Evoker => (0x33, 0x93, 0x7f),
+    };
+    let k = if t.dark { 1.0 } else { 0.6 };
+    let dim = |c: u8| (c as f32 * k) as u8;
+    gfx::col(dim(r), dim(g), dim(b), 1.0)
+}
+
+/// A saved profile's character as the panel's character list knows it.
+fn profile_look(v: &View, m: &crate::profiles::Meta) -> Look {
+    v.chars
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .find(|e| e.flavor == m.flavor && e.character.account == m.account && e.character.realm == m.realm && e.character.name == m.name)
+        .map(|e| e.look)
+        .unwrap_or_default()
 }
 
 fn draw_profiles(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>, confirm: Option<Confirm>, first: usize) {
@@ -1696,7 +1873,7 @@ fn draw_profiles(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hi
         let busy = v.profile_job.as_ref() == Some(&ProfileJob::Apply(profile.path.clone()));
         let buttons_x = if asking { confirm_rect(row).x } else { apply_rect(row, f).x };
         let (sub, color) = profile_sub(v, t, i, confirm);
-        row_texts(p, f, t, row, buttons_x, &profile.title(), (&sub, color));
+        titled_row(p, f, t, row, buttons_x, (&profile.title(), profile_look(v, &profile.meta)), (&sub, color));
         if asking {
             let label = match confirm {
                 Some(Confirm::DeleteProfile(_)) => tr!("profiles.delete"),
@@ -1969,6 +2146,14 @@ pub fn set_pinned(on: bool) {
     PINNED.store(on, Ordering::Relaxed);
 }
 
+/// The lock open: the panel can be dragged by its header (and opens where it was left either
+/// way, `saved_pos`). Closed when the tray starts.
+static UNLOCKED: AtomicBool = AtomicBool::new(false);
+
+pub fn set_unlocked(on: bool) {
+    UNLOCKED.store(on, Ordering::Relaxed);
+}
+
 /// The tab open last (`Tab as u8`); the panel reopens on it.
 static LAST_TAB: AtomicU8 = AtomicU8::new(0);
 
@@ -1987,7 +2172,14 @@ fn with_panel<T>(f: impl FnOnce(&mut Panel) -> T) -> Option<T> {
 
 pub fn toggle() {
     if let Some(hwnd) = with_panel(|p| p.surface.hwnd) {
-        unsafe { DestroyWindow(hwnd) };
+        // A pinned panel another window covers comes to the front; one in plain sight closes.
+        unsafe {
+            if covered(hwnd) {
+                SetForegroundWindow(hwnd);
+            } else {
+                DestroyWindow(hwnd);
+            }
+        }
         return;
     }
     if unsafe { GetTickCount64() }.saturating_sub(LAST_CLOSE.load(Ordering::Relaxed)) < 300 {
@@ -1998,18 +2190,52 @@ pub fn toggle() {
     }
 }
 
+/// A window above the panel overlaps it. Topmost ones do not count: the panel cannot go above
+/// them anyway, and they are the taskbar, click-through overlays (Discord, GeForce) and the like.
+/// Neither do hidden, minimized and cloaked ones (UWP windows parked in the background).
+unsafe fn covered(hwnd: HWND) -> bool {
+    use windows_sys::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
+    use windows_sys::Win32::Graphics::Gdi::IntersectRect;
+    unsafe {
+        let mut rc: RECT = zeroed();
+        GetWindowRect(hwnd, &mut rc);
+        let mut w = GetWindow(hwnd, GW_HWNDPREV);
+        while !w.is_null() {
+            let topmost = GetWindowLongW(w, GWL_EXSTYLE) as u32 & WS_EX_TOPMOST != 0;
+            let mut cloaked = 0u32;
+            DwmGetWindowAttribute(w, DWMWA_CLOAKED as u32, &mut cloaked as *mut u32 as _, size_of::<u32>() as u32);
+            if !topmost && cloaked == 0 && IsWindowVisible(w) != 0 && IsIconic(w) == 0 {
+                let (mut other, mut both): (RECT, RECT) = (zeroed(), zeroed());
+                GetWindowRect(w, &mut other);
+                if IntersectRect(&mut both, &rc, &other) != 0 {
+                    return true;
+                }
+            }
+            w = GetWindow(w, GW_HWNDPREV);
+        }
+        false
+    }
+}
+
 fn open() -> gfx::Result<()> {
     // How the last cleanup went is news only until the panel closes.
     tray::forget_results();
     let view = tray::view();
     let theme = gfx::theme();
-    let (pt, work, scale) = gfx::cursor_monitor();
+    // Where it was dragged to, if that monitor is still there; else at the tray.
+    let saved = saved_pos().and_then(|pt| Some((pt, gfx::monitor_at(pt)?)));
+    let (pt, work, scale) = match saved {
+        Some((pt, (work, scale))) => (pt, work, scale),
+        None => gfx::cursor_monitor(),
+    };
     let (w, h) = ((W * scale).round() as i32, (height(&view) * scale).round() as i32);
     let margin = (12.0 * scale) as i32;
     let edge = gfx::taskbar_edge();
     let near_x = (pt.x - w / 2).clamp(work.left + margin, work.right - w - margin);
     let near_y = (pt.y - h / 2).clamp(work.top + margin, work.bottom - h - margin);
     let (x, y) = match edge {
+        // The saved top left corner, kept on the screen.
+        _ if saved.is_some() => (pt.x.clamp(work.left, work.right - w), pt.y.clamp(work.top, work.bottom - h)),
         0 => (work.left + margin, near_y),
         1 => (near_x, work.top + margin),
         2 => (work.right - w - margin, near_y),
@@ -2027,7 +2253,7 @@ fn open() -> gfx::Result<()> {
         sheet: None,
         prof_first: 0,
         tracking: false,
-        anchor_bottom: edge == 3,
+        anchor_bottom: saved.is_none() && edge == 3,
     };
     let cleaning = spinning(&panel.view);
     PANEL.with(|p| *p.borrow_mut() = Some(panel));
@@ -2040,6 +2266,29 @@ fn open() -> gfx::Result<()> {
         SetForegroundWindow(hwnd);
     }
     Ok(())
+}
+
+/// Where the panel was dragged to (with the lock open): its top left corner in screen pixels.
+/// Closing the lock keeps it there.
+fn pos_file() -> std::path::PathBuf {
+    crate::config::data_dir().join("panel-position.txt")
+}
+
+fn saved_pos() -> Option<POINT> {
+    let text = std::fs::read_to_string(pos_file()).ok()?;
+    let (x, y) = text.trim().split_once(' ')?;
+    Some(POINT {
+        x: x.parse().ok()?,
+        y: y.parse().ok()?,
+    })
+}
+
+fn save_pos(hwnd: HWND) {
+    let mut rc: RECT = unsafe { zeroed() };
+    unsafe { GetWindowRect(hwnd, &mut rc) };
+    if let Err(e) = std::fs::write(pos_file(), format!("{} {}", rc.left, rc.top)) {
+        log::warn!("{}: {e}", pos_file().display());
+    }
 }
 
 /// Re-reads the state (after a backup, a restore, a settings change) and redraws.
@@ -2158,6 +2407,10 @@ fn click(hwnd: HWND, hit: Hit) {
         }
         Hit::Pin => {
             PINNED.fetch_xor(true, Ordering::Relaxed);
+            None
+        }
+        Hit::Lock => {
+            UNLOCKED.fetch_xor(true, Ordering::Relaxed);
             None
         }
         Hit::Backup => Some(Action::BackupNow),
@@ -2416,6 +2669,27 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 DestroyWindow(hwnd);
                 0
             }
+            // Lock open: the header outside its buttons is a title bar to drag the panel by.
+            WM_NCHITTEST => {
+                let mut pt = POINT {
+                    x: (lparam & 0xFFFF) as i16 as i32,
+                    y: ((lparam >> 16) & 0xFFFF) as i16 as i32,
+                };
+                ScreenToClient(hwnd, &mut pt);
+                let client = ((pt.y as u16 as isize) << 16) | pt.x as u16 as isize;
+                let caption = with_panel(|p| UNLOCKED.load(Ordering::Relaxed) && (pt.y as f32) < TABS_Y * p.surface.scale && hit_at(p, client).is_none());
+                if caption == Some(true) {
+                    HTCAPTION as LRESULT
+                } else {
+                    DefWindowProcW(hwnd, msg, wparam, lparam)
+                }
+            }
+            // No maximize on a double click, no window menu on a right click of that header.
+            WM_NCLBUTTONDBLCLK | WM_NCRBUTTONDOWN | WM_NCRBUTTONUP if wparam == HTCAPTION as WPARAM => 0,
+            WM_EXITSIZEMOVE => {
+                save_pos(hwnd);
+                0
+            }
             WM_DESTROY => {
                 LAST_CLOSE.store(GetTickCount64(), Ordering::Relaxed);
                 let p = PANEL.with(|p| p.borrow_mut().take());
@@ -2427,8 +2701,18 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
     }
 }
 
+/// A header button whose tip a snapshot shows.
+#[derive(Clone, Copy)]
+pub enum Header {
+    Update,
+    Lock,
+    Pin,
+    Folder,
+    Settings,
+}
+
 /// Renders the panel with `view` into a PNG, for checking the look.
-/// `tip`: hover history row `tip`, or cleanup line `tip` on that tab (its full text shows);`update_tip`: hover the new version button.
+/// `tip`: hover history row `tip`, or cleanup line `tip` on that tab (its full text shows);`header`: hover that header button.
 #[allow(clippy::too_many_arguments)]
 pub fn snapshot(
     path: &str,
@@ -2438,7 +2722,7 @@ pub fn snapshot(
     hover_button: bool,
     confirm: Option<Confirm>,
     tip: Option<usize>,
-    update_tip: bool,
+    header: Option<Header>,
     sheet: Option<Sheet>,
 ) -> gfx::Result<()> {
     let theme = gfx::theme_for(dark);
@@ -2457,7 +2741,13 @@ pub fn snapshot(
             Tab::Profiles => Hit::ProfileInfo,
             _ => Hit::History,
         })
-        .or(update_tip.then_some(Hit::SelfUpdate))
+        .or(header.map(|h| match h {
+            Header::Update => Hit::SelfUpdate,
+            Header::Lock => Hit::Lock,
+            Header::Pin => Hit::Pin,
+            Header::Folder => Hit::Folder,
+            Header::Settings => Hit::Settings,
+        }))
         .or(hover_button.then_some(button));
     gfx::render_png(path, W, height(view), 1.5, |p| {
         draw(p, view, &theme, &fmt, tab, hover, confirm, sheet.as_ref(), 0)

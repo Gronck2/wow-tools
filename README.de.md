@@ -121,9 +121,11 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben und je einer
   Schaltfläche – siehe [Aufräumen](#aufräumen).
 - Reiter **Profile**: gespeicherte UI-Profile und **Profil speichern** — siehe [UI-Profile](#ui-profile).
-- Oben: die Büroklammer, der Sicherungsordner und die Einstellungen; unten: **Mit Windows starten**. Der Bereich
-  schließt sich bei einem Klick daneben; mit gedrückter Büroklammer bleibt er offen, bis Sie Esc drücken oder auf das
-  Infobereichssymbol klicken.
+- Oben: das Schloss, die Büroklammer, der Sicherungsordner und die Einstellungen (beim Darüberfahren steht, was sie
+  tun); unten: **Mit Windows starten**. Der Bereich schließt sich bei einem Klick daneben; mit gedrückter Büroklammer
+  bleibt er offen, bis Sie Esc drücken oder auf das Infobereichssymbol klicken (verdeckt ihn ein anderes Fenster, holt
+  dieser Klick ihn stattdessen nach vorn). Mit offenem Schloss lässt er sich am Kopf ziehen und öffnet sich dort, wo
+  er zuletzt war; ein geschlossenes Schloss lässt ihn an seinem Platz.
 
 **Rechtsklick** öffnet das Menü: Bereich, jetzt sichern, Addons aktualisieren, Sicherungsordner, Einstellungen,
 Protokoll, Autostart, Beenden.

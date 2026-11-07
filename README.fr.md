@@ -121,9 +121,11 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
   chaque élément — voir [Nettoyage](#nettoyage).
 - Onglet **Profils** : les profils d'interface enregistrés et **Enregistrer un profil** — voir
   [Profils d'interface](#profils-dinterface).
-- En haut : le trombone, le dossier des sauvegardes et les paramètres ; en bas : **Lancer avec Windows**. Le panneau
-  se ferme quand vous cliquez ailleurs ; trombone enfoncé, il reste ouvert jusqu'à Échap ou un clic sur l'icône de
-  notification.
+- En haut : le cadenas, le trombone, le dossier des sauvegardes et les paramètres (survolez-les pour voir ce qu'ils
+  font) ; en bas : **Lancer avec Windows**. Le panneau se ferme quand vous cliquez ailleurs ; trombone enfoncé, il
+  reste ouvert jusqu'à Échap ou un clic sur l'icône de notification (si une autre fenêtre le couvre, ce clic le ramène
+  au premier plan). Cadenas ouvert, le panneau se déplace par son en-tête et s'ouvre là où vous l'avez laissé ;
+  refermer le cadenas le laisse à sa place.
 
 Le **clic droit** ouvre le menu : le panneau, sauvegarder, mettre à jour les addons, dossier des sauvegardes,
 paramètres, journal, démarrage automatique, quitter.
