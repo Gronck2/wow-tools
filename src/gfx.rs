@@ -405,8 +405,9 @@ impl Painter<'_> {
 pub struct Surface {
     pub hwnd: HWND,
     pub scale: f32,
-    d2d: ID2D1Factory,
+    // Fields drop in order: the render target and brush before their factory.
     rt: Option<(ID2D1HwndRenderTarget, ID2D1SolidColorBrush)>,
+    d2d: ID2D1Factory,
 }
 
 impl Surface {

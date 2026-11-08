@@ -248,6 +248,13 @@ fn with_menu<T>(f: impl FnOnce(&mut Menu) -> T) -> Option<T> {
     MENU.with(|m| m.borrow_mut().as_mut().map(f))
 }
 
+/// Closes the menu if it is open (before the tray exits, see `panel::close`).
+pub fn close() {
+    if let Some(hwnd) = with_menu(|m| m.surface.hwnd) {
+        unsafe { DestroyWindow(hwnd) };
+    }
+}
+
 /// Opens the menu at the mouse cursor, away from the taskbar.
 pub fn show() {
     if MENU.with(|m| m.borrow().is_some()) {

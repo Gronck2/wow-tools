@@ -2170,6 +2170,14 @@ fn with_panel<T>(f: impl FnOnce(&mut Panel) -> T) -> Option<T> {
     PANEL.with(|p| p.borrow_mut().as_mut().map(f))
 }
 
+/// Closes the panel if it is open. Called before the tray exits: a Direct2D surface left in the
+/// thread-local until process teardown makes DXGI raise 0x87A there, which kills the process.
+pub fn close() {
+    if let Some(hwnd) = with_panel(|p| p.surface.hwnd) {
+        unsafe { DestroyWindow(hwnd) };
+    }
+}
+
 pub fn toggle() {
     if let Some(hwnd) = with_panel(|p| p.surface.hwnd) {
         // A pinned panel another window covers comes to the front; one in plain sight closes.

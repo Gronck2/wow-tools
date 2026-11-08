@@ -2,6 +2,12 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [0.5.1] - 2026-11-08
+
+- WoW Tools no longer crashes when it closes (Quit, a self-update restart, an upgrade) while the panel, the menu or
+  the settings window is open, e.g. a panel pinned with the paperclip. Windows recorded it as an application error
+  and kept a crash dump each time.
+
 ## [0.5.0] - 2026-11-08
 
 - Profiles: characters are shown with a faction badge before the name and the name in its class color, in the

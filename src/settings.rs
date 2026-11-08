@@ -1348,6 +1348,13 @@ fn with_window<T>(f: impl FnOnce(&mut Window) -> T) -> Option<T> {
     WINDOW.with(|w| w.borrow_mut().as_mut().map(f))
 }
 
+/// Closes the settings window if it is open (before the tray exits, see `panel::close`).
+pub fn close() {
+    if let Some(hwnd) = with_window(|w| w.surface.hwnd) {
+        unsafe { DestroyWindow(hwnd) };
+    }
+}
+
 /// Opens the settings window, or brings it to the front.
 pub fn show() {
     if let Some(hwnd) = with_window(|w| w.surface.hwnd) {

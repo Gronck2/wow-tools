@@ -385,6 +385,10 @@ pub fn run(ctx: Ctx) -> Result<()> {
             DispatchMessageW(&msg);
         }
     }
+    // Their Direct2D objects must go now, not in the thread-local teardown at process exit.
+    panel::close();
+    menu::close();
+    settings::close();
     log::info!("{}", tr!("tray.stopped"));
     Ok(())
 }
