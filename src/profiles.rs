@@ -1,16 +1,19 @@
 //! UI profiles: what makes a character's interface, saved under a name and put on another
 //! character later.
 //!
-//! A profile is a zip in `<backup_dir>/profiles/<flavor>/`: every file of the character's folder
-//! (bindings, macros, chat, edit mode layout, enabled addons, its own SavedVariables) and, for
-//! addons that keep their settings account-wide as AceDB profiles (ElvUI, BigWigs, Clique...),
-//! which profile the character uses and that profile's contents. Applying it copies the files
-//! and switches the target character to the same addon profile: shared with the source on the
-//! same account; on another account the profile is added (under a new name when one of that name
-//! there differs). WTF is snapshotted (`pre-profile`) first; the flavor must be closed.
+//! A profile is a zip in `<backup_dir>/profiles/<flavor>/`: the files of the character's folder
+//! (chat, Edit Mode layouts, enabled addons, its own SavedVariables; not its key bindings and
+//! macros, which belong to the character), the account's Edit Mode layouts and, for addons that
+//! keep their settings account-wide as AceDB profiles (ElvUI, BigWigs, Clique...), which profile
+//! the character uses and that profile's contents. Applying it copies the files, adds the Edit
+//! Mode layouts the source uses to the target's own (`editmode::merge`) and switches the target
+//! character to the same addon profile: shared with the source on the same account; on another
+//! account the profile is added (under a new name when one of that name there differs). WTF is
+//! snapshotted (`pre-profile`) first; the flavor must be closed.
 
 use crate::app::{self, Ctx};
 use crate::chars::Character;
+use crate::editmode;
 use crate::lua;
 use crate::wow::Flavor;
 use anyhow::{Context, Result, bail};
@@ -26,8 +29,11 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 const META: &str = "profile.json";
 const ADDONS: &str = "addons.json";
 const FILES: &str = "character/";
-/// Battle.net's checksums of the server-synced files; the target keeps its own.
-const SKIP: [&str; 1] = ["cache.md5"];
+/// The source account's `edit-mode-cache-account.txt`: the layouts its slots may point at.
+const ACCOUNT_LAYOUTS: &str = "account/edit-mode-cache-account.txt";
+/// Battle.net's checksums of the server-synced files, and what belongs to the character: its
+/// key bindings, click bindings and macros (profiles saved before 0.5.2 have them; not applied).
+const SKIP: [&str; 4] = ["cache.md5", "bindings-cache.wtf", "click-bindings-cache.txt", "macros-cache.txt"];
 
 /// What a profile is, without its contents.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -105,9 +111,14 @@ fn ace_key(c: &Character) -> String {
     format!("{} - {}", c.name, c.realm)
 }
 
+/// `WTF\Account\<ACC>` of a character.
+fn account_dir(c: &Character) -> &Path {
+    c.dir.parent().and_then(Path::parent).unwrap_or(&c.dir)
+}
+
 /// `WTF\Account\<ACC>\SavedVariables` of a character.
 fn account_sv(c: &Character) -> PathBuf {
-    c.dir.parent().and_then(Path::parent).unwrap_or(&c.dir).join("SavedVariables")
+    account_dir(c).join("SavedVariables")
 }
 
 /// When a character was last played: the newest of the files the game writes when it logs out.
@@ -227,7 +238,8 @@ pub fn save(ctx: &Ctx, fl: &Flavor, c: &Character) -> Result<Saved> {
     let ace = read_ace(c);
     let mut addons: Vec<String> = ace.iter().map(|a| a.file.trim_end_matches(".lua").to_string()).collect();
     addons.dedup();
-    let hash = content_hash(&files, &ace)?;
+    let account_layouts = fs::read(account_dir(c).join(ACCOUNT_EDIT_MODE)).ok();
+    let hash = content_hash(&files, &ace, account_layouts.as_deref())?;
     // The same as a profile saved before: a second copy says nothing new.
     if let Some(same) = list(&root(ctx)).into_iter().find(|p| {
         let m = &p.meta;
@@ -269,6 +281,10 @@ pub fn save(ctx: &Ctx, fl: &Flavor, c: &Character) -> Result<Saved> {
         zip.write_all(serde_json::to_string_pretty(&meta)?.as_bytes())?;
         zip.start_file(ADDONS, opts)?;
         zip.write_all(serde_json::to_string(&ace)?.as_bytes())?;
+        if let Some(d) = &account_layouts {
+            zip.start_file(ACCOUNT_LAYOUTS, opts)?;
+            zip.write_all(d)?;
+        }
         for (rel, src) in &files {
             zip.start_file(format!("{FILES}{rel}"), opts)?;
             io::copy(&mut File::open(src)?, &mut zip).with_context(|| tr!("error.read", path = src.display()))?;
@@ -301,8 +317,8 @@ pub fn short_time(t: NaiveDateTime) -> String {
     }
 }
 
-/// FNV-1a over the files (path, size, bytes) and the addon profiles.
-fn content_hash(files: &[(String, PathBuf)], ace: &[AceProfile]) -> Result<String> {
+/// FNV-1a over the files (path, size, bytes), the addon profiles and the account's layouts.
+fn content_hash(files: &[(String, PathBuf)], ace: &[AceProfile], account_layouts: Option<&[u8]>) -> Result<String> {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut feed = |bytes: &[u8]| {
         for b in bytes {
@@ -317,6 +333,9 @@ fn content_hash(files: &[(String, PathBuf)], ace: &[AceProfile]) -> Result<Strin
         feed(&bytes);
     }
     feed(serde_json::to_string(ace)?.as_bytes());
+    if let Some(d) = account_layouts {
+        feed(d);
+    }
     Ok(format!("{h:016x}"))
 }
 
@@ -336,12 +355,28 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         log::info!("{}", tr!("profiles.snapshot", flavor = fl.title(), id = id));
     }
     let mut files = 0;
-    let mut edit_mode_copied = false;
+    let (mut edit_mode, mut source_account) = (None, None);
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
         let Some(rel) = entry.enclosed_name() else { continue };
+        if rel == Path::new(ACCOUNT_LAYOUTS) {
+            let mut d = Vec::new();
+            entry.read_to_end(&mut d)?;
+            source_account = Some(d);
+            continue;
+        }
         let Ok(rel) = rel.strip_prefix(FILES.trim_end_matches('/')) else { continue };
         if entry.is_dir() || rel.as_os_str().is_empty() {
+            continue;
+        }
+        let top = rel.components().count() == 1;
+        if top && SKIP.iter().any(|s| rel.as_os_str().eq_ignore_ascii_case(s)) {
+            continue;
+        }
+        if top && rel.as_os_str().eq_ignore_ascii_case(EDIT_MODE) {
+            let mut d = Vec::new();
+            entry.read_to_end(&mut d)?;
+            edit_mode = Some(d);
             continue;
         }
         let dst = target.dir.join(rel);
@@ -351,17 +386,13 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         let mut out = File::create(&dst).with_context(|| tr!("profiles.write_failed", path = dst.display()))?;
         io::copy(&mut entry, &mut out)?;
         files += 1;
-        edit_mode_copied |= rel.as_os_str().eq_ignore_ascii_case(EDIT_MODE);
     }
     let same_account = meta.account == target.account;
-    // Layout numbers point into the account's layouts: on another account they mean others.
-    let edit_mode = target.dir.join(EDIT_MODE);
-    if edit_mode_copied
-        && same_account
-        && let Some(filled) = fs::read(&edit_mode).ok().and_then(|d| fill_layout_slots(&d))
-    {
-        fs::write(&edit_mode, filled).with_context(|| tr!("profiles.write_failed", path = edit_mode.display()))?;
-    }
+    let layouts = match edit_mode {
+        Some(source) => put_layouts(meta, target, &source, source_account.as_deref())?,
+        None => None,
+    };
+    files += usize::from(layouts.is_some());
 
     let key = ace_key(target);
     let sv = account_sv(target);
@@ -413,6 +444,16 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         files = files,
         addons = switched.len()
     );
+    if let Some(m) = &layouts {
+        if !m.added.is_empty() {
+            summary.push('\n');
+            summary.push_str(&tr!("profiles.layouts_added", layouts = m.added.join(", ")));
+        }
+        if !m.full.is_empty() {
+            summary.push('\n');
+            summary.push_str(&tr!("profiles.layouts_full", layouts = m.full.join(", "), max = editmode::MAX_LAYOUTS));
+        }
+    }
     if !missing.is_empty() {
         summary.push('\n');
         summary.push_str(&tr!("profiles.missing", addons = missing.join(", ")));
@@ -427,38 +468,42 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
 }
 
 const EDIT_MODE: &str = "edit-mode-cache-character.txt";
+const ACCOUNT_EDIT_MODE: &str = "edit-mode-cache-account.txt";
 
-/// `edit-mode-cache-character.txt` starts with the Edit Mode layout chosen for each specialization
-/// slot ("2 2 2 0 0 0": 0 and 1 are the Modern and Classic presets, 2 and up the player's own).
-/// A slot the source never used holds a preset, so a character with more or other
-/// specializations (or a new one, on its starter specialization) would get the default layout:
-/// those slots take the layout the source uses most. `None` when there is nothing to fill.
-fn fill_layout_slots(data: &[u8]) -> Option<Vec<u8>> {
-    const SLOTS: usize = 6;
-    let mut values = Vec::with_capacity(SLOTS);
-    let mut i = 0;
-    while values.len() < SLOTS {
-        let start = i;
-        while data.get(i).is_some_and(u8::is_ascii_digit) {
-            i += 1;
+/// Adds the Edit Mode layouts of the profile (`source`: its `edit-mode-cache-character.txt`,
+/// `source_account`: the account's layouts when it was saved) to the target's and points the
+/// target's specializations at them. The target's own layouts stay. A file not in the known
+/// format is left as it is (copied only when the target has none). `None` when nothing was written.
+fn put_layouts(meta: &Meta, target: &Character, source: &[u8], source_account: Option<&[u8]>) -> Result<Option<editmode::Merged>> {
+    let dst = target.dir.join(EDIT_MODE);
+    let current = fs::read(&dst).ok();
+    let target_account = match fs::read(account_dir(target).join(ACCOUNT_EDIT_MODE)) {
+        Ok(d) => editmode::account_layouts(&d),
+        Err(_) => Some(Vec::new()),
+    };
+    let source_account = match source_account {
+        Some(d) => editmode::account_layouts(d),
+        // Saved before profiles kept them: on the same account they are the target's.
+        None if meta.account == target.account => target_account.clone(),
+        None => None,
+    };
+    let merged = target_account.and_then(|t| editmode::merge(source, source_account.as_deref(), current.as_deref(), &t, &meta.name));
+    let merged = match (merged, &current) {
+        (Some(m), _) => m,
+        (None, None) => editmode::Merged {
+            data: source.to_vec(),
+            added: Vec::new(),
+            full: Vec::new(),
+        },
+        (None, Some(_)) => {
+            log::warn!("{}: Edit Mode layouts not in the known format, left as they are", dst.display());
+            return Ok(None);
         }
-        values.push(std::str::from_utf8(&data[start..i]).ok()?.parse::<u32>().ok()?);
-        if values.len() < SLOTS {
-            if data.get(i) != Some(&b' ') {
-                return None;
-            }
-            i += 1;
-        }
+    };
+    if current.as_deref() != Some(&merged.data[..]) {
+        fs::write(&dst, &merged.data).with_context(|| tr!("profiles.write_failed", path = dst.display()))?;
     }
-    let used = |v: u32| values.iter().filter(|&&x| x == v).count();
-    let layout = values.iter().copied().filter(|&v| v >= 2).max_by_key(|&v| used(v))?;
-    if !values.contains(&0) {
-        return None;
-    }
-    let slots: Vec<String> = values.iter().map(|&v| if v == 0 { layout } else { v }.to_string()).collect();
-    let mut out = slots.join(" ").into_bytes();
-    out.extend_from_slice(&data[i..]);
-    Some(out)
+    Ok(Some(merged))
 }
 
 fn ace_key_of(meta: &Meta) -> String {
@@ -950,6 +995,8 @@ mod tests {
         fs::create_dir_all(fl.wtf_dir().join("Account/ACC2/Realm/Third")).unwrap();
         fs::create_dir_all(fl.wtf_dir().join("Account/ACC2/SavedVariables")).unwrap();
         fs::write(acc.join("Realm/Main/bindings-cache.wtf"), "BIND").unwrap();
+        fs::write(acc.join("Realm/Main/macros-cache.txt"), "MACROS").unwrap();
+        fs::write(acc.join("Realm/Alt/macros-cache.txt"), "ALT MACROS").unwrap();
         fs::write(acc.join("Realm/Main/edit-mode-cache-character.txt"), "LAYOUT").unwrap();
         fs::write(acc.join("Realm/Main/cache.md5"), "md5").unwrap();
         fs::write(acc.join("Realm/Main/SavedVariables/Details.lua"), "x").unwrap();
@@ -964,7 +1011,7 @@ mod tests {
         let main = chars::find(&all, "ACC/Realm/Main").unwrap();
         save(&ctx, &fl, main).unwrap();
         let profile = list(&root(&ctx)).remove(0);
-        assert_eq!(profile.meta.files, 3, "cache.md5 and .bak stay out");
+        assert_eq!(profile.meta.files, 2, "cache.md5, bindings and .bak stay out");
         assert_eq!(profile.meta.addons, ["ElvUI"]);
         assert_eq!(list(&root(&ctx)), std::slice::from_ref(&profile));
         assert!(apply(&ctx, &fl, &profile, main).is_err(), "not onto itself");
@@ -975,10 +1022,12 @@ mod tests {
         // Same account: the files, and the shared profile.
         let alt = chars::find(&all, "Realm/Alt").unwrap();
         let summary = apply(&ctx, &fl, &profile, alt).unwrap();
-        assert!(summary.contains('3'), "{summary}");
+        assert!(summary.contains('2'), "{summary}");
         assert_eq!(fs::read_to_string(alt.dir.join("edit-mode-cache-character.txt")).unwrap(), "LAYOUT");
         assert!(alt.dir.join("SavedVariables/Details.lua").exists());
         assert!(!alt.dir.join("cache.md5").exists());
+        assert_eq!(fs::read_to_string(alt.dir.join("macros-cache.txt")).unwrap(), "ALT MACROS", "the target's own");
+        assert!(!alt.dir.join("bindings-cache.wtf").exists());
         let elv = fs::read_to_string(acc.join("SavedVariables/ElvUI.lua")).unwrap();
         assert_eq!(
             elv,
@@ -1029,7 +1078,7 @@ mod tests {
 
         // A changed character is saved anew.
         assert!(save(&ctx, &fl, main).unwrap().new);
-        fs::write(acc.join("Realm/Main/bindings-cache.wtf"), "BIND2").unwrap();
+        fs::write(acc.join("Realm/Main/chat-cache.txt"), "CHAT2").unwrap();
         assert!(save(&ctx, &fl, main).unwrap().new);
         assert_eq!(list(&root(&ctx)).len(), 2);
     }
@@ -1159,13 +1208,43 @@ WQT = {
     }
 
     #[test]
-    fn edit_mode_slots_are_filled() {
-        assert_eq!(fill_layout_slots(b"2 2 2 0 0 0\0").unwrap(), b"2 2 2 2 2 2\0");
-        // Character layouts follow the slots and stay as they are.
-        assert_eq!(fill_layout_slots(b"3 2 3 0 0 0 1 2 52 x").unwrap(), b"3 2 3 3 3 3 1 2 52 x");
-        assert_eq!(fill_layout_slots(b"0 0 0 0 0 0\0"), None, "presets only: nothing to spread");
-        assert_eq!(fill_layout_slots(b"2 2 2 2 2 2\0"), None);
-        assert_eq!(fill_layout_slots(b""), None);
+    fn edit_mode_layouts_are_added() {
+        let tmp = tempfile::tempdir().unwrap();
+        let fl = Flavor::new("_retail_", tmp.path().join("_retail_"));
+        let frame = "0 0 1 7 7 UIParent 0.0 45.0 -1 ##$$%/";
+        for (acc, layout) in [("ACC", "1"), ("ACC2", "2")] {
+            let dir = fl.wtf_dir().join("Account").join(acc);
+            fs::create_dir_all(dir.join("SavedVariables")).unwrap();
+            fs::write(dir.join(ACCOUNT_EDIT_MODE), format!("2 1 0 4 Main 1 {}\0", frame.replace("45.0", layout))).unwrap();
+        }
+        let acc = fl.wtf_dir().join("Account/ACC");
+        for c in ["Realm/Main", "Realm/Alt"] {
+            fs::create_dir_all(acc.join(c)).unwrap();
+        }
+        fs::create_dir_all(fl.wtf_dir().join("Account/ACC2/Realm/Third")).unwrap();
+        fs::write(acc.join("Realm/Main").join(EDIT_MODE), format!("3 3 4 0 0 0 4 Heal 1 {frame}\0")).unwrap();
+        fs::write(acc.join("Realm/Main/chat-cache.txt"), "CHAT").unwrap();
+        fs::write(acc.join("Realm/Alt").join(EDIT_MODE), format!("4 4 4 4 4 4 4 Mine 1 {frame}\0")).unwrap();
+
+        let ctx = ctx(&tmp.path().join("backups"));
+        let all = chars::list(&fl.wtf_dir());
+        save(&ctx, &fl, chars::find(&all, "Realm/Main").unwrap()).unwrap();
+        let profile = list(&root(&ctx)).remove(0);
+
+        // Same account: "Main" is shared, "Heal" added next to the target's own "Mine".
+        let summary = apply(&ctx, &fl, &profile, chars::find(&all, "Realm/Alt").unwrap()).unwrap();
+        assert!(summary.contains("Heal"), "{summary}");
+        assert_eq!(
+            fs::read_to_string(acc.join("Realm/Alt").join(EDIT_MODE)).unwrap(),
+            format!("3 3 5 3 3 3 4 Mine 1 {frame} 4 Heal 1 {frame}\0")
+        );
+        // Another account: its own "Main" differs, so the source's comes renamed.
+        apply(&ctx, &fl, &profile, chars::find(&all, "Realm/Third").unwrap()).unwrap();
+        let main = frame.replace("45.0", "1");
+        assert_eq!(
+            fs::read_to_string(fl.wtf_dir().join("Account/ACC2/Realm/Third").join(EDIT_MODE)).unwrap(),
+            format!("4 4 5 4 4 4 11 Main (Main) 1 {main} 4 Heal 1 {frame}\0")
+        );
     }
 
     #[test]

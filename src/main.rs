@@ -5,6 +5,7 @@ mod chars;
 mod config;
 mod curseforge;
 mod diag;
+mod editmode;
 mod elvui;
 #[cfg(windows)]
 mod gfx;

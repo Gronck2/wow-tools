@@ -2,6 +2,16 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [Unreleased]
+
+- Profiles no longer carry key bindings, click bindings and macros: the target character keeps its own. Applying
+  a profile used to replace the target's macros with the source's. Profiles saved before still have them; they are
+  not applied.
+- Edit Mode layouts of a profile are added to the target's own instead of replacing them, and its specializations
+  are switched to them. A layout already on the target's account is used as it is; a name that is taken gets the
+  source character's name in brackets. Profiles now also keep the account's layouts, so they carry over to
+  characters on another account too. A layout that does not fit (5 per character) is named in the result.
+
 ## [0.5.1] - 2026-11-08
 
 - WoW Tools no longer crashes when it closes (Quit, a self-update restart, an upgrade) while the panel, the menu or

@@ -20,8 +20,8 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
   lancement sur la nouvelle version, et vous voyez quels addons ne sont pas encore faits pour elle.
 - **Nettoyage** : réglages d'addons supprimés, copies `.bak` de WoW, vieux journaux de combat, captures d'écran et
   cache — avec leur taille, en un clic.
-- **Profils d'interface** : enregistrez l'interface d'un personnage (raccourcis, macros, disposition, addons et
-  leurs profils) et appliquez-la à un autre personnage en deux clics.
+- **Profils d'interface** : enregistrez l'interface d'un personnage (dispositions du mode Édition, discussion,
+  addons et leurs profils) et appliquez-la à un autre personnage en deux clics.
 - Mise à jour automatique de l'application : vérification sur GitHub une fois par jour et installation d'une nouvelle
   version en un clic.
 - Anglais, russe, allemand, français et espagnol.
@@ -340,11 +340,15 @@ rien n'est caché au hasard.
 
 Ce que contient un profil :
 
-- tous les fichiers du dossier du personnage `WTF\Account\<ACCOUNT>\<Realm>\<Name>` : raccourcis, macros, discussion,
-  disposition du mode édition, raccourcis de clic, addons activés, réglages d'addons propres au personnage
-  (`SavedVariables`) ;
+- les fichiers du dossier du personnage `WTF\Account\<ACCOUNT>\<Realm>\<Name>` : discussion, dispositions du mode
+  Édition, addons activés, réglages d'addons propres au personnage (`SavedVariables`) ;
+- les dispositions du mode Édition du compte (`edit-mode-cache-account.txt`) ;
 - pour les addons qui gardent leurs réglages au niveau du compte sous forme de profils (ElvUI, BigWigs, Clique, TomTom
   et d'autres basés sur AceDB) : le profil qu'utilise le personnage et son contenu.
+
+Les raccourcis clavier, les raccourcis de clic et les macros ne sont pas dans un profil : ils appartiennent au
+personnage, et le personnage cible garde les siens. Les profils enregistrés par des versions plus anciennes les
+contiennent encore, mais ils ne sont pas appliqués.
 
 L'application copie les fichiers et bascule ces addons du personnage cible sur le même profil. Sur le même compte,
 les deux personnages le partagent ensuite : un changement d'ElvUI sur l'un se voit sur l'autre, comme avec un profil
@@ -353,7 +357,13 @@ copie prend le nom du personnage source, et rien ne change sur cet autre compte.
 compte cible n'est pas touché et il est cité dans le résultat. La version du jeu du profil doit être fermée ; une
 sauvegarde de WTF *avant profil* est faite d'abord (voir [Restauration](#restauration)).
 
-Les raccourcis et les macros peuvent être stockés sur les serveurs de Blizzard (voir la fin de la section suivante).
+Les dispositions du mode Édition sont ajoutées, pas écrasées : celles qu'utilise le personnage source rejoignent les
+dispositions propres du personnage cible, et ses spécialisations passent sur elles. Les dispositions propres du
+personnage cible restent. Une disposition déjà présente sur le compte cible est utilisée telle quelle. Si un nom est
+pris, la copie reçoit le nom du personnage source entre parenthèses, par exemple « Main (Groncky) ». Un personnage
+peut avoir au plus 5 dispositions propres ; une disposition qui ne tient pas est citée dans le résultat, et ces
+spécialisations gardent leur disposition. Un profil d'un autre compte enregistré par une version plus ancienne ne peut
+pas apporter les dispositions du compte qu'il utilise.
 
 En ligne de commande : `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
 `wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.

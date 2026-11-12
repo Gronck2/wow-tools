@@ -19,8 +19,8 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
   neuen Version gesichert, und Sie sehen, welche Addons noch nicht dafür gemacht sind.
 - **Aufräumen**: Einstellungen entfernter Addons, die `.bak`-Kopien von WoW, alte Kampflogs, Screenshots und der
   Cache – mit Größenangaben, mit einem Klick.
-- **UI-Profile**: die Oberfläche eines Charakters speichern (Tastenbelegung, Makros, Layout, Addons und ihre
-  Profile) und mit zwei Klicks einem anderen Charakter geben.
+- **UI-Profile**: die Oberfläche eines Charakters speichern (Layouts des Bearbeitungsmodus, Chat, Addons und
+  ihre Profile) und mit zwei Klicks einem anderen Charakter geben.
 - Aktualisiert sich selbst: fragt einmal am Tag bei GitHub nach und installiert eine neue Version mit einem Klick.
 - Englisch, Russisch, Deutsch, Französisch und Spanisch.
 
@@ -340,11 +340,14 @@ gefiltert: geraten wird nichts.
 
 Was in ein Profil kommt:
 
-- alle Dateien des Charakterordners `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: Tastenbelegung, Makros, Chat,
-  Bearbeitungsmodus-Layout, Klickbelegungen, aktivierte Addons, die eigenen Addon-Einstellungen des Charakters
-  (`SavedVariables`);
+- die Dateien des Charakterordners `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: Chat, Layouts des Bearbeitungsmodus,
+  aktivierte Addons, die eigenen Addon-Einstellungen des Charakters (`SavedVariables`);
+- die Layouts des Bearbeitungsmodus des Accounts (`edit-mode-cache-account.txt`);
 - bei Addons, die ihre Einstellungen accountweit als Profile speichern (ElvUI, BigWigs, Clique, TomTom und andere
   auf AceDB-Basis): welches Profil der Charakter nutzt und dessen Inhalt.
+
+Tastenbelegung, Klickbelegungen und Makros kommen nicht ins Profil: Sie gehören zum Charakter, und das Ziel behält
+seine eigenen. Profile älterer Versionen enthalten sie noch, sie werden aber nicht angewendet.
 
 Beim Anwenden werden die Dateien kopiert und diese Addons des Zielcharakters auf dasselbe Profil umgeschaltet. Auf
 demselben Account teilen sich die beiden Charaktere es danach: eine Änderung an ElvUI beim einen zeigt sich auch beim
@@ -354,7 +357,13 @@ Account nichts ändert. Ein Addon, das auf dem Zielaccount nie lief, bleibt unbe
 Spielversion des Profils muss geschlossen sein; vorher wird WTF *vor Profil* gesichert (siehe
 [Wiederherstellen](#wiederherstellen)).
 
-Tastenbelegung und Makros können auf den Servern von Blizzard liegen (siehe Ende des nächsten Abschnitts).
+Layouts des Bearbeitungsmodus werden hinzugefügt, nicht überschrieben: Die Layouts, die der Quellcharakter nutzt,
+kommen zu den eigenen Charakter-Layouts des Ziels, und seine Spezialisierungen werden auf sie umgeschaltet. Die
+eigenen Layouts des Ziels bleiben. Ein Layout, das es auf dem Account des Ziels schon gibt, wird so genutzt, wie es
+ist. Ist ein Name vergeben, bekommt die Kopie den Namen des Quellcharakters in Klammern, z. B. „Main (Groncky)“. Ein
+Charakter kann höchstens 5 eigene Layouts haben; ein Layout, das nicht mehr passt, wird im Ergebnis genannt, und diese
+Spezialisierungen behalten ihr Layout. Ein Profil von einem anderen Account, das mit einer älteren Version gespeichert
+wurde, kann die Account-Layouts, die es nutzt, nicht mitbringen.
 
 Über die Befehlszeile: `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
 `wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.

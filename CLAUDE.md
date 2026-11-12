@@ -214,12 +214,18 @@ of the process while it runs. Only per-addon
   forbid third-party downloads (`allowModDistribution: false`) and the app's records would go stale.
 - `chars.rs`: characters at `WTF/Account/<ACC>/<Realm>/<Name>`; names are often Cyrillic, so matching uses `to_lowercase`.
 - `profiles.rs`: UI profiles, zips in `<backup_dir>\profiles\<flavor>\` (`profile.json` meta, `addons.json`, `character/`
-  files): every file of the character folder (no `cache.md5`) + its `SavedVariables\*.lua`, and for AceDB addons (account
+  files, `account/edit-mode-cache-account.txt`): every file of the character folder + its `SavedVariables\*.lua`, except
+  `SKIP` (`cache.md5`; bindings, click bindings and macros belong to the character: neither saved nor applied, older
+  profiles have them), and for AceDB addons (account
   `SavedVariables` with `["profileKeys"]`) the profile the character uses + its table (and the namespaces'). `apply`
   (flavor closed, `pre-profile` WTF snapshot) copies the files and sets `profileKeys["Name - Realm"]` to that profile:
   shared on the same account; elsewhere added, as "<name> (<source key>)" when a different one of that name exists.
-  `edit-mode-cache-character.txt` starts with the Edit Mode layout per specialization slot (6 numbers, 0/1 = presets);
-  slots the source never used get its layout (`fill_layout_slots`), else other specs fall back to the default.
+  Edit Mode (`editmode.rs`, `put_layouts`): `edit-mode-cache-character.txt` = 6 specialization slots (Lua index into
+  presets 1/2 + account layouts from 3 + character layouts; 0 = none chosen, -1 = no such spec), then the character's
+  layouts (`<byte len> <name> <n>` + n frames of 10 tokens); the account file = version, count, settings, layouts.
+  `merge` adds the layouts the source uses to the target's own (an identical one on the target's account is used; a
+  taken name gets " (<source name>)"; 5 per character, `full` beyond), slots the source left unset get its most used
+  one. Unknown format = left alone. `live_files`/`live_merge` (ignored) check the real files read-only.
   `characters` (the panel's pick lists) leaves out folders of characters that are gone (`Roster`): the account's
   `character-list-order.txt` has the current GUIDs (`<realm id>-<hex>`), names come from addon SavedVariables keyed by
   `["Player-<guid>"]` with a `name` (and `realm`, else from the realm id or the only matching folder). Hidden only

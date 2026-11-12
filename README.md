@@ -17,7 +17,7 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
   new version, and you see which addons are not made for it yet.
 - **Cleanup**: settings of removed addons, WoW's `.bak` copies, old combat logs, screenshots and the cache — with
   sizes, in one click.
-- **UI profiles**: save a character's interface (bindings, macros, layout, addons and their profiles) and put it
+- **UI profiles**: save a character's interface (Edit Mode layouts, chat, addons and their profiles) and put it
   on another character in two clicks.
 - Updates itself: checks GitHub once a day and installs a new version in one click.
 - English, Russian, German, French and Spanish.
@@ -306,10 +306,14 @@ character not played since then is not filtered: nothing there is hidden by gues
 
 What goes into a profile:
 
-- every file of the character's folder `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: bindings, macros, chat, edit mode
-  layout, click bindings, enabled addons, the character's own addon settings (`SavedVariables`);
+- the files of the character's folder `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: chat, Edit Mode layouts, enabled
+  addons, the character's own addon settings (`SavedVariables`);
+- the account's Edit Mode layouts (`edit-mode-cache-account.txt`);
 - for addons that keep their settings account-wide as profiles (ElvUI, BigWigs, Clique, TomTom and others built on
   AceDB): which profile the character uses, and that profile's contents.
+
+Key bindings, click bindings and macros are not in a profile: they belong to the character, and the target keeps its
+own. Profiles saved by older versions still hold them, but they are not applied.
 
 Applying copies the files and switches those addons of the target character to the same profile. On the same account
 the two characters then share it: a change in ElvUI on one shows on the other, as with a shared profile in the game.
@@ -318,7 +322,12 @@ copy gets the source character's name, so nothing of the other account changes. 
 account is left alone and named in the result. The game version of the profile must be closed; a WTF snapshot
 *before profile* is taken first (see [Restoring](#restoring)).
 
-Bindings and macros may be stored on Blizzard's servers (see the end of the next section).
+Edit Mode layouts are added, not overwritten: the layouts the source character uses join the target's own character
+layouts, and the target's specializations switch to them. The target's own layouts stay. A layout already on the
+target's account is used as it is. If a name is taken, the copy gets the source character's name in brackets, e.g.
+"Main (Groncky)". A character can have at most 5 layouts of its own; a layout that does not fit is named in the
+result, and those specializations keep their layout. A profile from another account saved by an older version cannot
+carry the account layouts it uses.
 
 From the command line: `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
 `wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.

@@ -18,7 +18,7 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
   inicio con la nueva versión, y ves qué addons aún no están hechos para ella.
 - **Limpieza**: configuración de addons eliminados, copias `.bak` de WoW, registros de combate antiguos, capturas de
   pantalla y la caché, con sus tamaños, en un clic.
-- **Perfiles de interfaz**: guarda la interfaz de un personaje (atajos, macros, disposición, addons y sus perfiles)
+- **Perfiles de interfaz**: guarda la interfaz de un personaje (diseños del modo Edición, chat, addons y sus perfiles)
   y aplícala a otro personaje en dos clics.
 - Se actualiza solo: consulta GitHub una vez al día e instala una nueva versión con un clic.
 - En inglés, ruso, alemán, francés y español.
@@ -329,11 +329,14 @@ no se oculta nada a ciegas.
 
 Qué entra en un perfil:
 
-- todos los archivos de la carpeta del personaje `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: atajos, macros, chat,
-  disposición del modo edición, atajos de clic, addons activados y la configuración de addons propia del personaje
-  (`SavedVariables`);
+- los archivos de la carpeta del personaje `WTF\Account\<ACCOUNT>\<Realm>\<Name>`: chat, diseños del modo Edición,
+  addons activados y la configuración de addons propia del personaje (`SavedVariables`);
+- los diseños del modo Edición de la cuenta (`edit-mode-cache-account.txt`);
 - para los addons que guardan su configuración para toda la cuenta como perfiles (ElvUI, BigWigs, Clique, TomTom y
   otros basados en AceDB): qué perfil usa el personaje y su contenido.
+
+Los atajos de teclado, los atajos de clic y las macros no entran en un perfil: pertenecen al personaje, y el de
+destino conserva los suyos. Los perfiles guardados por versiones anteriores aún los contienen, pero no se aplican.
 
 Al aplicarlo se copian los archivos y esos addons del personaje de destino pasan al mismo perfil. En la misma cuenta,
 los dos personajes lo comparten después: un cambio de ElvUI en uno se ve en el otro, como con un perfil compartido en
@@ -342,7 +345,12 @@ el nombre del personaje de origen y en esa cuenta no cambia nada. Un addon que n
 no se toca y se menciona en el resultado. La versión del juego del perfil debe estar cerrada; antes se guarda una
 copia de WTF *antes del perfil* (ver [Restauración](#restauración)).
 
-Los atajos y las macros pueden guardarse en los servidores de Blizzard (ver el final de la sección siguiente).
+Los diseños del modo Edición se añaden, no se sobrescriben: los que usa el personaje de origen se suman a los diseños
+propios del personaje de destino, y sus especializaciones pasan a usarlos. Los diseños propios del destino se quedan.
+Un diseño que ya está en la cuenta de destino se usa tal cual. Si un nombre ya está ocupado, la copia recibe el nombre
+del personaje de origen entre paréntesis, por ejemplo «Main (Groncky)». Un personaje puede tener como máximo 5 diseños
+propios; un diseño que no cabe se menciona en el resultado, y esas especializaciones conservan su diseño. Un perfil de
+otra cuenta guardado por una versión anterior no puede llevar los diseños de la cuenta que usa.
 
 Desde la línea de comandos: `wow-tools profile save "Tarren Mill/Gronckk"`, `wow-tools profile list`,
 `wow-tools profile apply 1 --to "Tarren Mill/Groncky"`, `wow-tools profile delete 1`.

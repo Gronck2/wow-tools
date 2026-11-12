@@ -87,7 +87,7 @@ text = "Cuando Battle.net actualiza el juego, la configuración y los addons se 
 
 [[features]]
 title = "Perfiles de interfaz"
-text = "Guarda la interfaz de un personaje (atajos, macros, disposición, addons y sus perfiles) y aplícala a otro personaje en dos clics."
+text = "Guarda la interfaz de un personaje (diseños del modo Edición, chat, addons y sus perfiles) y aplícala a otro personaje en dos clics."
 
 [[features]]
 title = "Copia entre personajes"
