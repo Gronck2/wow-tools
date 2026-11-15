@@ -2,7 +2,7 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
-## [Unreleased]
+## [0.6.0] - 2026-11-15
 
 - Profiles no longer carry key bindings, click bindings and macros: the target character keeps its own. Applying
   a profile used to replace the target's macros with the source's. Profiles saved before still have them; they are
