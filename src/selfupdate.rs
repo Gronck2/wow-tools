@@ -116,6 +116,11 @@ pub fn check() -> Result<Option<Release>> {
     Ok(s.latest.filter(|r| newer(&r.version, current())))
 }
 
+/// The user was told about `release` already (`take_notify`).
+pub fn was_notified(release: &Release) -> bool {
+    load().notified.as_deref() == Some(release.version.as_str())
+}
+
 /// True once per version: whether to tell the user about `release`.
 pub fn take_notify(release: &Release) -> bool {
     let mut s = load();

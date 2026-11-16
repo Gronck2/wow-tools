@@ -104,6 +104,7 @@ El icono muestra el estado actual:
 | emblema dorado | el juego está abierto (la copia se hará al cerrarlo) |
 | punto azul | trabajando: copia, restauración, actualización de addons, limpieza o un perfil |
 | punto rojo | la última operación falló (pasa el ratón por el icono o abre el panel para ver por qué) |
+| flecha verde (arriba) | hay una nueva versión de WoW Tools: instálala desde el panel o el menú |
 
 **Clic izquierdo** abre el panel (estilo Windows 11, sigue el tema claro/oscuro y el color de énfasis):
 
@@ -117,6 +118,8 @@ El icono muestra el estado actual:
   cosa; mira [Limpieza](#limpieza).
 - Pestaña **Perfiles**: los perfiles de interfaz guardados y **Guardar un perfil** — ver
   [Perfiles de interfaz](#perfiles-de-interfaz).
+- Una pestaña se puede arrastrar a otro lugar de la fila; en **Ajustes → General → Pestañas del panel** el orden
+  también se cambia con flechas y se ocultan las pestañas que no hagan falta.
 - Arriba: el candado, el clip, la carpeta de copias y la configuración (al pasar el ratón se ve qué hace cada uno);
   abajo: **Iniciar con Windows**. El panel se cierra al hacer clic fuera; con el clip pulsado sigue abierto hasta
   pulsar Esc o hacer clic en el icono de la bandeja (si otra ventana lo tapa, ese clic lo trae al frente). Con el
@@ -138,8 +141,8 @@ en **Configuración → General** las desactiva.
 
 Cada cambio se guarda al instante y se aplica sin reiniciar.
 
-- **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego trabajar (copias, limpieza, perfiles),
-  idioma, inicio con Windows, **Notificaciones**, **Buscar actualizaciones** y la versión actual con **Comprobar** /
+- **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego trabajar (copias, limpieza, perfiles), **Pestañas del panel** (orden, cuáles se ven),
+  idioma, inicio con Windows, **Notificaciones**, **Buscar actualizaciones**, **Avisar de una nueva versión** (aunque los avisos estén apagados; en partida, al cerrar el juego) y la versión actual con **Comprobar** /
   **Instalar**, y un enlace a `config.toml` para las opciones que rara vez se necesitan. **Diagnóstico** → **Copiar**
   copia al portapapeles la versión, los ajustes, el historial de actualizaciones de addons y el final del registro, para
   enviarlo cuando algo no funciona (la carpeta de usuario se sustituye por `%USERPROFILE%`).

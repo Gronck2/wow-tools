@@ -101,6 +101,7 @@ The icon shows the current state:
 | gold emblem | the game is running (the backup will be taken after it exits) |
 | blue dot | working: backup, restore, addon update, cleanup or a profile |
 | red dot | the last operation failed (hover the icon or open the panel to see why) |
+| green arrow (top) | a new version of WoW Tools is out: install it from the panel or the menu |
 
 **Left click** opens the panel (Windows 11 style, follows the light/dark theme and the accent colour):
 
@@ -113,6 +114,8 @@ The icon shows the current state:
 - **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
   [Cleanup](#cleanup).
 - **Profiles** tab: saved UI profiles and **Save a profile** — see [UI profiles](#ui-profiles).
+- A tab can be dragged to another place along the strip; **Settings → General → Panel tabs** reorders them with
+  arrows too and hides the ones you do not need.
 - At the top: the lock, the paperclip, the backups folder and the settings (hover one to see what it does); at the
   bottom: **Start with Windows**. The panel closes when you click elsewhere; with the paperclip pressed it stays open
   until Esc or a click on the tray icon (when another window covers it, that click brings it to the front instead).
@@ -133,8 +136,8 @@ Notifications appear for the results of what you started yourself and for new er
 
 Every change is saved at once and applied without a restart.
 
-- **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), language,
-  start with Windows, **Notifications**, **Check for updates** and the current version with **Check** / **Install**, and a link to
+- **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), **Panel tabs** (order, which are shown), language,
+  start with Windows, **Notifications**, **Check for updates**, **Tell me about a new version** (works even with notifications off; during a game it waits for it to close) and the current version with **Check** / **Install**, and a link to
   `config.toml` for the rarely needed options. **Diagnostics** → **Copy** puts the version, settings, addon update
   history and the end of the log on the clipboard, to send along when something does not work (your user folder is
   replaced with `%USERPROFILE%`).

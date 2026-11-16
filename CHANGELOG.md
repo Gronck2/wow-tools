@@ -2,6 +2,16 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [Unreleased]
+
+- The panel's tabs can be put in any order: drag a tab along the strip, or use the arrows in the new **Panel tabs**
+  section of Settings → General. Tabs you do not need can be hidden there (at least one stays); what they do keeps
+  running. The order and the hidden tabs are kept in `config.toml` (`panel_tabs`, `hidden_tabs`).
+- A green arrow on the tray icon (and a line in its tooltip) shows that a new version of WoW Tools is out.
+- The notification about a new version has its own switch, **Tell me about a new version** (Settings → General,
+  on by default), so it comes even with the other notifications off. Found while a game runs, it waits until the
+  game closes: a fullscreen game hides notifications.
+
 ## [0.6.0] - 2026-11-15
 
 - Profiles no longer carry key bindings, click bindings and macros: the target character keeps its own. Applying

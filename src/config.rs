@@ -49,6 +49,39 @@ impl ShotsBy {
     pub const ALL: [ShotsBy; 4] = [ShotsBy::Day, ShotsBy::Month, ShotsBy::Year, ShotsBy::None];
 }
 
+/// A tab of the tray panel; the user can reorder and hide them (`panel_tabs`, `hidden_tabs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PanelTab {
+    Backup,
+    Addons,
+    Cleanup,
+    Profiles,
+}
+
+impl PanelTab {
+    pub const ALL: [PanelTab; 4] = [PanelTab::Backup, PanelTab::Addons, PanelTab::Cleanup, PanelTab::Profiles];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PanelTab::Backup => tr!("panel.tab_backup"),
+            PanelTab::Addons => tr!("panel.tab_addons"),
+            PanelTab::Cleanup => tr!("cleanup.tab"),
+            PanelTab::Profiles => tr!("profiles.tab"),
+        }
+    }
+}
+
+/// A list of tabs that skips names it does not know (a tab of a newer version, a typo) instead
+/// of rejecting the whole config.
+fn known_tabs<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<PanelTab>, D::Error> {
+    let names = Vec::<String>::deserialize(d)?;
+    Ok(names
+        .into_iter()
+        .filter_map(|n| PanelTab::deserialize(serde::de::value::StringDeserializer::<D::Error>::new(n)).ok())
+        .collect())
+}
+
 /// Choices of the "update every" stepper, in minutes.
 pub const UPDATE_EVERY: &[u64] = &[30, 60, 120, 180, 360, 720];
 
@@ -142,12 +175,20 @@ pub struct Config {
     pub notifications: bool,
     /// Ask GitHub once a day for a newer WoW Tools (`selfupdate`).
     pub check_updates: bool,
+    /// A balloon about a newer WoW Tools, even with `notifications` off (the icon shows it either way).
+    pub notify_updates: bool,
     /// Where the cleanup moves screenshots; unset = `Pictures\World of Warcraft`.
     pub screenshots_dir: Option<PathBuf>,
     /// Date folders under it.
     pub screenshots_by: ShotsBy,
     /// A folder per game version ("Retail", "Classic Era") above the date folders.
     pub screenshots_per_flavor: bool,
+    /// The order of the panel's tabs; tabs missing here follow in the default order (`tab_order`).
+    #[serde(deserialize_with = "known_tabs")]
+    pub panel_tabs: Vec<PanelTab>,
+    /// Tabs the panel does not show; at least one always stays (`shown_tabs`).
+    #[serde(deserialize_with = "known_tabs")]
+    pub hidden_tabs: Vec<PanelTab>,
     /// With `screenshots_per_flavor`: a folder chosen for a game version (`_retail_` -> path) instead of
     /// `<screenshots_dir>\<title>`. Last: TOML wants tables after the plain values.
     pub screenshots_dirs: std::collections::BTreeMap<String, PathBuf>,
@@ -180,9 +221,12 @@ impl Default for Config {
             language: None,
             notifications: true,
             check_updates: true,
+            notify_updates: true,
             screenshots_dir: None,
             screenshots_by: ShotsBy::Month,
             screenshots_per_flavor: true,
+            panel_tabs: PanelTab::ALL.to_vec(),
+            hidden_tabs: Vec::new(),
             screenshots_dirs: Default::default(),
         }
     }
@@ -204,6 +248,67 @@ impl Config {
             When::EveryDays => last_scheduled(&Day::ALL, self.time(), now)
                 .is_some_and(|at| last_backup.is_none_or(|l| (at.date() - l.date()).num_days() >= self.backup_every_days.max(1) as i64)),
         }
+    }
+
+    /// Every panel tab once, in the user's order.
+    pub fn tab_order(&self) -> Vec<PanelTab> {
+        let mut out: Vec<PanelTab> = Vec::new();
+        for &t in self.panel_tabs.iter().chain(PanelTab::ALL.iter()) {
+            if !out.contains(&t) {
+                out.push(t);
+            }
+        }
+        out
+    }
+
+    /// The tabs the panel shows, in order; all of them hidden = all shown.
+    pub fn shown_tabs(&self) -> Vec<PanelTab> {
+        let order = self.tab_order();
+        let shown: Vec<PanelTab> = order.iter().copied().filter(|t| !self.hidden_tabs.contains(t)).collect();
+        if shown.is_empty() { order } else { shown }
+    }
+
+    /// Takes `shown` (the shown tabs, rearranged in the panel) as their new order; hidden tabs
+    /// keep their places between them. Anything but a rearrangement of `shown_tabs` is ignored.
+    pub fn set_shown_order(&mut self, shown: &[PanelTab]) {
+        let mut old = self.shown_tabs();
+        let mut new = shown.to_vec();
+        old.sort_by_key(|&t| t as u8);
+        new.sort_by_key(|&t| t as u8);
+        if old != new {
+            return;
+        }
+        let mut next = shown.iter();
+        let visible = self.shown_tabs();
+        self.panel_tabs = self
+            .tab_order()
+            .into_iter()
+            .map(|t| if visible.contains(&t) { *next.next().unwrap_or(&t) } else { t })
+            .collect();
+    }
+
+    /// Moves tab `tab` one place up (`up`) or down in `tab_order`.
+    pub fn move_tab(&mut self, tab: PanelTab, up: bool) {
+        let mut order = self.tab_order();
+        let Some(i) = order.iter().position(|&t| t == tab) else { return };
+        let j = if up { i.checked_sub(1) } else { Some(i + 1).filter(|&j| j < order.len()) };
+        if let Some(j) = j {
+            order.swap(i, j);
+            self.panel_tabs = order;
+        }
+    }
+
+    /// Shows or hides `tab`; refuses (false) to hide the last one shown.
+    pub fn toggle_tab(&mut self, tab: PanelTab) -> bool {
+        if let Some(pos) = self.hidden_tabs.iter().position(|&t| t == tab) {
+            self.hidden_tabs.remove(pos);
+            return true;
+        }
+        if self.shown_tabs() == [tab] {
+            return false;
+        }
+        self.hidden_tabs.push(tab);
+        true
     }
 
     /// `update_time`, or 09:00 when it does not parse.
@@ -522,5 +627,38 @@ mod tests {
         let text = toml::to_string_pretty(&cfg).unwrap();
         let back: Config = toml::from_str(&text).unwrap();
         assert_eq!(back.screenshots_dirs.get("_retail_"), Some(&PathBuf::from(r"D:\Shots\Retail")));
+    }
+
+    #[test]
+    fn panel_tabs_order_and_hiding() {
+        use PanelTab::*;
+        // Unknown names are skipped, missing tabs follow in the default order.
+        let mut cfg: Config = toml::from_str("panel_tabs = ['profiles', 'mail', 'backup']\nhidden_tabs = ['cleanup', 'x']\n").unwrap();
+        assert_eq!(cfg.tab_order(), [Profiles, Backup, Addons, Cleanup]);
+        assert_eq!(cfg.shown_tabs(), [Profiles, Backup, Addons]);
+
+        // Rearranged in the panel: the hidden tab keeps its place.
+        cfg.hidden_tabs = vec![Backup];
+        cfg.set_shown_order(&[Cleanup, Profiles, Addons]);
+        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons]);
+        // Not a rearrangement of the shown tabs (a stale list): ignored.
+        cfg.set_shown_order(&[Backup, Cleanup, Profiles, Addons]);
+        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons]);
+
+        cfg.move_tab(Addons, true);
+        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Addons, Profiles]);
+        cfg.move_tab(Cleanup, true);
+        cfg.move_tab(Profiles, false);
+        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Addons, Profiles]);
+
+        // The last shown tab cannot be hidden.
+        assert!(cfg.toggle_tab(Cleanup) && cfg.toggle_tab(Addons));
+        assert!(!cfg.toggle_tab(Profiles));
+        assert_eq!(cfg.shown_tabs(), [Profiles]);
+        assert!(cfg.toggle_tab(Backup));
+        assert_eq!(cfg.shown_tabs(), [Backup, Profiles]);
+
+        let back: Config = toml::from_str(&toml::to_string_pretty(&cfg).unwrap()).unwrap();
+        assert_eq!((back.tab_order(), back.shown_tabs()), (cfg.tab_order(), cfg.shown_tabs()));
     }
 }

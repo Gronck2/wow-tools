@@ -512,7 +512,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
     if view == "tray-icons" {
         // Each state at the tray sizes of 100-200 % scaling, over a light and a dark taskbar.
         let sizes = [16, 20, 24, 32];
-        return Ok(gfx::render_png(&path, 200.0, 250.0, 1.0, |p| {
+        return Ok(gfx::render_png(&path, 290.0, 250.0, 1.0, |p| {
             for (row, dark) in [false, true].into_iter().enumerate() {
                 let bg = if dark {
                     gfx::col(0x20, 0x20, 0x20, 1.0)
@@ -524,7 +524,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                     gfx::R {
                         x: 0.0,
                         y: y0,
-                        w: 200.0,
+                        w: 290.0,
                         h: 125.0,
                     },
                     0.0,
@@ -706,6 +706,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         cleaned: (view == "cleanup-done").then(|| (maintenance::Item::Orphans, tr!("cleanup.removed", n = 41, size = "9.8 MB"), true)),
         shots_dir: maintenance::screenshots_dir(&Config::default()),
         running: if view == "profiles-game" { vec!["_retail_".into()] } else { Vec::new() },
+        tabs: config::PanelTab::ALL.to_vec(),
         profiles: if view == "profiles-empty" {
             Vec::new()
         } else {
@@ -902,6 +903,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             first: 0,
             search: if view == "profiles-search" { "tar".into() } else { String::new() },
         }),
+        (view == "panel-drag").then_some((panel::Tab::Addons, 34.0)),
     )?)
 }
 

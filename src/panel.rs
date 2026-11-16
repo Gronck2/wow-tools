@@ -1,7 +1,7 @@
-//! The flyout opened by a left click on the tray icon, with three tabs: "Бэкап" (status, "backup now",
-//! restore points with an inline confirmation), "Аддоны" (last update, "update now", the last runs)
-//! and "Уборка" (what can be tidied up, a button each), and the autostart switch under all of them.
-//! The window exists only while open.
+//! The flyout opened by a left click on the tray icon, with tabs: "Бэкап" (status, "backup now",
+//! restore points with an inline confirmation), "Аддоны" (last update, "update now", the last runs),
+//! "Уборка" (what can be tidied up, a button each) and "Профили", and the autostart switch under all
+//! of them. The tabs are reordered by dragging and hidden in the settings. The window exists only while open.
 
 use std::cell::RefCell;
 use std::mem::{size_of, zeroed};
@@ -13,7 +13,7 @@ use windows::Win32::Graphics::DirectWrite::IDWriteTextFormat;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT, ScreenToClient};
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_ESCAPE};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_ESCAPE};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
@@ -78,26 +78,13 @@ pub struct View {
     pub profile_done: Option<(ProfileJob, String, Tone)>,
     /// The game versions running now (`_retail_`, ...): their profiles cannot be applied.
     pub running: Vec<String>,
+    /// The tabs shown, in order (`Config::shown_tabs`); never empty.
+    pub tabs: Vec<Tab>,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Tab {
-    Backup,
-    Addons,
-    Cleanup,
-    Profiles,
-}
-
-impl Tab {
-    fn label(self) -> &'static str {
-        match self {
-            Tab::Backup => tr!("panel.tab_backup"),
-            Tab::Addons => tr!("panel.tab_addons"),
-            Tab::Cleanup => tr!("cleanup.tab"),
-            Tab::Profiles => tr!("profiles.tab"),
-        }
-    }
-}
+/// The tabs, in the order and with the ones shown that the user chose (`Config::shown_tabs`); a tab
+/// is moved by dragging it along the strip.
+pub use crate::config::PanelTab as Tab;
 
 /// How many update runs the "Аддоны" tab lists.
 pub const HISTORY_ROWS: usize = 5;
@@ -734,11 +721,11 @@ fn restore_allowed(v: &View, i: usize) -> bool {
 }
 
 /// The tab strip under the title.
-fn tabs(f: &Formats) -> Vec<(R, Tab)> {
+fn tabs(v: &View, f: &Formats) -> Vec<(R, Tab)> {
     let mut x = PAD - 4.0;
-    [Tab::Backup, Tab::Addons, Tab::Cleanup, Tab::Profiles]
-        .into_iter()
-        .map(|tab| {
+    v.tabs
+        .iter()
+        .map(|&tab| {
             let w = gfx::text_width(&f.tab_on, tab.label()) + 28.0;
             let r = R { x, y: TABS_Y, w, h: TABS_H };
             x += w + 2.0;
@@ -758,7 +745,7 @@ fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<Confirm>, sheet: Option
     if let Some(r) = update_rect(v, f).filter(|_| !v.self_update.installing) {
         out.push((r, Hit::SelfUpdate));
     }
-    out.extend(tabs(f).into_iter().filter(|(_, t)| *t != tab).map(|(r, t)| (r, Hit::Tab(t))));
+    out.extend(tabs(v, f).into_iter().filter(|(_, t)| *t != tab).map(|(r, t)| (r, Hit::Tab(t))));
     if tab == Tab::Addons {
         if v.status.phase != Phase::Busy && v.update_app.is_some() && !v.update_waits_for_game {
             out.push((button_rect(), Hit::Update));
@@ -911,8 +898,20 @@ fn lighten(mut c: D2D1_COLOR_F, t: &Theme) -> D2D1_COLOR_F {
     c
 }
 
+/// `lifted`: see `draw_tabs`.
 #[allow(clippy::too_many_arguments)]
-fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>, confirm: Option<Confirm>, sheet: Option<&Sheet>, prof_first: usize) {
+fn draw(
+    p: &Painter,
+    v: &View,
+    t: &Theme,
+    f: &Formats,
+    tab: Tab,
+    hover: Option<Hit>,
+    confirm: Option<Confirm>,
+    sheet: Option<&Sheet>,
+    prof_first: usize,
+    lifted: Option<(Tab, f32)>,
+) {
     p.clear(t.bg);
     p.text(
         crate::config::APP_NAME,
@@ -957,7 +956,7 @@ fn draw(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<H
         };
         button(p, f, r, "\u{E896}", pill_label(v, f), style, t);
     }
-    draw_tabs(p, t, f, tab, hover);
+    draw_tabs(p, v, t, f, tab, hover, lifted);
     match tab {
         Tab::Backup => {
             let confirm = match confirm {
@@ -1057,12 +1056,11 @@ fn draw_row_tip(p: &Painter, v: &View, t: &Theme, f: &Formats, row: R, text: &st
     draw_tip(p, t, f, R { y, ..row }, text, error);
 }
 
-fn draw_tabs(p: &Painter, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>) {
-    for (r, item) in tabs(f) {
+/// `lifted`: a tab held with the mouse and the left edge it is drawn at; its place in the strip stays
+/// an empty slot and the tab is drawn over the strip as a card with an accent frame.
+fn draw_tabs(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>, lifted: Option<(Tab, f32)>) {
+    let draw_tab = |r: R, item: Tab| {
         let on = item == tab;
-        if !on && hover == Some(Hit::Tab(item)) {
-            p.fill(r, 4.0, t.card_hover);
-        }
         p.text(item.label(), if on { &f.tab_on } else { &f.tab }, r, if on { t.text } else { t.text2 });
         if on {
             let w = 20.0;
@@ -1077,6 +1075,19 @@ fn draw_tabs(p: &Painter, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>) 
                 t.accent,
             );
         }
+    };
+    let mut floating = None;
+    for (r, item) in tabs(v, f) {
+        if let Some((held, x)) = lifted.filter(|(held, _)| *held == item) {
+            p.fill(r, 4.0, t.card_hover);
+            let x = x.clamp(PAD - 8.0, W - PAD + 8.0 - r.w);
+            floating = Some((R { x, ..r }, held));
+            continue;
+        }
+        if hover == Some(Hit::Tab(item)) {
+            p.fill(r, 4.0, t.card_hover);
+        }
+        draw_tab(r, item);
     }
     p.fill(
         R {
@@ -1088,6 +1099,11 @@ fn draw_tabs(p: &Painter, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>) 
         0.0,
         t.stroke,
     );
+    if let Some((r, item)) = floating {
+        p.fill(r, 6.0, t.card);
+        p.stroke(r, 6.0, t.accent, 1.5);
+        draw_tab(r, item);
+    }
 }
 
 fn status_card() -> R {
@@ -2129,6 +2145,49 @@ struct Panel {
     prof_first: usize,
     tracking: bool,
     anchor_bottom: bool,
+    /// A tab held down with the left button (`Drag`).
+    drag: Option<Drag>,
+}
+
+/// A tab pressed in the strip: past `DRAG_START` it follows the mouse and the order is saved on release;
+/// before that the release is a plain click.
+struct Drag {
+    tab: Tab,
+    x0: f32,
+    /// Where in the tab it was grabbed (from its left edge) and where the mouse is now: the tab
+    /// is drawn lifted at `x - grab` from the press on (`draw_tabs`).
+    grab: f32,
+    x: f32,
+    moved: bool,
+}
+
+impl Drag {
+    fn lifted(&self) -> (Tab, f32) {
+        (self.tab, self.x - self.grab)
+    }
+}
+
+const DRAG_START: f32 = 6.0;
+
+/// The left-right arrows while a tab is held: it can be moved along the strip.
+fn drag_cursor() {
+    unsafe { SetCursor(LoadCursorW(null_mut(), IDC_SIZEWE)) };
+}
+
+/// The point of `lparam` in DIPs.
+fn point_at(p: &Panel, lparam: LPARAM) -> (f32, f32) {
+    let x = (lparam & 0xFFFF) as i16 as f32 / p.surface.scale;
+    let y = ((lparam >> 16) & 0xFFFF) as i16 as f32 / p.surface.scale;
+    (x, y)
+}
+
+/// Puts `tab` where the mouse at `x` is along the strip: after every other tab whose middle is left of it.
+fn drag_to(v: &mut View, f: &Formats, tab: Tab, x: f32) -> bool {
+    let place = tabs(v, f).iter().filter(|(r, t)| *t != tab && r.cx() < x).count();
+    let old = v.tabs.clone();
+    v.tabs.retain(|&t| t != tab);
+    v.tabs.insert(place.min(v.tabs.len()), tab);
+    v.tabs != old
 }
 
 thread_local! {
@@ -2154,16 +2213,12 @@ pub fn set_unlocked(on: bool) {
     UNLOCKED.store(on, Ordering::Relaxed);
 }
 
-/// The tab open last (`Tab as u8`); the panel reopens on it.
-static LAST_TAB: AtomicU8 = AtomicU8::new(0);
+/// The tab open last (`Tab as u8`); the panel reopens on it, or on the first one when it is hidden now.
+static LAST_TAB: AtomicU8 = AtomicU8::new(u8::MAX);
 
-fn last_tab() -> Tab {
-    match LAST_TAB.load(Ordering::Relaxed) {
-        1 => Tab::Addons,
-        2 => Tab::Cleanup,
-        3 => Tab::Profiles,
-        _ => Tab::Backup,
-    }
+fn last_tab(v: &View) -> Tab {
+    let last = Tab::ALL.get(LAST_TAB.load(Ordering::Relaxed) as usize).copied();
+    last.filter(|t| v.tabs.contains(t)).or(v.tabs.first().copied()).unwrap_or(Tab::Backup)
 }
 
 fn with_panel<T>(f: impl FnOnce(&mut Panel) -> T) -> Option<T> {
@@ -2250,23 +2305,25 @@ fn open() -> gfx::Result<()> {
         _ => (near_x, work.bottom - h - margin),
     };
     let hwnd = gfx::create_popup("WowToolsPanel", Some(wndproc), (x, y, w, h), theme.dark, false);
+    let tab = last_tab(&view);
     let panel = Panel {
         surface: Surface::new(hwnd, scale)?,
         fmt: formats()?,
         theme,
         view,
-        tab: last_tab(),
+        tab,
         hover: None,
         confirm: None,
         sheet: None,
         prof_first: 0,
         tracking: false,
         anchor_bottom: saved.is_none() && edge == 3,
+        drag: None,
     };
     let cleaning = spinning(&panel.view);
     PANEL.with(|p| *p.borrow_mut() = Some(panel));
     spin(hwnd, cleaning);
-    if matches!(last_tab(), Tab::Cleanup | Tab::Profiles) {
+    if matches!(tab, Tab::Cleanup | Tab::Profiles) {
         tray::rescan();
     }
     unsafe {
@@ -2302,7 +2359,21 @@ fn save_pos(hwnd: HWND) {
 /// Re-reads the state (after a backup, a restore, a settings change) and redraws.
 pub fn refresh() {
     let Some((hwnd, cleaning)) = with_panel(|p| {
-        let old = std::mem::replace(&mut p.view, tray::view());
+        let mut new = tray::view();
+        // A tab being dragged keeps the order it is dragged in until it is let go.
+        if p.drag.as_ref().is_some_and(|d| d.moved) {
+            new.tabs = p.view.tabs.clone();
+        }
+        let old = std::mem::replace(&mut p.view, new);
+        // The open tab was hidden in the settings: the first one shown opens instead.
+        if !p.view.tabs.contains(&p.tab) {
+            p.tab = last_tab(&p.view);
+            p.confirm = None;
+            p.sheet = None;
+            if matches!(p.tab, Tab::Cleanup | Tab::Profiles) {
+                tray::rescan();
+            }
+        }
         // A confirmation or pick list points into the lists by position, and they may have changed
         // (a new snapshot or profile goes first): it follows what it pointed at, or goes.
         p.confirm = p.confirm.and_then(|c| follow(&old, &p.view, c)).filter(|&c| match c {
@@ -2545,7 +2616,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 with_panel(|p| {
                     let (view, theme, fmt, tab, hover, confirm, sheet, first) =
                         (&p.view, &p.theme, &p.fmt, p.tab, p.hover, p.confirm, p.sheet.as_ref(), p.prof_first);
-                    p.surface.paint(|painter| draw(painter, view, theme, fmt, tab, hover, confirm, sheet, first));
+                    let lifted = p.drag.as_ref().map(Drag::lifted);
+                    p.surface
+                        .paint(|painter| draw(painter, view, theme, fmt, tab, hover, confirm, sheet, first, lifted));
                 });
                 EndPaint(hwnd, &ps);
                 0
@@ -2562,6 +2635,19 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         };
                         TrackMouseEvent(&mut tme);
                         p.tracking = true;
+                    }
+                    let (x, _) = point_at(p, lparam);
+                    if let Some(d) = p.drag.as_mut() {
+                        d.moved |= (x - d.x0).abs() >= DRAG_START;
+                        d.x = x;
+                        let (tab, moved) = (d.tab, d.moved);
+                        p.hover = Some(Hit::Tab(tab));
+                        drag_cursor();
+                        if moved {
+                            drag_to(&mut p.view, &p.fmt, tab, x);
+                        }
+                        // The lifted tab follows the mouse.
+                        return true;
                     }
                     let h = hit_at(p, lparam);
                     let changed = h != p.hover;
@@ -2581,9 +2667,56 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 InvalidateRect(hwnd, null(), 0);
                 0
             }
+            // A press on a tab may start dragging it to another place.
+            WM_LBUTTONDOWN => {
+                let pressed = with_panel(|p| {
+                    let (x, y) = point_at(p, lparam);
+                    let (r, tab) = tabs(&p.view, &p.fmt).into_iter().find(|(r, _)| r.contains(x, y))?;
+                    p.drag = Some(Drag {
+                        tab,
+                        x0: x,
+                        grab: x - r.x,
+                        x,
+                        moved: false,
+                    });
+                    Some(())
+                })
+                .flatten();
+                if pressed.is_some() {
+                    SetCapture(hwnd);
+                    drag_cursor();
+                    InvalidateRect(hwnd, null(), 0);
+                }
+                0
+            }
             WM_LBUTTONUP => {
-                if let Some(hit) = with_panel(|p| hit_at(p, lparam)).flatten() {
-                    click(hwnd, hit);
+                let dragged = with_panel(|p| {
+                    let d = p.drag.take()?;
+                    p.hover = hit_at(p, lparam);
+                    Some(d.moved.then(|| p.view.tabs.clone()))
+                })
+                .flatten();
+                ReleaseCapture();
+                // The lifted tab drops back into the strip.
+                InvalidateRect(hwnd, null(), 0);
+                match dragged {
+                    Some(Some(order)) => tray::act(Action::PanelTabs(order)),
+                    _ => {
+                        if let Some(hit) = with_panel(|p| hit_at(p, lparam)).flatten() {
+                            click(hwnd, hit);
+                        }
+                    }
+                }
+                0
+            }
+            // The capture taken away mid-drag (a window popped up): the order goes back as saved.
+            WM_CAPTURECHANGED => {
+                match with_panel(|p| p.drag.take().map(|d| d.moved)).flatten() {
+                    Some(true) => refresh(),
+                    Some(false) => {
+                        InvalidateRect(hwnd, null(), 0);
+                    }
+                    None => {}
                 }
                 0
             }
@@ -2721,6 +2854,7 @@ pub enum Header {
 
 /// Renders the panel with `view` into a PNG, for checking the look.
 /// `tip`: hover history row `tip`, or cleanup line `tip` on that tab (its full text shows);`header`: hover that header button.
+/// `drag`: a tab held and moved this far right of its place.
 #[allow(clippy::too_many_arguments)]
 pub fn snapshot(
     path: &str,
@@ -2732,9 +2866,14 @@ pub fn snapshot(
     tip: Option<usize>,
     header: Option<Header>,
     sheet: Option<Sheet>,
+    drag: Option<(Tab, f32)>,
 ) -> gfx::Result<()> {
     let theme = gfx::theme_for(dark);
     let fmt = formats()?;
+    let lifted = drag.and_then(|(held, dx)| {
+        let (r, _) = tabs(view, &fmt).into_iter().find(|(_, t)| *t == held)?;
+        Some((held, r.x + dx))
+    });
     let button = match tab {
         Tab::Addons => Hit::Update,
         Tab::Backup => Hit::Backup,
@@ -2758,6 +2897,6 @@ pub fn snapshot(
         }))
         .or(hover_button.then_some(button));
     gfx::render_png(path, W, height(view), 1.5, |p| {
-        draw(p, view, &theme, &fmt, tab, hover, confirm, sheet.as_ref(), 0)
+        draw(p, view, &theme, &fmt, tab, hover, confirm, sheet.as_ref(), 0, lifted)
     })
 }

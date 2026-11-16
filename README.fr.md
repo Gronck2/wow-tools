@@ -108,6 +108,7 @@ L'icône indique l'état actuel :
 | emblème doré | le jeu est lancé (la sauvegarde se fera après sa fermeture) |
 | point bleu | travail en cours : sauvegarde, restauration, mise à jour des addons, nettoyage ou profil |
 | point rouge | la dernière opération a échoué (survolez l'icône ou ouvrez le panneau pour savoir pourquoi) |
+| flèche verte (en haut) | une nouvelle version de WoW Tools est sortie : installez-la depuis le panneau ou le menu |
 
 Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/sombre et la couleur d'accentuation) :
 
@@ -121,6 +122,8 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
   chaque élément — voir [Nettoyage](#nettoyage).
 - Onglet **Profils** : les profils d'interface enregistrés et **Enregistrer un profil** — voir
   [Profils d'interface](#profils-dinterface).
+- Un onglet se fait glisser à une autre place dans la rangée ; **Paramètres → Général → Onglets du panneau** change
+  aussi l’ordre avec des flèches et masque les onglets inutiles.
 - En haut : le cadenas, le trombone, le dossier des sauvegardes et les paramètres (survolez-les pour voir ce qu'ils
   font) ; en bas : **Lancer avec Windows**. Le panneau se ferme quand vous cliquez ailleurs ; trombone enfoncé, il
   reste ouvert jusqu'à Échap ou un clic sur l'icône de notification (si une autre fenêtre le couvre, ce clic le ramène
@@ -142,8 +145,8 @@ Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-
 
 Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 
-- **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), langue,
-  lancement avec Windows, **Notifications**, **Rechercher les mises à jour** et la version actuelle avec **Vérifier** /
+- **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), **Onglets du panneau** (ordre, lesquels sont affichés), langue,
+  lancement avec Windows, **Notifications**, **Rechercher les mises à jour**, **Signaler une nouvelle version** (même notifications coupées ; en jeu, une fois le jeu fermé) et la version actuelle avec **Vérifier** /
   **Installer**, et un lien vers `config.toml` pour les options rarement utiles. **Diagnostic** → **Copier** met la
   version, les réglages, l’historique des mises à jour d’addons et la fin du journal dans le presse-papiers, à joindre
   quand quelque chose ne marche pas (le dossier utilisateur devient `%USERPROFILE%`).

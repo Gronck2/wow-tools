@@ -79,7 +79,7 @@ Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|panel-drag|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -98,8 +98,11 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   restore) and `Event` callback. Used by `watch` (no requests) and by the tray worker thread.
 - `tray.rs`: hidden window, single-instance mutex, tray icon from the exe's resources (`build.rs` +
   `wow-tools.rc` embed `assets\wow-tools.ico`, the gold app icon = a game runs, and `assets\tray-idle.ico`, grey)
-  with a dot drawn on for busy (blue) / failed (red) (`tray_icon`; `ui-snapshot tray-icons` shows them), `TaskbarCreated`
-  re-add, balloons for manual results and new errors (none with `notifications` off: `update_tray` drops them). `view()` builds what the panel/menu show; `act(Action)` runs
+  with a dot drawn on for busy (blue) / failed (red) at the lower right and a green up arrow at the upper right for a
+  newer WoW Tools (`tray_icon`, the arrow sampled 4x4 from `in_arrow`, drawn under the dot; `ui-snapshot tray-icons`
+  shows them), `TaskbarCreated`
+  re-add, balloons for manual results and new errors (none with `notifications` off: `update_tray` drops them; the
+  new-version balloon is `State::update_balloon`, gated by `notify_updates` instead). `view()` builds what the panel/menu show; `act(Action)` runs
   their clicks. A double-click start frees its own console (`GetConsoleProcessList == 1`); after that,
   `Command::spawn` with inherited stdio fails with os error 50, so files are opened with `ShellExecuteW`.
 - `gfx.rs`: Direct2D/DirectWrite helpers shared by the UI, modeled on RGBTray (`C:\test\Accs\src\ui.rs`): system
@@ -118,7 +121,12 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   `View::running` has the profile's flavor: `Hit::ApplyBlocked`)
   (pick list `ApplyTo`, then "sure?" in the row: `Confirm::ApplyProfile`) and delete; jobs run in the worker
   (`Request::SaveProfile`/`ApplyProfile`), spinner and result in the row); autostart switch under all. The height fits the tallest tab, so switching tabs
-  does not resize it.
+  does not resize it. The tabs are `config::PanelTab` (`panel::Tab`), shown as `View::tabs` = `Config::shown_tabs`
+  (`panel_tabs` order, missing ones appended, minus `hidden_tabs`, never empty); a tab pressed and moved 6 DIPs is
+  dragged (`Drag`, mouse capture, `drag_to` reorders live) and the release saves it (`Action::PanelTabs` ->
+  `Config::set_shown_order`, hidden tabs keep their places; `settings::tabs_changed` updates an open settings window).
+  Settings → General → "Вкладки панели": a card per tab with up/down arrows and a show switch (`Config::move_tab`,
+  `toggle_tab` refuses to hide the last one). The open tab, hidden, falls back to the first shown.
   Pure `draw(view, …)`; closes on deactivate/Esc; the header paperclip (`PINNED`, kept while the tray runs) keeps it
   open on deactivate and after the folder/settings buttons (Esc and the tray icon still close it). The panel is not
   topmost (only the menu is); a tray click on a pinned panel that another window overlaps (`panel::covered`: visible,
@@ -129,7 +137,7 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   the tray when there is no file or the monitor is gone, `gfx::monitor_at`). Every header button has a hover tip
   (`panel.*_tip`; `ui-snapshot lock-tip|pin-tip|folder-tip|settings-tip|unlocked`); the new version button drops its
   number for the icon alone when it would run into the title (`pill_label`). `menu.rs`: right-click menu in the same style.
-- `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game + system only), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
+- `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game, panel tabs, system), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
   top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
   switches and on changes that add or remove cards, top edge kept): game folder
   (folder picker, "Авто"), flavors as chips, "when" as chips (after game / by weekday / every N days; addons: by weekday /
@@ -275,8 +283,10 @@ of the process while it runs. Only per-addon
   new one in (rolled back if the copy fails); `exe_path()` caches `current_exe()` from before the rename. The tray
   (`tray::self_update_loop`, its own thread: a minute after start, then hourly if `check_updates` and 24 h passed;
   `data\self-update.json` keeps the last check, the version a balloon was shown for, and the version being installed
-  for a "updated" balloon in the new exe) shows it as a header button in the panel, the version row of the menu and
-  two rows in Settings → General. After `install` it posts `WM_RESTART`: waits while a job runs, then starts
+  for a "updated" balloon in the new exe) shows it as a header button in the panel, the version row of the menu,
+  the tray icon's arrow and tooltip, and rows in Settings → General. The balloon (`notify_update`) comes once per
+  version; found while a game runs it waits for `Event::Game(None)` (`update_waiting`; `was_notified` at start
+  catches one a closed tray never told). After `install` it posts `WM_RESTART`: waits while a job runs, then starts
   `conhost --headless <exe> tray --wait-pid <pid>` (hidden arg: the new tray waits for the old one to exit, so the
   single-instance mutex is free) and exits. `self-update [--check]` does the same from the console (no restart).
   `live_github` (ignored) runs the real API and a real download against a public repo.

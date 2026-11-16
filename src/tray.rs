@@ -133,6 +133,8 @@ pub enum Action {
     OpenConfigFile,
     /// The settings window saved the config: refresh what shows it.
     SettingsChanged,
+    /// The panel's tabs were dragged into this order (the ones shown).
+    PanelTabs(Vec<config::PanelTab>),
     OpenLog,
     Autostart,
     /// Ask GitHub for a newer WoW Tools now.
@@ -181,6 +183,11 @@ struct State {
     /// Last error shown as a balloon, so a repeating error does not pop up every round.
     shown_error: Option<String>,
     update: SelfUpdate,
+    /// The balloon about a newer WoW Tools: shown even with `notifications` off, unless `notify_updates`
+    /// is off (`update_tray`).
+    update_balloon: Option<Balloon>,
+    /// A newer version was found while a game ran: told when it closes (a fullscreen game hides balloons).
+    update_waiting: bool,
     /// A new exe is in place; restart when the current job is done.
     restart_pending: bool,
     /// What the cleanup tab shows; read in the background (`rescan`).
@@ -231,6 +238,8 @@ static STATE: Mutex<State> = Mutex::new(State {
         installing: false,
         error: None,
     },
+    update_balloon: None,
+    update_waiting: false,
     restart_pending: false,
     scan: None,
     scanning: false,
@@ -354,6 +363,10 @@ pub fn run(ctx: Ctx) -> Result<()> {
         st.status.last = ctx.last_backup();
         st.update.available = selfupdate::available();
         st.update.checked = selfupdate::last_check();
+        // Found by an earlier run but not told yet (it was found during a game).
+        if let Some(r) = st.update.available.clone() {
+            notify_update(&mut st, &r, false);
+        }
         if let Some(version) = selfupdate::take_installed() {
             st.balloon = Some(Balloon {
                 title: tr!("self_update.done_title"),
@@ -517,6 +530,7 @@ pub fn view() -> View {
             .filter(|fl| wow::running_in(&games, fl).is_some())
             .map(|fl| fl.name.clone())
             .collect(),
+        tabs: cfg.shown_tabs(),
     }
 }
 
@@ -605,6 +619,7 @@ pub fn act(action: Action) {
             post_state();
             Ok(())
         }
+        Action::PanelTabs(order) => save_panel_tabs(&order),
         Action::OpenLog => open_in_notepad(&config::default_log_path()),
         Action::Autostart => toggle_autostart(),
         Action::CheckUpdate => send_self(SelfRequest::Check { manual: true }),
@@ -661,6 +676,16 @@ pub fn act(action: Action) {
         });
         post_state();
     }
+}
+
+/// Saves the order the panel's tabs were dragged into; the settings window shows it at once.
+fn save_panel_tabs(order: &[config::PanelTab]) -> Result<()> {
+    let Some(path) = config_path() else { return Ok(()) };
+    let mut cfg = Config::load(&path)?;
+    cfg.set_shown_order(order);
+    cfg.save(&path)?;
+    settings::tabs_changed(&cfg);
+    Ok(())
 }
 
 fn send(request: Request) -> Result<()> {
@@ -725,15 +750,7 @@ fn check_for_update(manual: bool) {
             Ok(found) => {
                 st.update.error = None;
                 match &found {
-                    // A balloon once per version (and on every manual check).
-                    Some(r) if selfupdate::take_notify(r) || manual => {
-                        st.balloon = Some(Balloon {
-                            title: tr!("self_update.found_title"),
-                            text: tr!("self_update.found_text", version = &r.version),
-                            error: false,
-                        })
-                    }
-                    Some(_) => {}
+                    Some(r) => notify_update(&mut st, r, manual),
                     None if manual => {
                         st.balloon = Some(Balloon {
                             title: APP_NAME,
@@ -760,6 +777,23 @@ fn check_for_update(manual: bool) {
         }
     }
     post_state();
+}
+
+/// The balloon about `release`: once per version (and on every manual check). While a game runs it
+/// waits for the game to close (`update_waiting`), since a fullscreen game hides balloons.
+fn notify_update(st: &mut State, release: &selfupdate::Release, manual: bool) {
+    if st.status.game.is_some() && !manual {
+        st.update_waiting = !selfupdate::was_notified(release);
+        return;
+    }
+    st.update_waiting = false;
+    if manual || selfupdate::take_notify(release) {
+        st.update_balloon = Some(Balloon {
+            title: tr!("self_update.found_title"),
+            text: tr!("self_update.found_text", version = &release.version),
+            error: false,
+        });
+    }
 }
 
 fn install_update() {
@@ -855,7 +889,15 @@ fn on_event(event: Event) {
                 st.status.phase = Phase::Busy;
                 st.status.work = work;
             }
-            Event::Game(game) => st.status.game = game,
+            Event::Game(game) => {
+                st.status.game = game;
+                if st.status.game.is_none()
+                    && st.update_waiting
+                    && let Some(r) = st.update.available.clone()
+                {
+                    notify_update(&mut st, &r, false);
+                }
+            }
             Event::Backup { manual, result } => {
                 let errors = match result {
                     Ok(report) if report.errors.is_empty() => {
@@ -1050,7 +1092,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
     }
 }
 
-fn tooltip(s: &Status) -> String {
+fn tooltip(s: &Status, update: Option<&str>) -> String {
     let mut tip = String::from(APP_NAME);
     let line = match s.last {
         Some(t) => tr!("panel.last_backup", time = format_time(t)),
@@ -1066,28 +1108,41 @@ fn tooltip(s: &Status) -> String {
     if !line.is_empty() {
         tip.push_str(&format!("\n{line}"));
     }
+    if let Some(version) = update {
+        tip.push_str(&format!("\n{}", tr!("self_update.available", version = version)));
+    }
     tip
 }
 
 unsafe fn update_tray(hwnd: HWND, action: u32) {
-    let (id, badge, tip, balloon) = {
+    let (id, badge, update, tip, balloon, update_balloon) = {
         let mut st = STATE.lock().unwrap();
         st.status.progress = crate::snapshot::progress();
         let s = &st.status;
-        // Gold while the game runs, grey otherwise; a dot for work (blue) or a failure (red).
+        // Gold while the game runs, grey otherwise; a dot for work (blue) or a failure (red); a green
+        // one at the top for a newer WoW Tools.
         let id = if s.game.is_some() { ICON_APP } else { ICON_IDLE };
         let badge = match s.phase {
-            Phase::Busy => Some((0x3B, 0x82, 0xF6)),
-            Phase::Error(_) => Some((0xE5, 0x48, 0x4D)),
+            Phase::Busy => Some(BUSY),
+            Phase::Error(_) => Some(FAILED),
             Phase::Idle => None,
         };
-        let tip = tooltip(s);
-        (id, badge, tip, st.balloon.take())
+        let update = st.update.available.as_ref().filter(|_| !st.update.installing).map(|r| r.version.clone());
+        let tip = tooltip(s, update.as_deref());
+        // One balloon at a time: the other one waits for the next refresh.
+        let balloon = st.balloon.take();
+        let update_balloon = if balloon.is_none() { st.update_balloon.take() } else { None };
+        (id, badge, update.is_some(), tip, balloon, update_balloon)
     };
     // Read only when there is something to show; unreadable = shown.
-    let balloon = balloon.filter(|_| config_path().and_then(|p| Config::load(&p).ok()).is_none_or(|c| c.notifications));
+    let cfg = (balloon.is_some() || update_balloon.is_some())
+        .then(|| config_path().and_then(|p| Config::load(&p).ok()))
+        .flatten();
+    let balloon = balloon
+        .filter(|_| cfg.as_ref().is_none_or(|c| c.notifications))
+        .or(update_balloon.filter(|_| cfg.as_ref().is_none_or(|c| c.notify_updates)));
     unsafe {
-        let icon = tray_icon(id, badge, GetSystemMetrics(SM_CXSMICON));
+        let icon = tray_icon(id, badge, update, GetSystemMetrics(SM_CXSMICON));
         let mut nid: NOTIFYICONDATAW = zeroed();
         nid.cbSize = size_of::<NOTIFYICONDATAW>() as u32;
         nid.hWnd = hwnd;
@@ -1120,11 +1175,28 @@ unsafe fn remove_tray(hwnd: HWND) {
     }
 }
 
-/// Tray icon `id` at the small icon size, with a dot of color `badge` in the lower right corner.
-unsafe fn tray_icon(id: u16, badge: Option<(u8, u8, u8)>, s: i32) -> HICON {
+/// Colors of the tray icon's marks: work running, the last job failed, a newer WoW Tools.
+const BUSY: (u8, u8, u8) = (0x3B, 0x82, 0xF6);
+const FAILED: (u8, u8, u8) = (0xE5, 0x48, 0x4D);
+const NEW_VERSION: (u8, u8, u8) = (0x22, 0xC5, 0x5E);
+const RIM: (u8, u8, u8) = (0x20, 0x20, 0x20);
+
+/// The up arrow of `NEW_VERSION` in a unit square (0..1, y down): a head over a stem. `grow` widens it
+/// on every side (for the rim), in units of the square.
+fn in_arrow(x: f32, y: f32, grow: f32) -> bool {
+    let head = y >= -grow && y <= 0.55 + grow && (x - 0.5).abs() <= y * 0.95 + grow * 1.4;
+    let stem = (x - 0.5).abs() <= 0.19 + grow && y >= 0.45 && y <= 1.0 + grow;
+    head || stem
+}
+
+/// Tray icon `id` at the small icon size, with a dot of color `badge` in the lower right corner and,
+/// with `update`, a green up arrow in the upper right one.
+unsafe fn tray_icon(id: u16, badge: Option<(u8, u8, u8)>, update: bool, s: i32) -> HICON {
     unsafe {
         let base = load_icon(id, s);
-        let Some((r, g, b)) = badge else { return base };
+        if badge.is_none() && !update {
+            return base;
+        }
         // The icon's pixels (32-bit with alpha), top-down.
         let mut ii: ICONINFO = zeroed();
         GetIconInfo(base, &mut ii);
@@ -1144,17 +1216,43 @@ unsafe fn tray_icon(id: u16, badge: Option<(u8, u8, u8)>, s: i32) -> HICON {
         DeleteObject(ii.hbmColor);
         DeleteObject(ii.hbmMask);
         DestroyIcon(base);
+        // The arrow in a square at the top right, its coverage sampled 4x4 per pixel.
+        if update {
+            let side = (s as f32 * 0.5).max(7.0);
+            let (left, top) = (s as f32 - side - 0.5, 0.5);
+            let rim = 1.1 / side;
+            for y in 0..s {
+                for x in 0..s {
+                    let p = &mut px[(y * s + x) as usize];
+                    for (grow, c) in [(rim, RIM), (0.0, NEW_VERSION)] {
+                        let mut hits = 0;
+                        for sy in 0..4 {
+                            for sx in 0..4 {
+                                let ux = (x as f32 + (sx as f32 + 0.5) / 4.0 - left) / side;
+                                let uy = (y as f32 + (sy as f32 + 0.5) / 4.0 - top) / side;
+                                hits += in_arrow(ux, uy, grow) as u32;
+                            }
+                        }
+                        if hits > 0 {
+                            *p = over(*p, c, hits as f32 / 16.0);
+                        }
+                    }
+                }
+            }
+        }
         // A dark rim, then the dot, each blended over what is there.
-        let radius = s as f32 * 0.24;
-        let (cx, cy) = (s as f32 - radius - 1.0, s as f32 - radius - 1.0);
-        for y in 0..s {
-            for x in 0..s {
-                let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
-                let p = &mut px[(y * s + x) as usize];
-                for (rad, (cr, cg, cb)) in [(radius + 1.2, (0x20, 0x20, 0x20)), (radius, (r, g, b))] {
-                    let a = (rad - d + 0.5).clamp(0.0, 1.0);
-                    if a > 0.0 {
-                        *p = over(*p, (cr, cg, cb), a);
+        if let Some(color) = badge {
+            let radius = s as f32 * 0.24;
+            let (cx, cy) = (s as f32 - radius - 1.0, s as f32 - radius - 1.0);
+            for y in 0..s {
+                for x in 0..s {
+                    let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+                    let p = &mut px[(y * s + x) as usize];
+                    for (rad, c) in [(radius + 1.2, RIM), (radius, color)] {
+                        let a = (rad - d + 0.5).clamp(0.0, 1.0);
+                        if a > 0.0 {
+                            *p = over(*p, c, a);
+                        }
                     }
                 }
             }
@@ -1176,15 +1274,17 @@ unsafe fn tray_icon(id: u16, badge: Option<(u8, u8, u8)>, s: i32) -> HICON {
     }
 }
 
-/// The tray icon at `size` px: no game, game running, busy, failed (for `ui-snapshot`).
-pub fn demo_icons(size: i32) -> [HICON; 4] {
-    let (busy, error) = (Some((0x3B, 0x82, 0xF6)), Some((0xE5, 0x48, 0x4D)));
+/// The tray icon at `size` px: no game, game running, busy, failed, a new version, a new version while
+/// busy (for `ui-snapshot`).
+pub fn demo_icons(size: i32) -> [HICON; 6] {
     unsafe {
         [
-            tray_icon(ICON_IDLE, None, size),
-            tray_icon(ICON_APP, None, size),
-            tray_icon(ICON_IDLE, busy, size),
-            tray_icon(ICON_APP, error, size),
+            tray_icon(ICON_IDLE, None, false, size),
+            tray_icon(ICON_APP, None, false, size),
+            tray_icon(ICON_IDLE, Some(BUSY), false, size),
+            tray_icon(ICON_APP, Some(FAILED), false, size),
+            tray_icon(ICON_IDLE, None, true, size),
+            tray_icon(ICON_APP, Some(BUSY), true, size),
         ]
     }
 }

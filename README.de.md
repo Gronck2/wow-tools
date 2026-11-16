@@ -107,6 +107,7 @@ Das Symbol zeigt den aktuellen Zustand:
 | goldenes Wappen | das Spiel läuft (die Sicherung folgt nach dem Beenden) |
 | blauer Punkt | in Arbeit: Sicherung, Wiederherstellung, Addon-Update, Aufräumen oder ein Profil |
 | roter Punkt | der letzte Vorgang ist fehlgeschlagen (Mauszeiger auf das Symbol halten oder den Bereich öffnen, um den Grund zu sehen) |
+| grüner Pfeil (oben) | eine neue Version von WoW Tools ist da: Installieren über den Bereich oder das Menü |
 
 **Linksklick** öffnet den Bereich (im Stil von Windows 11, folgt dem hellen/dunklen Design und der Akzentfarbe):
 
@@ -121,6 +122,8 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben und je einer
   Schaltfläche – siehe [Aufräumen](#aufräumen).
 - Reiter **Profile**: gespeicherte UI-Profile und **Profil speichern** — siehe [UI-Profile](#ui-profile).
+- Ein Reiter lässt sich in der Leiste an eine andere Stelle ziehen; unter **Einstellungen → Allgemein → Tabs des
+  Panels** ändern auch Pfeile die Reihenfolge, und nicht benötigte Reiter lassen sich ausblenden.
 - Oben: das Schloss, die Büroklammer, der Sicherungsordner und die Einstellungen (beim Darüberfahren steht, was sie
   tun); unten: **Mit Windows starten**. Der Bereich schließt sich bei einem Klick daneben; mit gedrückter Büroklammer
   bleibt er offen, bis Sie Esc drücken oder auf das Infobereichssymbol klicken (verdeckt ihn ein anderes Fenster, holt
@@ -142,8 +145,8 @@ Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestart
 
 Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 
-- **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile),
-  Sprache, Start mit Windows, **Benachrichtigungen**, **Nach Updates suchen** und die aktuelle Version mit **Prüfen** /
+- **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile), **Tabs des Panels** (Reihenfolge, welche sichtbar sind),
+  Sprache, Start mit Windows, **Benachrichtigungen**, **Nach Updates suchen**, **Über neue Versionen informieren** (auch bei ausgeschalteten Meldungen; im Spiel erst nach dem Beenden) und die aktuelle Version mit **Prüfen** /
   **Installieren** sowie ein Link zu `config.toml` für selten benötigte Optionen. **Diagnose** → **Kopieren** legt Version,
   Einstellungen, Addon-Update-Verlauf und das Ende des Logs in die Zwischenablage, zum Mitschicken, wenn etwas nicht
   klappt (der Benutzerordner wird durch `%USERPROFILE%` ersetzt).

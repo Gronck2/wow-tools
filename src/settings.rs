@@ -17,7 +17,7 @@ use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_ESCAPE};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
-use crate::config::{self, APP_NAME, Config, Day, ShotsBy, UpdateWhen, When};
+use crate::config::{self, APP_NAME, Config, Day, PanelTab, ShotsBy, UpdateWhen, When};
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
 use crate::i18n::Lang;
 use crate::maintenance;
@@ -165,6 +165,7 @@ enum Row {
     Autostart,
     Notify,
     CheckUpdates,
+    NotifyUpdates,
     Version,
     File,
     Diag,
@@ -174,6 +175,8 @@ enum Row {
     ShotsFlavor,
     /// The folder of one game version (index into `Model::flavors`).
     ShotsFlavorDir(usize),
+    /// A tab of the panel: shown or not, moved up or down (`Config::tab_order`).
+    PanelTab(PanelTab),
 }
 
 /// The pages of the window, switched by the tabs at the top.
@@ -203,19 +206,25 @@ impl Tab {
 fn rows(m: &Model, tab: Tab) -> Vec<Row> {
     let mut rows = Vec::new();
     match tab {
-        Tab::General => rows.extend([
-            Row::Section(tr!("settings.section_game")),
-            Row::Wow,
-            Row::Flavors,
-            Row::Section(tr!("settings.section_system")),
-            Row::Language,
-            Row::Autostart,
-            Row::Notify,
-            Row::CheckUpdates,
-            Row::Version,
-            Row::File,
-            Row::Diag,
-        ]),
+        Tab::General => {
+            rows.extend([Row::Section(tr!("settings.section_game")), Row::Wow, Row::Flavors]);
+            rows.extend([
+                Row::Section(tr!("settings.section_panel_tabs")),
+                Row::Note(tr!("settings.panel_tabs_note"), false),
+            ]);
+            rows.extend(m.cfg.tab_order().into_iter().map(Row::PanelTab));
+            rows.extend([
+                Row::Section(tr!("settings.section_system")),
+                Row::Language,
+                Row::Autostart,
+                Row::Notify,
+                Row::CheckUpdates,
+                Row::NotifyUpdates,
+                Row::Version,
+                Row::File,
+                Row::Diag,
+            ]);
+        }
         Tab::Backup => {
             rows.extend([Row::Section(tr!("settings.section_schedule")), Row::When]);
             match m.cfg.backup_when {
@@ -319,6 +328,7 @@ enum Hit {
     Autostart,
     Notify,
     CheckUpdates,
+    NotifyUpdates,
     CheckNow,
     InstallUpdate,
     File,
@@ -330,6 +340,9 @@ enum Hit {
     ShotsFlavor,
     ShotsFlavorChange(usize),
     ShotsFlavorAuto(usize),
+    PanelTabShow(PanelTab),
+    PanelTabUp(PanelTab),
+    PanelTabDown(PanelTab),
 }
 
 /// The chips of a card (versions, days): label, on, what a click does.
@@ -677,6 +690,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
         Row::Autostart => switch(&mut out, m.autostart, Hit::Autostart),
         Row::Notify => switch(&mut out, m.cfg.notifications, Hit::Notify),
         Row::CheckUpdates => switch(&mut out, m.cfg.check_updates, Hit::CheckUpdates),
+        Row::NotifyUpdates => switch(&mut out, m.cfg.notify_updates, Hit::NotifyUpdates),
         Row::Version => {
             let u = &m.update;
             if u.available.is_some() && !u.installing {
@@ -698,6 +712,29 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             button(&mut out, tr!("settings.change"), Hit::ShotsFlavorChange(i));
             if m.flavors.get(i).is_some_and(|f| m.cfg.screenshots_dirs.contains_key(&f.name)) {
                 button(&mut out, tr!("settings.auto"), Hit::ShotsFlavorAuto(i));
+            }
+        }
+        Row::PanelTab(tab) => {
+            switch(&mut out, !m.cfg.hidden_tabs.contains(&tab), Hit::PanelTabShow(tab));
+            // Up and down arrows left of the switch; none past the ends.
+            let order = m.cfg.tab_order();
+            let first = order.first() == Some(&tab);
+            let last = order.last() == Some(&tab);
+            let x = row.x + row.w - 56.0 - 12.0 - 2.0 * 34.0;
+            for (i, icon, hit) in [
+                (0.0, "\u{E70E}", (!first).then_some(Hit::PanelTabUp(tab))),
+                (1.0, "\u{E70D}", (!last).then_some(Hit::PanelTabDown(tab))),
+            ] {
+                out.push(Control {
+                    r: R {
+                        x: x + i * 34.0,
+                        y: row.cy() - 16.0,
+                        w: 32.0,
+                        h: 32.0,
+                    },
+                    hit,
+                    ctl: Ctl::Arrow(icon, hit.is_some()),
+                });
             }
         }
         Row::Outdated | Row::Note(..) => {}
@@ -870,6 +907,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
         Row::Autostart => ("\u{E7E8}", tr!("panel.autostart"), tr!("settings.autostart_sub").into(), false),
         Row::Notify => ("\u{EA8F}", tr!("settings.notify"), tr!("settings.notify_sub").into(), false),
         Row::CheckUpdates => ("\u{E777}", tr!("self_update.check"), tr!("self_update.check_sub").into(), false),
+        Row::NotifyUpdates => ("\u{E896}", tr!("self_update.notify"), tr!("self_update.notify_sub").into(), false),
         Row::Version => {
             let u = &m.update;
             let (sub, error) = match (&u.available, &u.error) {
@@ -889,6 +927,20 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
         Row::ShotsDir => ("\u{E722}", tr!("settings.shots_dir"), path_text(&maintenance::screenshots_dir(&m.cfg)), false),
         Row::ShotsBy => ("\u{E787}", tr!("settings.shots_by"), tr!("settings.shots_by_sub").into(), false),
         Row::ShotsFlavor => ("\u{E8F1}", tr!("settings.shots_flavor"), tr!("settings.shots_flavor_sub").into(), false),
+        Row::PanelTab(tab) => {
+            let icon = match tab {
+                PanelTab::Backup => "\u{E81C}",
+                PanelTab::Addons => "\u{E895}",
+                PanelTab::Cleanup => "\u{E74D}",
+                PanelTab::Profiles => "\u{E77B}",
+            };
+            let sub = if m.cfg.hidden_tabs.contains(&tab) {
+                tr!("settings.panel_tab_hidden")
+            } else {
+                tr!("settings.panel_tab_shown")
+            };
+            (icon, tab.label(), sub.into(), false)
+        }
         Row::Outdated => {
             // With outdated addons the card lists them in full (`outdated_blocks`) instead.
             let list = m.outdated.as_deref().unwrap_or_default();
@@ -1281,6 +1333,7 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
         Hit::Autostart => return Some(Action::Autostart),
         Hit::Notify => m.cfg.notifications = !m.cfg.notifications,
         Hit::CheckUpdates => m.cfg.check_updates = !m.cfg.check_updates,
+        Hit::NotifyUpdates => m.cfg.notify_updates = !m.cfg.notify_updates,
         Hit::CheckNow => return Some(Action::CheckUpdate),
         Hit::InstallUpdate => return Some(Action::InstallUpdate),
         Hit::File => return Some(Action::OpenConfigFile),
@@ -1318,6 +1371,13 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
             let name = &m.flavors.get(i)?.name;
             m.cfg.screenshots_dirs.remove(name);
         }
+        Hit::PanelTabShow(tab) => {
+            if !m.cfg.toggle_tab(tab) {
+                m.message = Some((tr!("settings.need_panel_tab").into(), true));
+                return None;
+            }
+        }
+        Hit::PanelTabUp(tab) | Hit::PanelTabDown(tab) => m.cfg.move_tab(tab, matches!(hit, Hit::PanelTabUp(_))),
     }
     let path = tray::config_path()?;
     m.message = match m.cfg.save(&path) {
@@ -1405,6 +1465,16 @@ pub fn refresh() {
         w.surface.hwnd
     }) {
         fit(hwnd);
+        unsafe { InvalidateRect(hwnd, null(), 0) };
+    }
+}
+
+/// Takes the panel's tab order from `cfg` (dragged in the panel), so the next save keeps it.
+pub fn tabs_changed(cfg: &Config) {
+    if let Some(hwnd) = with_window(|w| {
+        w.model.cfg.panel_tabs = cfg.panel_tabs.clone();
+        w.surface.hwnd
+    }) {
         unsafe { InvalidateRect(hwnd, null(), 0) };
     }
 }
