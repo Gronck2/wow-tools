@@ -2,7 +2,7 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
-## [Unreleased]
+## [0.7.0] - 2026-11-16
 
 - The panel's tabs can be put in any order: drag a tab along the strip, or use the arrows in the new **Panel tabs**
   section of Settings → General. Tabs you do not need can be hidden there (at least one stays); what they do keeps
