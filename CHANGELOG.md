@@ -2,7 +2,7 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
-## [Unreleased]
+## [0.7.1] - 2026-11-16
 
 - Settings have a new **About** tab: the version with **Check** / **Install**, **Check for updates**, **Tell me about
   a new version**, the settings file and **Diagnostics** moved there from **General**, which got shorter.
