@@ -772,23 +772,33 @@ footer nav {
   }
 }
 
-/* ---- Ko-fi button ----
-   Floats in the bottom-right corner on every page. Same look as Ko-fi's "Widget_2" button (dark #0e0f0f, cup icon),
-   drawn here as a plain link: no third-party script, no Google Fonts request, the cup image is served from this site. */
+/* ---- Support buttons (Boosty, Ko-fi) ----
+   A group floating in the bottom-right corner on every page, one button above the other, both as wide as the wider
+   one. build.py puts Boosty first on the Russian page and Ko-fi first elsewhere. Plain links: no third-party script,
+   no Google Fonts request, the icons are served from this site.
+   Ko-fi: the look of Ko-fi's "Widget_2" button (dark #0e0f0f, cup icon).
+   Boosty: the signature orange #F15F2C and the white brand mark from boosty.to/app/brand. */
 
-.kofi {
+.donate {
   position: fixed;
   right: 20px;
   bottom: 20px;
   z-index: 50;
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  max-width: calc(100vw - 40px);
+}
+
+.kofi,
+.boosty {
+  display: flex;
   align-items: center;
   gap: 6px;
   min-height: 40px;
   padding: 2px 14px;
   border-radius: 7px;
-  background-color: #0e0f0f;
-  border: 1px solid var(--line-strong);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   color: #ffffff;
   font-family: var(--font);
@@ -799,17 +809,29 @@ footer nav {
   text-decoration: none;
 }
 
-/* Room under the footer so the floating button never covers its links at the end of the page. */
-footer {
-  padding-bottom: calc(var(--sp-7) + 56px);
+.kofi {
+  background-color: #0e0f0f;
+  border: 1px solid var(--line-strong);
 }
 
-.kofi:hover {
+.boosty {
+  background-color: #f15f2c;
+  border: 1px solid #f15f2c;
+}
+
+/* Room under the footer so the floating buttons (2 x 40px + 8px) never cover its links at the end of the page. */
+footer {
+  padding-bottom: calc(var(--sp-7) + 104px);
+}
+
+.kofi:hover,
+.boosty:hover {
   color: #f5f5f5;
   opacity: 0.85;
 }
 
-.kofi:focus-visible {
+.kofi:focus-visible,
+.boosty:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -819,10 +841,16 @@ footer {
   height: auto;
 }
 
+.boosty img {
+  width: 18px;
+  height: 22px;
+}
+
 @media (max-width: 40rem) {
-  .kofi {
+  .donate {
     right: 16px;
     bottom: 16px;
+    max-width: calc(100vw - 32px);
   }
 }
 

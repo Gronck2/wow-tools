@@ -71,6 +71,8 @@ footer_issues = "Informar de un problema"
 
 kofi_text = "Apóyame en Ko-fi"
 kofi_title = "Apóyame en ko-fi.com"
+boosty_text = "Apóyame en Boosty"
+boosty_title = "Apóyame en boosty.to"
 
 [[features]]
 title = "Copias de seguridad"

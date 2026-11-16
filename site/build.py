@@ -25,7 +25,11 @@ LANGS = ["en", "ru", "de", "fr", "es"]
 NAMES = {"en": "English", "ru": "Русский", "de": "Deutsch", "fr": "Français", "es": "Español"}
 # Screenshots of "A look inside", in order, with their pixel sizes (ui-snapshot renders at 1.5x).
 SHOTS = {"addons": (540, 907), "cleanup": (540, 907), "profiles": (540, 907), "settings": (840, 1290)}
-STATIC = ["style.css", "site.js", "404.html", "fonts", "kofi-cup.png"]
+STATIC = ["style.css", "site.js", "404.html", "fonts", "kofi-cup.png", "boosty-mark.svg"]
+# The support buttons: Boosty first for these languages (its audience), Ko-fi first for the rest. build.py writes the
+# links, so their locale keys are read here, not in template.html.
+BOOSTY_FIRST = {"ru"}
+DONATE_KEYS = {"kofi_text", "kofi_title", "boosty_text", "boosty_title"}
 
 PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)(:attr)?\}\}")
 
@@ -91,6 +95,15 @@ def blocks(lang, loc):
         f'<div class="notice"><span class="icon" aria-hidden="true">ℹ</span><span><strong>{p["head"]}</strong> {p["text"]}</span></div>'
         for p in loc["privacy"]
     )
+    kofi = (
+        f'<a class="kofi" href="https://ko-fi.com/E2W22ARKSQ" target="_blank" rel="noopener" title="{a(loc["kofi_title"])}">'
+        f'<img src="/kofi-cup.png" alt="" width="22" height="18">{loc["kofi_text"]}</a>'
+    )
+    boosty = (
+        f'<a class="boosty" href="https://boosty.to/gronck" target="_blank" rel="noopener" title="{a(loc["boosty_title"])}">'
+        f'<img src="/boosty-mark.svg" alt="" width="18" height="22">{loc["boosty_text"]}</a>'
+    )
+    out["donate_links"] = "\n".join([boosty, kofi] if lang in BOOSTY_FIRST else [kofi, boosty])
     out["faq_list"] = "\n".join(f'<details><summary>{q["q"]}</summary><p>{q["a"]}</p></details>' for q in loc["faq"])
     return out
 
@@ -111,7 +124,7 @@ def render(template, lang, loc):
         return html.escape(values[key], quote=True) if attr else values[key]
 
     page = PLACEHOLDER.sub(sub, template)
-    unused = sorted(k for k, v in loc.items() if isinstance(v, str) and k not in used)
+    unused = sorted(k for k, v in loc.items() if isinstance(v, str) and k not in used and k not in DONATE_KEYS)
     if unused:
         fail(f"{lang}.toml: keys not used by template.html: {unused}")
     if "{{" in page:
