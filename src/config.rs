@@ -287,17 +287,6 @@ impl Config {
             .collect();
     }
 
-    /// Moves tab `tab` one place up (`up`) or down in `tab_order`.
-    pub fn move_tab(&mut self, tab: PanelTab, up: bool) {
-        let mut order = self.tab_order();
-        let Some(i) = order.iter().position(|&t| t == tab) else { return };
-        let j = if up { i.checked_sub(1) } else { Some(i + 1).filter(|&j| j < order.len()) };
-        if let Some(j) = j {
-            order.swap(i, j);
-            self.panel_tabs = order;
-        }
-    }
-
     /// Shows or hides `tab`; refuses (false) to hide the last one shown.
     pub fn toggle_tab(&mut self, tab: PanelTab) -> bool {
         if let Some(pos) = self.hidden_tabs.iter().position(|&t| t == tab) {
@@ -644,12 +633,6 @@ mod tests {
         // Not a rearrangement of the shown tabs (a stale list): ignored.
         cfg.set_shown_order(&[Backup, Cleanup, Profiles, Addons]);
         assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons]);
-
-        cfg.move_tab(Addons, true);
-        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Addons, Profiles]);
-        cfg.move_tab(Cleanup, true);
-        cfg.move_tab(Profiles, false);
-        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Addons, Profiles]);
 
         // The last shown tab cannot be hidden.
         assert!(cfg.toggle_tab(Cleanup) && cfg.toggle_tab(Addons));

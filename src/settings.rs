@@ -175,8 +175,9 @@ enum Row {
     ShotsFlavor,
     /// The folder of one game version (index into `Model::flavors`).
     ShotsFlavorDir(usize),
-    /// A tab of the panel: shown or not, moved up or down (`Config::tab_order`).
-    PanelTab(PanelTab),
+    /// The panel's tabs as chips in their order (`Config::tab_order`): selected = shown. The order is
+    /// changed by dragging them in the panel.
+    PanelTabs,
 }
 
 /// The pages of the window, switched by the tabs at the top.
@@ -187,10 +188,12 @@ pub enum Tab {
     Backup,
     Addons,
     Screenshots,
+    /// WoW Tools itself: its version and updates, the config file, diagnostics.
+    About,
 }
 
 impl Tab {
-    const ALL: [Tab; 4] = [Tab::General, Tab::Backup, Tab::Addons, Tab::Screenshots];
+    const ALL: [Tab; 5] = [Tab::General, Tab::Backup, Tab::Addons, Tab::Screenshots, Tab::About];
 
     fn label(self) -> &'static str {
         match self {
@@ -198,6 +201,7 @@ impl Tab {
             Tab::Backup => tr!("panel.tab_backup"),
             Tab::Addons => tr!("panel.tab_addons"),
             Tab::Screenshots => tr!("settings.tab_screenshots"),
+            Tab::About => tr!("settings.tab_about"),
         }
     }
 }
@@ -209,22 +213,22 @@ fn rows(m: &Model, tab: Tab) -> Vec<Row> {
         Tab::General => {
             rows.extend([Row::Section(tr!("settings.section_game")), Row::Wow, Row::Flavors]);
             rows.extend([
-                Row::Section(tr!("settings.section_panel_tabs")),
-                Row::Note(tr!("settings.panel_tabs_note"), false),
-            ]);
-            rows.extend(m.cfg.tab_order().into_iter().map(Row::PanelTab));
-            rows.extend([
                 Row::Section(tr!("settings.section_system")),
                 Row::Language,
+                Row::PanelTabs,
                 Row::Autostart,
                 Row::Notify,
-                Row::CheckUpdates,
-                Row::NotifyUpdates,
-                Row::Version,
-                Row::File,
-                Row::Diag,
             ]);
         }
+        Tab::About => rows.extend([
+            Row::Section(tr!("settings.section_app_updates")),
+            Row::Version,
+            Row::CheckUpdates,
+            Row::NotifyUpdates,
+            Row::Section(tr!("settings.section_help")),
+            Row::File,
+            Row::Diag,
+        ]),
         Tab::Backup => {
             rows.extend([Row::Section(tr!("settings.section_schedule")), Row::When]);
             match m.cfg.backup_when {
@@ -341,8 +345,6 @@ enum Hit {
     ShotsFlavorChange(usize),
     ShotsFlavorAuto(usize),
     PanelTabShow(PanelTab),
-    PanelTabUp(PanelTab),
-    PanelTabDown(PanelTab),
 }
 
 /// The chips of a card (versions, days): label, on, what a click does.
@@ -392,6 +394,12 @@ fn chip_items(kind: Row, m: &Model) -> Vec<(String, bool, Hit)> {
         .into_iter()
         .map(|(label, when, hit)| (label.to_string(), m.cfg.update_when == when, hit))
         .collect(),
+        Row::PanelTabs => m
+            .cfg
+            .tab_order()
+            .into_iter()
+            .map(|t| (t.label().to_string(), !m.cfg.hidden_tabs.contains(&t), Hit::PanelTabShow(t)))
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -416,7 +424,7 @@ fn chips(r: R, kind: Row, m: &Model, f: &Formats) -> Vec<(R, String, bool, Hit)>
 fn row_height(row: Row, m: &Model, f: &Formats) -> f32 {
     match row {
         Row::Section(_) => SECTION_H,
-        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy | Row::When | Row::UpdateWhen => {
+        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy | Row::When | Row::UpdateWhen | Row::PanelTabs => {
             let probe = R {
                 x: PAD,
                 y: 0.0,
@@ -642,7 +650,7 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
                 button(&mut out, tr!("settings.auto"), Hit::WowAuto);
             }
         }
-        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy | Row::When | Row::UpdateWhen => {
+        Row::Flavors | Row::Days | Row::UpdateDays | Row::UpdateApp | Row::Language | Row::ShotsBy | Row::When | Row::UpdateWhen | Row::PanelTabs => {
             for (r, label, on, hit) in chips(row, kind, m, f) {
                 out.push(Control {
                     r,
@@ -712,29 +720,6 @@ fn controls(row: R, kind: Row, m: &Model, f: &Formats) -> Vec<Control> {
             button(&mut out, tr!("settings.change"), Hit::ShotsFlavorChange(i));
             if m.flavors.get(i).is_some_and(|f| m.cfg.screenshots_dirs.contains_key(&f.name)) {
                 button(&mut out, tr!("settings.auto"), Hit::ShotsFlavorAuto(i));
-            }
-        }
-        Row::PanelTab(tab) => {
-            switch(&mut out, !m.cfg.hidden_tabs.contains(&tab), Hit::PanelTabShow(tab));
-            // Up and down arrows left of the switch; none past the ends.
-            let order = m.cfg.tab_order();
-            let first = order.first() == Some(&tab);
-            let last = order.last() == Some(&tab);
-            let x = row.x + row.w - 56.0 - 12.0 - 2.0 * 34.0;
-            for (i, icon, hit) in [
-                (0.0, "\u{E70E}", (!first).then_some(Hit::PanelTabUp(tab))),
-                (1.0, "\u{E70D}", (!last).then_some(Hit::PanelTabDown(tab))),
-            ] {
-                out.push(Control {
-                    r: R {
-                        x: x + i * 34.0,
-                        y: row.cy() - 16.0,
-                        w: 32.0,
-                        h: 32.0,
-                    },
-                    hit,
-                    ctl: Ctl::Arrow(icon, hit.is_some()),
-                });
             }
         }
         Row::Outdated | Row::Note(..) => {}
@@ -927,20 +912,7 @@ fn texts(kind: Row, m: &Model) -> (&'static str, &'static str, String, bool) {
         Row::ShotsDir => ("\u{E722}", tr!("settings.shots_dir"), path_text(&maintenance::screenshots_dir(&m.cfg)), false),
         Row::ShotsBy => ("\u{E787}", tr!("settings.shots_by"), tr!("settings.shots_by_sub").into(), false),
         Row::ShotsFlavor => ("\u{E8F1}", tr!("settings.shots_flavor"), tr!("settings.shots_flavor_sub").into(), false),
-        Row::PanelTab(tab) => {
-            let icon = match tab {
-                PanelTab::Backup => "\u{E81C}",
-                PanelTab::Addons => "\u{E895}",
-                PanelTab::Cleanup => "\u{E74D}",
-                PanelTab::Profiles => "\u{E77B}",
-            };
-            let sub = if m.cfg.hidden_tabs.contains(&tab) {
-                tr!("settings.panel_tab_hidden")
-            } else {
-                tr!("settings.panel_tab_shown")
-            };
-            (icon, tab.label(), sub.into(), false)
-        }
+        Row::PanelTabs => ("\u{E8A9}", tr!("settings.panel_tabs"), tr!("settings.panel_tabs_sub").into(), false),
         Row::Outdated => {
             // With outdated addons the card lists them in full (`outdated_blocks`) instead.
             let list = m.outdated.as_deref().unwrap_or_default();
@@ -1377,7 +1349,6 @@ fn change(m: &mut Model, hit: Hit, hwnd: HWND) -> Option<Action> {
                 return None;
             }
         }
-        Hit::PanelTabUp(tab) | Hit::PanelTabDown(tab) => m.cfg.move_tab(tab, matches!(hit, Hit::PanelTabUp(_))),
     }
     let path = tray::config_path()?;
     m.message = match m.cfg.save(&path) {

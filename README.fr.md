@@ -122,8 +122,8 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
   chaque élément — voir [Nettoyage](#nettoyage).
 - Onglet **Profils** : les profils d'interface enregistrés et **Enregistrer un profil** — voir
   [Profils d'interface](#profils-dinterface).
-- Un onglet se fait glisser à une autre place dans la rangée ; **Paramètres → Général → Onglets du panneau** change
-  aussi l’ordre avec des flèches et masque les onglets inutiles.
+- Un onglet se fait glisser à une autre place dans la rangée ; **Paramètres → Général → Onglets du panneau** masque
+  les onglets inutiles.
 - En haut : le cadenas, le trombone, le dossier des sauvegardes et les paramètres (survolez-les pour voir ce qu'ils
   font) ; en bas : **Lancer avec Windows**. Le panneau se ferme quand vous cliquez ailleurs ; trombone enfoncé, il
   reste ouvert jusqu'à Échap ou un clic sur l'icône de notification (si une autre fenêtre le couvre, ce clic le ramène
@@ -145,11 +145,9 @@ Des notifications s'affichent pour le résultat de ce que vous avez lancé vous-
 
 Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
 
-- **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles travailler (sauvegardes, nettoyage, profils), **Onglets du panneau** (ordre, lesquels sont affichés), langue,
-  lancement avec Windows, **Notifications**, **Rechercher les mises à jour**, **Signaler une nouvelle version** (même notifications coupées ; en jeu, une fois le jeu fermé) et la version actuelle avec **Vérifier** /
-  **Installer**, et un lien vers `config.toml` pour les options rarement utiles. **Diagnostic** → **Copier** met la
-  version, les réglages, l’historique des mises à jour d’addons et la fin du journal dans le presse-papiers, à joindre
-  quand quelque chose ne marche pas (le dossier utilisateur devient `%USERPROFILE%`).
+- **Général** : dossier du jeu (trouvé automatiquement, modifiable à la main), versions du jeu avec lesquelles
+  travailler (sauvegardes, nettoyage, profils), **Onglets du panneau** (ordre, lesquels sont affichés), langue,
+  lancement avec Windows et **Notifications**.
 - **Sauvegarde** : quand sauvegarder (*Après le jeu*, à sa fermeture, *Par jour* — les jours de la semaine choisis à
   une heure donnée, ou *Tous les N jours* — tous les 2 … 30 jours à une heure donnée, à compter du jour de la dernière
   sauvegarde), nombre de sauvegardes à conserver, les interrupteurs **Sauvegarder les addons** et **Attendre la
@@ -166,6 +164,11 @@ Chaque modification est enregistrée aussitôt et appliquée sans redémarrage.
   panneau. En dessous, tous les addons qui ne sont pas faits pour la version actuelle du jeu (voir
   [Patchs du jeu](#patchs-du-jeu)).
 - **Captures** : où le nettoyage déplace les captures d'écran et comment il les classe (voir [Nettoyage](#nettoyage)).
+- **À propos** : la version actuelle avec **Vérifier** / **Installer**, **Rechercher les mises à jour**, **Signaler
+  une nouvelle version** (même notifications coupées ; en jeu, une fois le jeu fermé), un lien vers `config.toml` pour
+  les options rarement utiles et **Diagnostic** → **Copier**, qui met la version, les réglages, l’historique des
+  mises à jour d’addons et la fin du journal dans le presse-papiers, à joindre quand quelque chose ne marche pas (le
+  dossier utilisateur devient `%USERPROFILE%`).
 
 Une option choisie est marquée d'une coche.
 
@@ -465,9 +468,9 @@ défaut) et `language` (`ru`, `en`, `de`, `fr`, `es` ; absent = la langue d'affi
 ## Mettre à jour WoW Tools
 
 WoW Tools consulte les [releases](https://github.com/Gronck2/wow-tools/releases) de ce dépôt une fois par jour (et
-quand vous cliquez sur **Vérifier** dans **Paramètres → Général**). Quand une version plus récente existe :
+quand vous cliquez sur **Vérifier** dans **Paramètres → À propos**). Quand une version plus récente existe :
 
-- une notification s'affiche une fois ;
+- une flèche verte apparaît sur l’icône de la zone de notification, et une notification une fois (en jeu, après sa fermeture) ;
 - le panneau affiche un bouton avec le numéro de la nouvelle version, à côté des icônes du dossier et des paramètres ;
 - le menu propose **Mettre à jour vers x.y.z**, et les paramètres affichent **Installer**.
 
@@ -481,7 +484,7 @@ installée, la version affichée dans **Applications installées** est mise à j
 
 En ligne de commande : `wow-tools self-update --check` (vérifier seulement) ou `wow-tools self-update` (vérifier et
 installer ; redémarrez ensuite l'icône de notification). Pour ne plus vérifier, désactivez **Rechercher les mises à
-jour** dans **Paramètres → Général** (`check_updates = false` dans `config.toml`).
+jour** dans **Paramètres → À propos** (`check_updates = false` dans `config.toml`).
 
 ## Désinstallation
 

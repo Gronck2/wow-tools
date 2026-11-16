@@ -608,6 +608,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             "settings-backup" | "settings-exit" | "settings-days" => settings::Tab::Backup,
             "settings-addons" | "settings-every" | "settings-one" | "settings-wago" => settings::Tab::Addons,
             "settings-screenshots" => settings::Tab::Screenshots,
+            "settings-about" | "settings-update" => settings::Tab::About,
             _ => settings::Tab::General,
         };
         return Ok(settings::snapshot(&path, dark, &model, tab)?);

@@ -2,6 +2,13 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [Unreleased]
+
+- Settings have a new **About** tab: the version with **Check** / **Install**, **Check for updates**, **Tell me about
+  a new version**, the settings file and **Diagnostics** moved there from **General**, which got shorter.
+- **Panel tabs** in Settings → General is one card now: a chip per tab, in the panel's order; a selected one is
+  shown. The order is changed by dragging the tabs in the panel (the arrows are gone).
+
 ## [0.7.0] - 2026-11-16
 
 - The panel's tabs can be put in any order: drag a tab along the strip, or use the arrows in the new **Panel tabs**

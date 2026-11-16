@@ -122,8 +122,8 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben und je einer
   Schaltfläche – siehe [Aufräumen](#aufräumen).
 - Reiter **Profile**: gespeicherte UI-Profile und **Profil speichern** — siehe [UI-Profile](#ui-profile).
-- Ein Reiter lässt sich in der Leiste an eine andere Stelle ziehen; unter **Einstellungen → Allgemein → Tabs des
-  Panels** ändern auch Pfeile die Reihenfolge, und nicht benötigte Reiter lassen sich ausblenden.
+- Ein Reiter lässt sich in der Leiste an eine andere Stelle ziehen; nicht benötigte Reiter blendet **Einstellungen →
+  Allgemein → Tabs des Panels** aus.
 - Oben: das Schloss, die Büroklammer, der Sicherungsordner und die Einstellungen (beim Darüberfahren steht, was sie
   tun); unten: **Mit Windows starten**. Der Bereich schließt sich bei einem Klick daneben; mit gedrückter Büroklammer
   bleibt er offen, bis Sie Esc drücken oder auf das Infobereichssymbol klicken (verdeckt ihn ein anderes Fenster, holt
@@ -145,11 +145,9 @@ Benachrichtigungen erscheinen für die Ergebnisse dessen, was Sie selbst gestart
 
 Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
 
-- **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet wird (Sicherungen, Aufräumen, Profile), **Tabs des Panels** (Reihenfolge, welche sichtbar sind),
-  Sprache, Start mit Windows, **Benachrichtigungen**, **Nach Updates suchen**, **Über neue Versionen informieren** (auch bei ausgeschalteten Meldungen; im Spiel erst nach dem Beenden) und die aktuelle Version mit **Prüfen** /
-  **Installieren** sowie ein Link zu `config.toml` für selten benötigte Optionen. **Diagnose** → **Kopieren** legt Version,
-  Einstellungen, Addon-Update-Verlauf und das Ende des Logs in die Zwischenablage, zum Mitschicken, wenn etwas nicht
-  klappt (der Benutzerordner wird durch `%USERPROFILE%` ersetzt).
+- **Allgemein**: Spielordner (automatisch gefunden, auch manuell festlegbar), mit welchen Spielversionen gearbeitet
+  wird (Sicherungen, Aufräumen, Profile), **Tabs des Panels** (Reihenfolge, welche sichtbar sind), Sprache, Start mit
+  Windows und **Benachrichtigungen**.
 - **Sicherung**: wann gesichert wird (*Nach dem Spiel*, also beim Beenden, *Nach Wochentagen* – an gewählten Tagen zu
   einer festen Uhrzeit – oder *Alle N Tage* – alle 2 … 30 Tage zu einer festen Uhrzeit, gezählt ab dem Tag der letzten
   Sicherung), wie viele Sicherungen behalten werden, die Schalter **Addons sichern** und **Auf Spielende warten**, der
@@ -165,6 +163,11 @@ Jede Änderung wird sofort gespeichert und ohne Neustart übernommen.
   ElvUI und **Nicht während des Spielens**, die auch für die Update-Schaltfläche im Bereich gelten. Darunter jedes
   Addon, das nicht für die aktuelle Spielversion gemacht ist (siehe [Spiel-Patches](#spiel-patches)).
 - **Screenshots**: wohin das Aufräumen Screenshots verschiebt und wie es sie sortiert (siehe [Aufräumen](#aufräumen)).
+- **Info**: die aktuelle Version mit **Prüfen** / **Installieren**, **Nach Updates suchen**, **Über neue Versionen
+  informieren** (auch bei ausgeschalteten Meldungen; im Spiel erst nach dem Beenden), ein Link zu `config.toml` für
+  selten benötigte Optionen und **Diagnose** → **Kopieren**: legt Version, Einstellungen, Addon-Update-Verlauf und
+  das Ende des Logs in die Zwischenablage, zum Mitschicken, wenn etwas nicht klappt (der Benutzerordner wird durch
+  `%USERPROFILE%` ersetzt).
 
 Eine gewählte Option trägt ein Häkchen.
 
@@ -466,9 +469,9 @@ Windows).
 ## WoW Tools aktualisieren
 
 WoW Tools prüft einmal am Tag die [Releases](https://github.com/Gronck2/wow-tools/releases) dieses Repositorys (und
-wenn Sie unter **Einstellungen → Allgemein** auf **Prüfen** klicken). Gibt es eine neuere Version:
+wenn Sie unter **Einstellungen → Info** auf **Prüfen** klicken). Gibt es eine neuere Version:
 
-- erscheint einmalig eine Benachrichtigung;
+- erscheint ein grüner Pfeil auf dem Infobereichssymbol und einmalig eine Benachrichtigung (im Spiel erst nach dem Beenden);
 - zeigt der Bereich neben den Symbolen für Ordner und Einstellungen eine Schaltfläche mit der neuen Versionsnummer;
 - bekommt das Menü den Eintrag **Auf x.y.z aktualisieren**, und die Einstellungen zeigen **Installieren**.
 
@@ -482,7 +485,7 @@ ebenfalls.
 
 Über die Befehlszeile: `wow-tools self-update --check` (nur prüfen) oder `wow-tools self-update` (prüfen und
 installieren; das Infobereichssymbol danach neu starten). Um die Suche abzuschalten, deaktivieren Sie
-**Nach Updates suchen** unter **Einstellungen → Allgemein** (`check_updates = false` in `config.toml`).
+**Nach Updates suchen** unter **Einstellungen → Info** (`check_updates = false` in `config.toml`).
 
 ## Deinstallation
 

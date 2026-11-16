@@ -118,8 +118,8 @@ El icono muestra el estado actual:
   cosa; mira [Limpieza](#limpieza).
 - Pestaña **Perfiles**: los perfiles de interfaz guardados y **Guardar un perfil** — ver
   [Perfiles de interfaz](#perfiles-de-interfaz).
-- Una pestaña se puede arrastrar a otro lugar de la fila; en **Ajustes → General → Pestañas del panel** el orden
-  también se cambia con flechas y se ocultan las pestañas que no hagan falta.
+- Una pestaña se puede arrastrar a otro lugar de la fila; en **Ajustes → General → Pestañas del panel** se ocultan
+  las que no hagan falta.
 - Arriba: el candado, el clip, la carpeta de copias y la configuración (al pasar el ratón se ve qué hace cada uno);
   abajo: **Iniciar con Windows**. El panel se cierra al hacer clic fuera; con el clip pulsado sigue abierto hasta
   pulsar Esc o hacer clic en el icono de la bandeja (si otra ventana lo tapa, ese clic lo trae al frente). Con el
@@ -141,11 +141,9 @@ en **Configuración → General** las desactiva.
 
 Cada cambio se guarda al instante y se aplica sin reiniciar.
 
-- **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego trabajar (copias, limpieza, perfiles), **Pestañas del panel** (orden, cuáles se ven),
-  idioma, inicio con Windows, **Notificaciones**, **Buscar actualizaciones**, **Avisar de una nueva versión** (aunque los avisos estén apagados; en partida, al cerrar el juego) y la versión actual con **Comprobar** /
-  **Instalar**, y un enlace a `config.toml` para las opciones que rara vez se necesitan. **Diagnóstico** → **Copiar**
-  copia al portapapeles la versión, los ajustes, el historial de actualizaciones de addons y el final del registro, para
-  enviarlo cuando algo no funciona (la carpeta de usuario se sustituye por `%USERPROFILE%`).
+- **General**: carpeta del juego (se detecta automáticamente, se puede elegir a mano), con qué versiones del juego
+  trabajar (copias, limpieza, perfiles), **Pestañas del panel** (orden, cuáles se ven), idioma, inicio con Windows y
+  **Notificaciones**.
 - **Copias**: cuándo hacer la copia (*Tras el juego*, al cerrarlo; *Por días*: los días de la semana elegidos a una
   hora fija; o *Cada N días*: cada 2 … 30 días a una hora fija, contando desde el día de la última instantánea),
   cuántas instantáneas conservar, los interruptores **Copiar accesorios** y **Esperar a que se cierre el juego**, la
@@ -161,6 +159,11 @@ Cada cambio se guarda al instante y se aplica sin reiniciar.
   juegas**, que también valen para el botón de actualizar del panel. Debajo, todos los addons que no están hechos para
   la versión actual del juego (mira [Parches del juego](#parches-del-juego)).
 - **Capturas**: adónde mueve la limpieza las capturas y cómo las ordena (ver [Limpieza](#limpieza)).
+- **Acerca de**: la versión actual con **Comprobar** / **Instalar**, **Buscar actualizaciones**, **Avisar de una
+  nueva versión** (aunque los avisos estén apagados; en partida, al cerrar el juego), un enlace a `config.toml` para
+  las opciones que rara vez se necesitan y **Diagnóstico** → **Copiar**, que copia al portapapeles la versión, los
+  ajustes, el historial de actualizaciones de addons y el final del registro, para enviarlo cuando algo no funciona
+  (la carpeta de usuario se sustituye por `%USERPROFILE%`).
 
 La opción elegida lleva una marca de verificación.
 
@@ -449,9 +452,9 @@ defecto) y `language` (`ru`, `en`, `de`, `fr`, `es`; si no está = el idioma de 
 ## Actualizar WoW Tools
 
 WoW Tools consulta las [versiones publicadas](https://github.com/Gronck2/wow-tools/releases) de este repositorio una vez
-al día (y cuando pulsas **Comprobar** en **Configuración → General**). Cuando hay una versión más nueva:
+al día (y cuando pulsas **Comprobar** en **Configuración → Acerca de**). Cuando hay una versión más nueva:
 
-- aparece una notificación una sola vez;
+- aparece una flecha verde en el icono de la bandeja y, una sola vez, una notificación (durante una partida, al cerrar el juego);
 - el panel muestra un botón con el número de la nueva versión junto a los iconos de la carpeta y de la configuración;
 - el menú muestra **Actualizar a x.y.z** y la configuración, **Instalar**.
 
@@ -464,7 +467,7 @@ igual en las tres formas; en una copia instalada también se actualiza la versi�
 
 Desde la línea de comandos: `wow-tools self-update --check` (solo comprobar) o `wow-tools self-update` (comprobar e
 instalar; después reinicia la bandeja). Para dejar de comprobar, desactiva **Buscar actualizaciones** en
-**Configuración → General** (`check_updates = false` en `config.toml`).
+**Configuración → Acerca de** (`check_updates = false` en `config.toml`).
 
 ## Desinstalación
 

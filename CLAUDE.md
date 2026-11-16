@@ -79,7 +79,7 @@ Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|panel-drag|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|panel-drag|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|settings-about|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -125,8 +125,9 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   (`panel_tabs` order, missing ones appended, minus `hidden_tabs`, never empty); a tab pressed and moved 6 DIPs is
   dragged (`Drag`, mouse capture, `drag_to` reorders live) and the release saves it (`Action::PanelTabs` ->
   `Config::set_shown_order`, hidden tabs keep their places; `settings::tabs_changed` updates an open settings window).
-  Settings → General → "Вкладки панели": a card per tab with up/down arrows and a show switch (`Config::move_tab`,
-  `toggle_tab` refuses to hide the last one). The open tab, hidden, falls back to the first shown.
+  Settings → General → "Вкладки панели": one card of chips in `tab_order`, selected = shown (`Row::PanelTabs`,
+  `Config::toggle_tab` refuses to hide the last one); the order is changed only by dragging in the panel. The open
+  tab, hidden, falls back to the first shown.
   Pure `draw(view, …)`; closes on deactivate/Esc; the header paperclip (`PINNED`, kept while the tray runs) keeps it
   open on deactivate and after the folder/settings buttons (Esc and the tray icon still close it). The panel is not
   topmost (only the menu is); a tray click on a pinned panel that another window overlaps (`panel::covered`: visible,
@@ -137,7 +138,7 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   the tray when there is no file or the monitor is gone, `gfx::monitor_at`). Every header button has a hover tip
   (`panel.*_tip`; `ui-snapshot lock-tip|pin-tip|folder-tip|settings-tip|unlocked`); the new version button drops its
   number for the icon alone when it would run into the title (`pill_label`). `menu.rs`: right-click menu in the same style.
-- `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game, panel tabs, system), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor) fixed at the
+- `settings.rs`: the settings window (a regular titled window; tabs "Общие" (game, panel tabs, system), "Бэкап", "Аддоны", "Скриншоты" (where the cleanup moves them: folder, date folders, folder per flavor), "О программе" (version and self-update switches, config file, diagnostics) fixed at the
   top, the cards under them scroll when taller than the screen; `fit` sizes the window to the open tab, refit on tab
   switches and on changes that add or remove cards, top edge kept): game folder
   (folder picker, "Авто"), flavors as chips, "when" as chips (after game / by weekday / every N days; addons: by weekday /

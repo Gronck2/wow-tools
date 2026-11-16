@@ -114,8 +114,8 @@ The icon shows the current state:
 - **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
   [Cleanup](#cleanup).
 - **Profiles** tab: saved UI profiles and **Save a profile** — see [UI profiles](#ui-profiles).
-- A tab can be dragged to another place along the strip; **Settings → General → Panel tabs** reorders them with
-  arrows too and hides the ones you do not need.
+- A tab can be dragged to another place along the strip; **Settings → General → Panel tabs** hides the ones you
+  do not need.
 - At the top: the lock, the paperclip, the backups folder and the settings (hover one to see what it does); at the
   bottom: **Start with Windows**. The panel closes when you click elsewhere; with the paperclip pressed it stays open
   until Esc or a click on the tray icon (when another window covers it, that click brings it to the front instead).
@@ -136,11 +136,8 @@ Notifications appear for the results of what you started yourself and for new er
 
 Every change is saved at once and applied without a restart.
 
-- **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups, cleanup, profiles), **Panel tabs** (order, which are shown), language,
-  start with Windows, **Notifications**, **Check for updates**, **Tell me about a new version** (works even with notifications off; during a game it waits for it to close) and the current version with **Check** / **Install**, and a link to
-  `config.toml` for the rarely needed options. **Diagnostics** → **Copy** puts the version, settings, addon update
-  history and the end of the log on the clipboard, to send along when something does not work (your user folder is
-  replaced with `%USERPROFILE%`).
+- **General**: game folder (found automatically, can be set by hand), which game versions to work with (backups,
+  cleanup, profiles), **Panel tabs** (order, which are shown), language, start with Windows and **Notifications**.
 - **Backup**: when to back up (*After the game* closes, *By weekday* — chosen weekdays at a set time, or *Every N days*
   — every 2 … 30 days at a set time, counted from the day of the last snapshot), how many snapshots to keep, the
   **Back up addons** and **Wait for the game to exit** switches, the backups folder.
@@ -154,6 +151,11 @@ Every change is saved at once and applied without a restart.
   ElvUI and **Don't update while playing**, which also apply to the panel's update button. Below, every addon that is
   not made for the current game version (see [Game patches](#game-patches)).
 - **Screenshots**: where the cleanup moves screenshots and how it sorts them (see [Cleanup](#cleanup)).
+- **About**: the current version with **Check** / **Install**, **Check for updates**, **Tell me about a new version**
+  (works even with notifications off; during a game it waits for it to close), a link to `config.toml` for the rarely
+  needed options, and **Diagnostics** → **Copy**, which puts the version, settings, addon update history and the end
+  of the log on the clipboard, to send along when something does not work (your user folder is replaced with
+  `%USERPROFILE%`).
 
 A selected option is marked with a check mark.
 
@@ -424,9 +426,9 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
 ## Updating WoW Tools
 
 WoW Tools checks this repository's [releases](https://github.com/Gronck2/wow-tools/releases) once a day (and when you
-press **Check** in **Settings → General**). When there is a newer version:
+press **Check** in **Settings → About**). When there is a newer version:
 
-- a notification appears once;
+- a green arrow appears on the tray icon, and a notification once (during a game, after it closes);
 - the panel shows a button with the new version number next to the folder and settings icons;
 - the menu gets **Update to x.y.z**, and the settings show **Install**.
 
@@ -437,7 +439,7 @@ for it to finish. Your settings, snapshots and autostart stay as they are. This 
 for an installed copy the version in **Installed apps** is updated too, and `winget upgrade` works as well.
 
 From the command line: `wow-tools self-update --check` (only check) or `wow-tools self-update` (check and install;
-restart the tray afterwards). To stop checking, turn off **Check for updates** in **Settings → General**
+restart the tray afterwards). To stop checking, turn off **Check for updates** in **Settings → About**
 (`check_updates = false` in `config.toml`).
 
 ## Uninstalling
