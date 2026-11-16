@@ -69,6 +69,9 @@ footer_text = "WoW Tools es un proyecto de fans, sin relación con Blizzard Ente
 footer_releases = "Versiones"
 footer_issues = "Informar de un problema"
 
+kofi_text = "Apóyame en Ko-fi"
+kofi_title = "Apóyame en ko-fi.com"
+
 [[features]]
 title = "Copias de seguridad"
 text = '<code>WTF</code> (atajos de teclado, macros, chat, CVars, configuración de addons) e <code>Interface\AddOns</code>: tras cada sesión de juego o de forma programada.'

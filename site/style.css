@@ -771,3 +771,72 @@ footer nav {
       border-color 120ms;
   }
 }
+
+/* ---- Ko-fi button ----
+   Floats in the bottom-right corner on every page. Same look as Ko-fi's "Widget_2" button (dark #0e0f0f, cup icon),
+   drawn here as a plain link: no third-party script, no Google Fonts request, the cup image is served from this site. */
+
+.kofi {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 2px 14px;
+  border-radius: 7px;
+  background-color: #0e0f0f;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+/* Room under the footer so the floating button never covers its links at the end of the page. */
+footer {
+  padding-bottom: calc(var(--sp-7) + 56px);
+}
+
+.kofi:hover {
+  color: #f5f5f5;
+  opacity: 0.85;
+}
+
+.kofi:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.kofi img {
+  width: 22px;
+  height: auto;
+}
+
+@media (max-width: 40rem) {
+  .kofi {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kofi img {
+    animation: kofi-wiggle 3s infinite;
+  }
+}
+
+@keyframes kofi-wiggle {
+  0%, 60% { transform: rotate(0) scale(1); }
+  75% { transform: scale(1.12); }
+  80% { transform: scale(1.1); }
+  84%, 92% { transform: rotate(-10deg) scale(1.1); }
+  88%, 96% { transform: rotate(10deg) scale(1.1); }
+  100% { transform: rotate(0) scale(1); }
+}

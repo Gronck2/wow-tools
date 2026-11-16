@@ -25,7 +25,7 @@ LANGS = ["en", "ru", "de", "fr", "es"]
 NAMES = {"en": "English", "ru": "Русский", "de": "Deutsch", "fr": "Français", "es": "Español"}
 # Screenshots of "A look inside", in order, with their pixel sizes (ui-snapshot renders at 1.5x).
 SHOTS = {"addons": (540, 907), "cleanup": (540, 907), "profiles": (540, 907), "settings": (840, 1290)}
-STATIC = ["style.css", "site.js", "404.html", "fonts"]
+STATIC = ["style.css", "site.js", "404.html", "fonts", "kofi-cup.png"]
 
 PLACEHOLDER = re.compile(r"\{\{([a-z0-9_]+)(:attr)?\}\}")
 
