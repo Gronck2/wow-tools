@@ -68,6 +68,9 @@ footer_text = "WoW Tools — фанатский проект, не связан�
 footer_releases = "Релизы"
 footer_issues = "Сообщить о проблеме"
 
+kofi_text = "Поддержать на Ko-fi"
+kofi_title = "Поддержать на ko-fi.com"
+
 [[features]]
 title = "Бэкапы"
 text = '<code>WTF</code> (бинды, макросы, чат, CVars, настройки аддонов) и <code>Interface\AddOns</code> — после каждой игровой сессии или по расписанию.'

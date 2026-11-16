@@ -69,6 +69,9 @@ footer_text = "WoW Tools is a fan project, not affiliated with or endorsed by Bl
 footer_releases = "Releases"
 footer_issues = "Report a problem"
 
+kofi_text = "Support me on Ko-fi"
+kofi_title = "Support me on ko-fi.com"
+
 [[features]]
 title = "Backups"
 text = "<code>WTF</code> (bindings, macros, chat, CVars, addon settings) and <code>Interface\\AddOns</code> — after every game session or on a schedule."
