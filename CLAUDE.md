@@ -303,3 +303,43 @@ of the process while it runs. Only per-addon
   `panel::follow` moves them to the same point/profile/character when the lists change (or drops them).
   `.bak`/`.old` are excluded (that is why a 155 MB WTF zips to ~13 MB).
 - Keybinds and macros may be server-synced (`synchronizeBindings`/`synchronizeMacros`), which can override copied files.
+
+## Agent pipeline
+
+Non-trivial work goes through the `dev-pipeline` plugin (`/dev-pipeline:run-task`); project specifics are the Pipeline
+contract. Do not add same-named `.claude/agents/` copies unless a deliberate override is needed.
+
+## Pipeline contract
+
+- **Base branch:** main
+- **PR target:** main
+- **Forge:** gh
+- **Branch naming:** task/NNNN-slug; docs-only work on docs/<slug>
+- **Docs layout:** tasks docs/tasks/, plans docs/plan/ (shared NNNN numbering), ADRs docs/adr/ (immutable), living
+  docs: docs/arch/overview.md. docs/images/ stays as is (screenshots from `ui-snapshot`). Docs language: English.
+- **Test paths:** inline `#[cfg(test)]` modules at the bottom of src/*.rs (no tests/ dir); site/ has no tests
+  (build.py validates)
+- **Gate commands** (per part; run a part's commands when the diff touches files under it, from the repo root). The
+  shell needs the PATH from "Build and check" (cargo + WinLibs `dlltool`):
+  - root (Rust; src/, locales/, build.rs, Cargo.*, assets/, packaging/):
+    - format: `cargo fmt --check`
+    - lint: `cargo clippy --release --all-targets --locked -- -D warnings`
+    - tests: `cargo test --release --locked`
+  - `site/` (also when docs/images/ or assets/wow-tools.ico change):
+    - build: `uv run --no-project python site/build.py <scratchpad>/site` (`python3` here is only the Store alias)
+  - No `cargo build --release --locked` gate: it fails while the tray runs from target\release, and clippy and the
+    tests already build release. Never stop the tray to make a build pass.
+- **Security-shaped paths:** src/selfupdate.rs, src/elvui.rs, src/schedule.rs, src/config.rs, src/main.rs,
+  src/snapshot.rs, src/curseforge.rs, src/wowup.rs, src/wago.rs, build.rs, wow-tools.rc, .cargo/config.toml,
+  packaging/installer.iss, packaging/winget/, .github/workflows/release.yml, .github/workflows/winget.yml,
+  .github/workflows/pages.yml, site/site.js
+- **Merge/release policy:** PR opened without asking; only the owner merges (squash), only with green CI; direct
+  pushes to main, version bumps, tags (`v1.2.3` = Cargo.toml version), publishing the draft release and force-push
+  only on the owner's explicit request; never propose merging a PR whose CI is red or pending. Every user-visible
+  change adds to the `## [x.y.z]` section of CHANGELOG.md (see "GitHub, CI and releases").
+- **Extra rules:** see "Interface languages" (every user-facing string in locales/{ru,en,de,fr,es}.toml via `tr!`,
+  Russian is the source; site texts in site/locales/*.toml); "Build and check" (never touch the real WoW install from
+  tests or experiments, `--config <scratch>.toml`; Edit tool for text with backslashes); "Seeing the UI without a
+  screen" (UI is checked only via `wow-tools ui-snapshot`; never screenshot the screen or bring windows to the
+  front). Never stop, restart or replace the running tray or the game. READMEs in all languages kept in step.
+  Commit and push only when asked.
