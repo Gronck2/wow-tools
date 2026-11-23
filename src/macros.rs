@@ -4,8 +4,8 @@
 //! File format: `VER 3 <16 hex id> "<name>" "<icon>"`, the body lines, `END`. Lines of a body that
 //! start with neither `/` nor `#` are addon data (HealBot `hbCrashProt_*`, `!dosmarkers`) and ignored.
 
-use crate::chars::subdirs;
-use crate::profiles::{Roster, realm_key};
+use crate::chars::{Character, subdirs};
+use crate::profiles::{Roster, last_played, realm_key};
 use crate::wow::Flavor;
 use std::cell::OnceCell;
 use std::fs;
@@ -173,10 +173,6 @@ pub enum Kind {
     TooLong {
         chars: usize,
     },
-    LongBytes {
-        chars: usize,
-        bytes: usize,
-    },
     Brackets,
     /// `firm`: a character's own macro; else an account-wide one that may not work on `bad`.
     Alias {
@@ -211,11 +207,10 @@ fn is_retail(flavor: &str) -> bool {
 pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(usize, Kind)> {
     let mut out = Vec::new();
     let text = m.body.join("\n");
-    let (chars, bytes) = (text.chars().count(), text.len());
+    // The game counts characters, not bytes (a saved 247-character macro is 265 bytes).
+    let chars = text.chars().count();
     if chars > MAX_LEN {
         out.push((0, Kind::TooLong { chars }));
-    } else if bytes > MAX_LEN {
-        out.push((0, Kind::LongBytes { chars, bytes }));
     }
     for (i, line) in m.body.iter().enumerate().map(|(i, l)| (i + 1, l.trim())) {
         if !line.starts_with(['/', '#']) {
@@ -292,7 +287,6 @@ impl Finding {
         match &self.kind {
             Kind::Deprecated { func, patch, .. } => tr!("macros.deprecated", func = func, patch = patch),
             Kind::TooLong { chars } => tr!("macros.too_long", n = chars, max = MAX_LEN),
-            Kind::LongBytes { chars, bytes } => tr!("macros.long_bytes", chars = chars, bytes = bytes, max = MAX_LEN),
             Kind::Brackets => tr!("macros.brackets").to_string(),
             Kind::Alias {
                 alias,
@@ -332,7 +326,7 @@ impl Finding {
             Kind::TooLong { chars } => Some(tr!("macros.fix_too_long", over = chars - MAX_LEN)),
             Kind::Brackets => Some(tr!("macros.fix_brackets").to_string()),
             Kind::Alias { command, .. } => Some(tr!("macros.fix_alias", command = command)),
-            Kind::LongBytes { .. } | Kind::Secret { .. } => None,
+            Kind::Secret { .. } => None,
         }
     }
 }
@@ -372,6 +366,16 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
             for (realm, realm_dir) in subdirs(&acc_dir) {
                 let loc = realm_locale(&acc_dir, &realm, region.as_deref(), &roster);
                 for (name, dir) in subdirs(&realm_dir) {
+                    // A deleted character's folder stays in WTF: not a target.
+                    let c = Character {
+                        account: account.clone(),
+                        realm: realm.clone(),
+                        name: name.clone(),
+                        dir: dir.clone(),
+                    };
+                    if !roster.get_or_init(|| Roster::read(&acc_dir)).has(&c, last_played(&c)) {
+                        continue;
+                    }
                     chars.push((
                         Target {
                             label: format!("{name}-{realm}"),
@@ -483,12 +487,12 @@ mod tests {
     }
 
     #[test]
-    fn length_counts_characters_then_bytes() {
+    fn length_counts_characters_not_bytes() {
         let long = m(&[&format!("/say {}", "a".repeat(260))]);
         assert!(kinds(&long, true, &[], true)[0].1.starts_with("TooLong"));
-        // 130 Cyrillic letters: 130 characters, 260 bytes.
-        let wide = m(&[&format!("/say {}", "ж".repeat(130))]);
-        assert!(kinds(&wide, true, &[], true)[0].1.starts_with("LongBytes"));
+        // 200 Cyrillic letters: 200 characters, 400 bytes: fine.
+        let wide = m(&[&format!("/say {}", "ж".repeat(200))]);
+        assert!(kinds(&wide, true, &[], true).is_empty());
         assert!(kinds(&m(&["/say hi"]), true, &[], true).is_empty());
     }
 
@@ -582,6 +586,28 @@ mod tests {
         let text = report(&s);
         assert!(text.contains("Heal (строка 1)") && text.contains("C_Spell.GetSpellInfo"));
         assert!(report(&Scan::default()).contains('0'));
+    }
+
+    #[test]
+    fn deleted_characters_are_not_targets_and_not_checked() {
+        let (_d, fl) = tree(&[("Oldname", "Ccc"), ("Oldname", "Gone")]);
+        let acc = fl.wtf_dir().join("Account").join("ACC");
+        let mac = "VER 3 0000000000000001 \"Heal\" \"1\"\n/закл Heal\nEND\n";
+        put(&fl, "macros-cache.txt", mac);
+        put(&fl, "Oldname/Ccc/macros-cache.txt", mac);
+        put(&fl, "Oldname/Gone/macros-cache.txt", mac);
+        // The list is written last: the folders were not played after it.
+        fs::create_dir_all(acc.join("SavedVariables")).unwrap();
+        fs::write(acc.join("character-list-order.txt"), "1602-0000AAAA").unwrap();
+        fs::write(
+            acc.join("SavedVariables").join("Some.lua"),
+            "X = { [\"Player-1602-0000AAAA\"] = { [\"name\"] = \"Ccc\", [\"realm\"] = \"Oldname\" } }",
+        )
+        .unwrap();
+        let s = scan(std::slice::from_ref(&fl));
+        // The account's and Ccc's file; Gone's folder is left alone.
+        assert_eq!(s.checked, 2);
+        assert!(s.findings.is_empty());
     }
 
     #[test]

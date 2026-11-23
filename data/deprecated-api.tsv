@@ -8,9 +8,9 @@ PickupContainerItem	C_Container.PickupContainerItem	10.0.2	https://warcraft.wiki
 UseContainerItem	C_Container.UseContainerItem	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes
 SplitContainerItem	C_Container.SplitContainerItem	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes
 SortBags	C_Container.SortBags	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes
-UnitAura	C_UnitAuras.GetAuraDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/API_UnitAura
-UnitBuff	C_UnitAuras.GetBuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/API_UnitAura
-UnitDebuff	C_UnitAuras.GetDebuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/API_UnitAura
+UnitAura	C_UnitAuras.GetAuraDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes
+UnitBuff	C_UnitAuras.GetBuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes
+UnitDebuff	C_UnitAuras.GetDebuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes
 GetMouseFocus	GetMouseFoci()[1]	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes
 GetSpellInfo	C_Spell.GetSpellInfo	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes
 GetSpellCooldown	C_Spell.GetSpellCooldown	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes
@@ -36,9 +36,8 @@ GetActionCooldown	C_ActionBar.GetActionCooldown	12.0.0	https://warcraft.wiki.gg/
 GetActionCharges	C_ActionBar.GetActionCharges	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes
 IsUsableAction	C_ActionBar.IsUsableAction	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes
 HasAction	C_ActionBar.HasAction	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes
-ChangeActionBarPage	C_ActionBar (see the patch notes)	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes
-GetAddOnInfo	C_AddOns.GetAddOnInfo	10.2.0	https://warcraft.wiki.gg/wiki/Patch_10.2.0/API_changes
-EnableAddOn	C_AddOns.EnableAddOn	10.2.0	https://warcraft.wiki.gg/wiki/Patch_10.2.0/API_changes
-DisableAddOn	C_AddOns.DisableAddOn	10.2.0	https://warcraft.wiki.gg/wiki/Patch_10.2.0/API_changes
-GetNumAddOns	C_AddOns.GetNumAddOns	10.2.0	https://warcraft.wiki.gg/wiki/Patch_10.2.0/API_changes
-IsAddOnLoaded	C_AddOns.IsAddOnLoaded	10.2.0	https://warcraft.wiki.gg/wiki/Patch_10.2.0/API_changes
+GetAddOnInfo	C_AddOns.GetAddOnInfo	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes
+EnableAddOn	C_AddOns.EnableAddOn	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes
+DisableAddOn	C_AddOns.DisableAddOn	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes
+GetNumAddOns	C_AddOns.GetNumAddOns	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes
+IsAddOnLoaded	C_AddOns.IsAddOnLoaded	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes

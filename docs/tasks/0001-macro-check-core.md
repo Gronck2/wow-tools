@@ -58,7 +58,7 @@ Macros rot silently: removed API in `/run`, bodies over the length limit, bad br
 3. ADR: none needed (embedded data tables are not architectural).
 
 ## Decisions (orchestrator, 2026-11-24)
-- Length: error over 255 characters, soft warning over 255 bytes.
+- Length: error over 255 characters. The soft warning over 255 bytes was dropped: the owner's real WTF has a game-saved macro of 247 characters / 265 bytes, so the game counts characters and the byte warning is always a false alarm.
 - Classic flavors: the removed-API check is skipped.
 - Realm missing from `realms.tsv` but its folder name is Cyrillic -> ruRU (EU Russian realms are the only Cyrillic
   ones); the finding says the language was taken from the realm name.

@@ -884,7 +884,7 @@ impl Roster {
     /// False only when `c` is surely gone: its realm is on the list with every character named
     /// and `c` is not one of them, or every realm of the list is known and `c`'s is not one. A
     /// character played (`played`) after the list was written is newer than it: kept.
-    fn has(&self, c: &Character, played: Option<NaiveDateTime>) -> bool {
+    pub(crate) fn has(&self, c: &Character, played: Option<NaiveDateTime>) -> bool {
         if !self.listed || played.is_some_and(|p| self.listed_at.is_none_or(|l| p > l)) {
             return true;
         }
