@@ -119,6 +119,7 @@ El icono muestra el estado actual:
   cosa; mira [Limpieza](#limpieza).
 - Pestaña **Perfiles**: los perfiles de interfaz guardados y **Guardar un perfil** — ver
   [Perfiles de interfaz](#perfiles-de-interfaz).
+- Pestaña **Macros**: **Revisar macros** y lo que encontró — ver [Revisar macros](#revisar-macros).
 - Una pestaña se puede arrastrar a otro lugar de la fila; en **Ajustes → General → Pestañas del panel** se ocultan
   las que no hagan falta.
 - Arriba: el candado, el clip, la carpeta de copias y la configuración (al pasar el ratón se ve qué hace cada uno);
@@ -391,6 +392,8 @@ Los atajos y las macros pueden guardarse en los servidores de Blizzard (CVars `s
 
 ## Revisar macros
 
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-es-dark.png"><img src="docs/images/macros-es.png" width="360" alt="Panel, pestaña Macros"></picture></p>
+
 WoW Tools lee las macros de todas las cuentas y personajes y muestra lo que está roto, sin abrir el juego:
 `wow-tools macros`. Revisa las líneas `/run` y `/script` (funciones eliminadas del juego, con su sustituta), las macros
 de más de 255 caracteres, los `[ ]` desparejados y los comandos de otro idioma (`/закл`) según el idioma del reino del
@@ -403,6 +406,14 @@ juego) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castra
 `#show`: un nombre en otro idioma se indica con el nombre del idioma del reino, y uno que no existe en ninguno como
 «desconocido» (errata o eliminado; también puede ser un conjunto de equipo, una mascota o algo de un addon). La
 carpeta `WTF` solo se lee.
+
+La pestaña **Macros** del panel hace lo mismo sin línea de comandos. **Revisar macros** lee todas las macros en segundo
+plano (funciona con el juego abierto y no cambia nada); después la pestaña muestra cuántos problemas hay de cada tipo.
+El botón de lista los abre todos sobre la pestaña: la macro, dónde está (las macros comunes de la cuenta o un
+personaje), la línea, qué falla y cómo arreglarlo; al pasar el ratón por una fila se ve el texto completo, la rueda
+desplaza y se cierra con ✕ o Esc. **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
+nombres de hechizos y objetos descargados (versión del juego e idiomas); **Descargar** los trae — solo al pulsarlo, y
+después la revisión se repite. La revisión solo se hace con este botón, nunca por sí sola.
 
 ## Línea de comandos
 

@@ -17,6 +17,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
+use crate::macros;
 use crate::maintenance::{self, Item, List};
 use crate::profiles::{CharEntry, Class, Faction, Look, Profile};
 use crate::snapshot;
@@ -80,6 +81,8 @@ pub struct View {
     pub running: Vec<String>,
     /// The tabs shown, in order (`Config::shown_tabs`); never empty.
     pub tabs: Vec<Tab>,
+    /// The macro check (`tray::MacroCheck`).
+    pub macros: tray::MacroCheck,
 }
 
 /// The tabs, in the order and with the ones shown that the user chose (`Config::shown_tabs`); a tab
@@ -134,6 +137,17 @@ enum Hit {
     ApplyBlocked(usize),
     /// Hovering the save card shows how the last save went, in full.
     SaveInfo,
+    /// "Check macros".
+    MacroScan,
+    /// The list button of the macro findings: opens them as a `Sheet`.
+    MacroList,
+    MacroCopy,
+    /// "Download names".
+    MacroNames,
+    /// Hovering the name data card shows what the download is.
+    NamesInfo,
+    /// Visible finding `k` of the macro sheet: hovering shows it in full.
+    MacroRow(usize),
 }
 
 /// List rows: the longer of the two lists, so switching tabs does not resize the panel.
@@ -145,7 +159,23 @@ fn rows(v: &View) -> usize {
 fn divider_y(v: &View) -> f32 {
     let lists = LIST_Y + rows(v) as f32 * ROW_STEP;
     let cleanup = cleanup_lines().last().map_or(0.0, |(r, _)| r.y + r.h);
-    lists.max(cleanup) + 6.0
+    lists.max(cleanup).max(MACRO_NAMES_Y + MACRO_NAMES_H) + 6.0
+}
+
+/// The macros tab: a counts card, the report row and the name data card under the button.
+const MACRO_COUNTS_Y: f32 = BUTTON_Y + BUTTON_H + 12.0;
+const MACRO_COUNTS_H: f32 = 112.0;
+const MACRO_COPY_Y: f32 = MACRO_COUNTS_Y + MACRO_COUNTS_H + 8.0;
+const MACRO_NAMES_Y: f32 = MACRO_COPY_Y + ROW_H + 8.0;
+const MACRO_NAMES_H: f32 = 84.0;
+
+fn macro_card(y: f32, h: f32) -> R {
+    R {
+        x: PAD,
+        y,
+        w: W - 2.0 * PAD,
+        h,
+    }
 }
 
 /// A line of the cleanup tab.
@@ -259,10 +289,19 @@ pub enum SheetList {
     SaveFrom,
     /// Characters to put profile `i` on.
     ApplyTo(usize),
+    /// The findings of the macro check.
+    Macros,
 }
 
 const SHEET_HEAD: f32 = 52.0;
 const SHEET_ROW: f32 = 28.0;
+/// A finding takes two lines of text under its name.
+const MACRO_ROW: f32 = 66.0;
+
+/// The height of one entry of a sheet.
+fn sheet_row_h(list: SheetList) -> f32 {
+    if list == SheetList::Macros { MACRO_ROW } else { SHEET_ROW }
+}
 
 /// The sheet covers the rows of the tab.
 fn sheet_rect(v: &View) -> R {
@@ -294,12 +333,12 @@ fn sheet_head(list: SheetList) -> f32 {
 
 /// A list of characters to pick from (it has a search field).
 fn picks(list: SheetList) -> bool {
-    !matches!(list, SheetList::Clean(_))
+    !matches!(list, SheetList::Clean(_) | SheetList::Macros)
 }
 
 /// Entries that fit under the heading.
 fn sheet_rows(v: &View, list: SheetList) -> usize {
-    ((sheet_rect(v).h - sheet_head(list) - 8.0) / SHEET_ROW).floor().max(1.0) as usize
+    ((sheet_rect(v).h - sheet_head(list) - 8.0) / sheet_row_h(list)).floor().max(1.0) as usize
 }
 
 /// Visible entry `k` of the sheet.
@@ -307,9 +346,9 @@ fn sheet_row_rect(v: &View, list: SheetList, k: usize) -> R {
     let r = sheet_rect(v);
     R {
         x: r.x + 4.0,
-        y: r.y + sheet_head(list) + 4.0 + k as f32 * SHEET_ROW,
+        y: r.y + sheet_head(list) + 4.0 + k as f32 * sheet_row_h(list),
         w: r.w - 18.0,
-        h: SHEET_ROW,
+        h: sheet_row_h(list),
     }
 }
 
@@ -320,7 +359,7 @@ fn sheet_chars(v: &View, list: SheetList, search: &str) -> Vec<usize> {
     let search = search.to_lowercase();
     let Some(chars) = v.chars.as_ref() else { return Vec::new() };
     let profile = match list {
-        SheetList::Clean(_) => return Vec::new(),
+        SheetList::Clean(_) | SheetList::Macros => return Vec::new(),
         SheetList::SaveFrom => None,
         SheetList::ApplyTo(i) => match v.profiles.get(i) {
             Some(p) => Some(&p.meta),
@@ -368,6 +407,25 @@ fn sheet_entries(v: &View, s: &Sheet) -> Vec<SheetEntry> {
                 look: Look::default(),
             })
             .collect(),
+        SheetList::Macros => {
+            let scan = v.macros.scan.as_deref();
+            let findings = scan.map_or(&[][..], |s| &s.findings[..]);
+            // The game version only matters when there is more than one.
+            let many = findings.iter().any(|f| f.flavor != findings[0].flavor);
+            findings
+                .iter()
+                .map(|f| SheetEntry {
+                    name: if f.line == 0 {
+                        f.name.clone()
+                    } else {
+                        tr!("macros.sheet_line", name = f.name, line = f.line)
+                    },
+                    note: String::new(),
+                    right: if many { format!("{} · {}", f.flavor, f.scope) } else { f.scope.clone() },
+                    look: Look::default(),
+                })
+                .collect()
+        }
         _ => {
             let chars = v.chars.as_deref().unwrap_or_default();
             // The game version only matters when there is more than one.
@@ -413,6 +471,13 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
                 List::Big => tr!("cleanup.big_short").to_string(),
             };
             (title, tr!("cleanup.count_addons", n = entries.len(), size = snapshot::human_size(total)))
+        }
+        SheetList::Macros => {
+            let checked = v.macros.scan.as_ref().map_or(0, |s| s.checked);
+            (
+                tr!("macros.sheet_title").to_string(),
+                tr!("macros.sheet_sub", n = entries.len(), checked = checked),
+            )
         }
         SheetList::SaveFrom => (tr!("profiles.pick_save").to_string(), tr!("profiles.pick_sub").to_string()),
         SheetList::ApplyTo(i) => {
@@ -485,6 +550,10 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
     }
     for (k, e) in entries.iter().skip(first).take(rows).enumerate() {
         let row = sheet_row_rect(v, s.list, k);
+        if let (SheetList::Macros, Some(finding)) = (s.list, v.macros.scan.as_ref().and_then(|sc| sc.findings.get(first + k))) {
+            draw_macro_row(p, t, f, row, e, finding, hover == Some(Hit::MacroRow(k)));
+            continue;
+        }
         if picking && hover == Some(Hit::SheetRow(k)) {
             p.fill(row, 4.0, t.card_hover);
         }
@@ -520,7 +589,7 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
     // Scroll bar: where the visible part is in the whole list.
     if entries.len() > rows {
         let top = r.y + head + 4.0;
-        let track_h = rows as f32 * SHEET_ROW;
+        let track_h = rows as f32 * sheet_row_h(s.list);
         let thumb_h = (track_h * rows as f32 / entries.len() as f32).max(24.0);
         let max_first = (entries.len() - rows) as f32;
         let thumb = R {
@@ -530,6 +599,61 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
             h: thumb_h,
         };
         p.fill(thumb, 2.0, t.text2);
+    }
+}
+
+/// A finding of the macro sheet: its macro and where it is on the first line, what is wrong and the fix under it
+/// (two lines; the whole text shows on hover).
+fn draw_macro_row(p: &Painter, t: &Theme, f: &Formats, row: R, e: &SheetEntry, finding: &macros::Finding, hover: bool) {
+    if hover {
+        p.fill(row, 4.0, t.card_hover);
+    }
+    p.fill(
+        R {
+            y: row.y + row.h - 1.0,
+            h: 1.0,
+            ..row
+        },
+        0.0,
+        t.stroke,
+    );
+    let right_w = (gfx::text_width(&f.sub_right, &e.right) + 4.0).min(row.w * 0.5);
+    let right_r = R {
+        x: row.x + row.w - 4.0 - right_w,
+        y: row.y + 4.0,
+        w: right_w,
+        h: 20.0,
+    };
+    p.text(&e.right, &f.sub_right, right_r, t.text2);
+    p.text(
+        &e.name,
+        &f.text,
+        R {
+            x: row.x + 12.0,
+            y: row.y + 4.0,
+            w: right_r.x - row.x - 20.0,
+            h: 20.0,
+        },
+        t.text,
+    );
+    p.text(
+        &macro_detail(finding),
+        &f.wrap,
+        R {
+            x: row.x + 12.0,
+            y: row.y + 26.0,
+            w: row.w - 24.0,
+            h: row.h - 30.0,
+        },
+        t.text2,
+    );
+}
+
+/// What is wrong with a finding and how to fix it, in one text.
+fn macro_detail(finding: &macros::Finding) -> String {
+    match finding.fix() {
+        Some(fix) => format!("{} → {fix}", finding.problem()),
+        None => finding.problem(),
     }
 }
 
@@ -723,10 +847,14 @@ fn restore_allowed(v: &View, i: usize) -> bool {
 /// The tab strip under the title.
 fn tabs(v: &View, f: &Formats) -> Vec<(R, Tab)> {
     let mut x = PAD - 4.0;
+    // Five tabs with the usual padding do not fit in some languages: the padding gives way.
+    let texts: f32 = v.tabs.iter().map(|t| gfx::text_width(&f.tab_on, t.label())).sum();
+    let n = v.tabs.len() as f32;
+    let pad = ((W - 2.0 * (PAD - 4.0) - texts - 2.0 * (n - 1.0)) / n).clamp(8.0, 28.0);
     v.tabs
         .iter()
         .map(|&tab| {
-            let w = gfx::text_width(&f.tab_on, tab.label()) + 28.0;
+            let w = gfx::text_width(&f.tab_on, tab.label()) + pad;
             let r = R { x, y: TABS_Y, w, h: TABS_H };
             x += w + 2.0;
             (r, tab)
@@ -753,17 +881,23 @@ fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<Confirm>, sheet: Option
         out.extend((0..v.updates.len()).map(|i| (row_rect(i), Hit::History(i))));
         return out;
     }
-    if let (Tab::Cleanup | Tab::Profiles, Some(s)) = (tab, sheet) {
+    if let (Tab::Cleanup | Tab::Profiles | Tab::Macros, Some(s)) = (tab, sheet) {
         out.push((sheet_close_rect(v), Hit::SheetClose));
+        let n = sheet_entries(v, s).len().saturating_sub(sheet_first(v, s)).min(sheet_rows(v, s.list));
         if picks(s.list) {
-            let n = sheet_entries(v, s).len().saturating_sub(sheet_first(v, s)).min(sheet_rows(v, s.list));
             out.extend((0..n).map(|k| (sheet_row_rect(v, s.list, k), Hit::SheetRow(k))));
+        } else if s.list == SheetList::Macros {
+            out.extend((0..n).map(|k| (sheet_row_rect(v, s.list, k), Hit::MacroRow(k))));
         }
         out.push((sheet_rect(v), Hit::Sheet));
         return out;
     }
     if tab == Tab::Profiles {
         profile_hits(v, f, confirm, prof_first, &mut out);
+        return out;
+    }
+    if tab == Tab::Macros {
+        macro_hits(v, f, &mut out);
         return out;
     }
     if tab == Tab::Cleanup {
@@ -968,8 +1102,9 @@ fn draw(
         Tab::Addons => draw_addons(p, v, t, f, hover),
         Tab::Cleanup => draw_cleanup(p, v, t, f, hover, confirm),
         Tab::Profiles => draw_profiles(p, v, t, f, hover, confirm, prof_first),
+        Tab::Macros => draw_macros(p, v, t, f, hover),
     }
-    if let (Tab::Cleanup | Tab::Profiles, Some(s)) = (tab, sheet) {
+    if let (Tab::Cleanup | Tab::Profiles | Tab::Macros, Some(s)) = (tab, sheet) {
         draw_sheet(p, v, t, f, hover, s);
     }
     draw_footer(p, v, t, f, hover);
@@ -978,6 +1113,16 @@ fn draw(
     }
     if let (Tab::Cleanup, Some(Hit::CleanInfo(i))) = (tab, hover) {
         draw_clean_tip(p, v, t, f, i);
+    }
+    if let (Tab::Macros, Some(Hit::NamesInfo)) = (tab, hover) {
+        draw_row_tip(p, v, t, f, macro_card(MACRO_NAMES_Y, MACRO_NAMES_H), tr!("macros.names_tip"), false);
+    }
+    if let (Tab::Macros, Some(s), Some(Hit::MacroRow(k))) = (tab, sheet, hover) {
+        let finding = v.macros.scan.as_ref().and_then(|sc| sc.findings.get(sheet_first(v, s) + k));
+        if let Some(finding) = finding {
+            let text = format!("{}\n\n{}", finding.scope, macro_detail(finding));
+            draw_row_tip(p, v, t, f, sheet_row_rect(v, s.list, k), &text, false);
+        }
     }
     if let (Tab::Profiles, Some(Hit::SaveInfo), Some((_, text, tone))) = (tab, hover, v.profile_done.as_ref().filter(|d| d.0 == ProfileJob::Save)) {
         draw_row_tip(p, v, t, f, save_card(), text, *tone == Tone::Error);
@@ -1122,6 +1267,7 @@ pub fn busy_text(work: Work) -> &'static str {
         Work::Restore => tr!("panel.busy_restore"),
         Work::Cleanup => tr!("panel.busy_cleanup"),
         Work::Profile => tr!("panel.busy_profile"),
+        Work::Names => tr!("macros.busy_names"),
     }
 }
 
@@ -1938,6 +2084,230 @@ fn draw_profiles(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hi
     }
 }
 
+/// The list button of the counts card (only with findings).
+fn macro_list_rect() -> R {
+    let card = macro_card(MACRO_COUNTS_Y, MACRO_COUNTS_H);
+    R {
+        x: card.x + card.w - 42.0,
+        y: card.y + 8.0,
+        w: 30.0,
+        h: 30.0,
+    }
+}
+
+fn macro_copy_rect(f: &Formats) -> R {
+    end_button_rect(macro_card(MACRO_COPY_Y, ROW_H), f, tr!("macros.copy"))
+}
+
+fn macro_names_rect(f: &Formats) -> R {
+    let card = macro_card(MACRO_NAMES_Y, MACRO_NAMES_H);
+    let w = (gfx::text_width(&f.button, tr!("macros.download")) + 28.0).max(84.0);
+    R {
+        x: card.x + card.w - 12.0 - w,
+        y: card.y + 8.0,
+        w,
+        h: 30.0,
+    }
+}
+
+fn macro_scan_allowed(v: &View) -> bool {
+    !v.macros.scanning
+}
+
+fn macro_names_allowed(v: &View) -> bool {
+    v.status.phase != Phase::Busy && !v.macros.downloading
+}
+
+fn macro_hits(v: &View, f: &Formats, out: &mut Vec<(R, Hit)>) {
+    if macro_scan_allowed(v) {
+        out.push((button_rect(), Hit::MacroScan));
+    }
+    if v.macros.scan.as_ref().is_some_and(|s| !s.findings.is_empty()) {
+        out.push((macro_list_rect(), Hit::MacroList));
+    }
+    if v.macros.scan.is_some() && !v.macros.scanning {
+        out.push((macro_copy_rect(f), Hit::MacroCopy));
+    }
+    if macro_names_allowed(v) {
+        out.push((macro_names_rect(f), Hit::MacroNames));
+    }
+    out.push((macro_card(MACRO_NAMES_Y, MACRO_NAMES_H), Hit::NamesInfo));
+}
+
+/// The text of the counts card: how many findings of each kind.
+fn macro_counts_text(v: &View) -> String {
+    match v.macros.scan.as_deref() {
+        None => tr!("macros.counts_hint").to_string(),
+        Some(s) if s.findings.is_empty() => tr!("macros.counts_clean").to_string(),
+        Some(s) => s.counts().iter().map(|(title, n)| format!("{title}: {n}")).collect::<Vec<_>>().join(" · "),
+    }
+}
+
+/// The lines under the name data card's title, with their colors: how the last download went, what is
+/// missing for the check, what the cache holds. The card has room for two.
+fn names_lines(v: &View, t: &Theme) -> Vec<(String, D2D1_COLOR_F)> {
+    let m = &v.macros;
+    let mut out = Vec::new();
+    if m.downloading {
+        out.push((busy_text(Work::Names).to_string(), t.text2));
+    } else if let Some((text, tone)) = &m.names_done {
+        out.push(result_line(t, text, *tone));
+    }
+    if let Some(s) = m.scan.as_deref().filter(|s| !s.missing.is_empty()) {
+        out.push((tr!("macros.names_missing", flavors = s.missing.join(", ")), t.warn));
+    }
+    // With a check done, the line above already says which game versions lack names.
+    if m.cached.is_empty() && out.is_empty() {
+        out.push((tr!("macros.names_none").to_string(), t.text2));
+    }
+    for c in &m.cached {
+        out.push((
+            tr!("macros.names_cached", product = &c.product, build = &c.build, locales = c.locales.join(" ")),
+            t.text2,
+        ));
+    }
+    out.truncate(2);
+    out
+}
+
+fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>) {
+    let m = &v.macros;
+    let scan = m.scan.as_deref();
+    let ((icon, icon_color), line1, (line2, line2_color)) = match (scan, &m.error) {
+        _ if m.scanning => (
+            ("\u{E895}", t.accent),
+            tr!("macros.scanning_line").to_string(),
+            (tr!("macros.scanning_sub").to_string(), t.text2),
+        ),
+        (_, Some(e)) => (
+            ("\u{E783}", t.error),
+            tr!("macros.failed").to_string(),
+            (e.lines().next().unwrap_or_default().to_string(), t.error),
+        ),
+        (None, None) => (
+            ("\u{E81C}", t.text2),
+            tr!("macros.not_checked").to_string(),
+            (tr!("macros.not_checked_sub").to_string(), t.text2),
+        ),
+        (Some(s), None) if s.findings.is_empty() => (
+            ("\u{E930}", t.ok),
+            tr!("macros.clean").to_string(),
+            (tr!("macros.checked", n = s.checked), t.text2),
+        ),
+        (Some(s), None) => (
+            ("\u{E7BA}", t.warn),
+            tr!("macros.found", n = s.findings.len()),
+            (tr!("macros.checked", n = s.checked), t.text2),
+        ),
+    };
+    draw_status(p, t, f, (icon, icon_color), &line1, (&line2, line2_color));
+    if m.scanning {
+        button(p, f, button_rect(), "\u{E895}", tr!("macros.scanning"), Style::Disabled, t);
+    } else {
+        let style = Style::Accent {
+            hover: hover == Some(Hit::MacroScan),
+        };
+        button(p, f, button_rect(), "\u{E721}", tr!("macros.scan"), style, t);
+    }
+
+    // Counts per kind, and the list button.
+    let card = macro_card(MACRO_COUNTS_Y, MACRO_COUNTS_H);
+    p.fill(card, 6.0, t.card);
+    p.stroke(card, 6.0, t.stroke, 1.0);
+    let has_list = scan.is_some_and(|s| !s.findings.is_empty());
+    let text_w = card.w - 32.0 - if has_list { 38.0 } else { 0.0 };
+    p.text(
+        tr!("macros.counts_title"),
+        &f.text,
+        R {
+            x: card.x + 16.0,
+            y: card.y + 8.0,
+            w: text_w,
+            h: 20.0,
+        },
+        t.text,
+    );
+    p.text(
+        &macro_counts_text(v),
+        &f.wrap,
+        R {
+            x: card.x + 16.0,
+            y: card.y + 32.0,
+            w: text_w,
+            h: card.h - 38.0,
+        },
+        t.text2,
+    );
+    if has_list {
+        let r = macro_list_rect();
+        if hover == Some(Hit::MacroList) {
+            p.fill(r, 4.0, t.card_hover);
+        }
+        p.text("\u{E8FD}", &f.icon, r, t.text);
+    }
+
+    // The report.
+    let card = macro_card(MACRO_COPY_Y, ROW_H);
+    p.fill(card, 6.0, t.card);
+    p.stroke(card, 6.0, t.stroke, 1.0);
+    let copy = macro_copy_rect(f);
+    let (sub, color) = match &m.copied {
+        Some((text, tone)) => result_line(t, text, *tone),
+        None => (tr!("macros.copy_sub").to_string(), t.text2),
+    };
+    row_texts(p, f, t, card, copy.x, tr!("macros.copy_title"), (&sub, color));
+    let style = if scan.is_some() && !m.scanning {
+        Style::Plain {
+            hover: hover == Some(Hit::MacroCopy),
+        }
+    } else {
+        Style::Disabled
+    };
+    button(p, f, copy, "", tr!("macros.copy"), style, t);
+
+    // The name data: the button at the top right, what it holds under the title.
+    let card = macro_card(MACRO_NAMES_Y, MACRO_NAMES_H);
+    p.fill(card, 6.0, t.card);
+    p.stroke(card, 6.0, t.stroke, 1.0);
+    let button_r = macro_names_rect(f);
+    p.text(
+        tr!("macros.names_title"),
+        &f.text,
+        R {
+            x: card.x + 16.0,
+            y: button_r.y,
+            w: button_r.x - card.x - 24.0,
+            h: button_r.h,
+        },
+        t.text,
+    );
+    if m.downloading {
+        spinner(p, button_r, t);
+    } else {
+        let style = if macro_names_allowed(v) {
+            Style::Plain {
+                hover: hover == Some(Hit::MacroNames),
+            }
+        } else {
+            Style::Disabled
+        };
+        button(p, f, button_r, "", tr!("macros.download"), style, t);
+    }
+    for (i, (line, color)) in names_lines(v, t).into_iter().enumerate() {
+        p.text(
+            &line,
+            &f.sub,
+            R {
+                x: card.x + 16.0,
+                y: card.y + 42.0 + i as f32 * 18.0,
+                w: card.w - 32.0,
+                h: 18.0,
+            },
+            color,
+        );
+    }
+}
+
 /// Dots going round, for a job that gives no progress; the panel redraws while it runs (`SPIN_TIMER`).
 fn spinner(p: &Painter, r: R, t: &Theme) {
     const DOTS: u64 = 8;
@@ -2433,7 +2803,7 @@ fn follow(old: &View, new: &View, c: Confirm) -> Option<Confirm> {
 
 /// A job with a `spinner` runs.
 fn spinning(v: &View) -> bool {
-    v.cleaning.is_some() || v.profile_job.is_some()
+    v.cleaning.is_some() || v.profile_job.is_some() || v.macros.scanning || v.macros.downloading
 }
 
 /// Starts or stops the redraws of the `spinner`.
@@ -2540,7 +2910,18 @@ fn click(hwnd: HWND, hit: Hit) {
             p.sheet = None;
             None
         }
-        Hit::Sheet | Hit::ProfileInfo(_) | Hit::SaveInfo | Hit::ApplyBlocked(_) => None,
+        Hit::Sheet | Hit::ProfileInfo(_) | Hit::SaveInfo | Hit::ApplyBlocked(_) | Hit::NamesInfo | Hit::MacroRow(_) => None,
+        Hit::MacroScan => Some(Action::ScanMacros),
+        Hit::MacroCopy => Some(Action::CopyMacros),
+        Hit::MacroNames => Some(Action::UpdateNames),
+        Hit::MacroList => {
+            p.sheet = Some(Sheet {
+                list: SheetList::Macros,
+                first: 0,
+                search: String::new(),
+            });
+            None
+        }
         Hit::SaveProfile => {
             p.sheet = Some(Sheet {
                 list: SheetList::SaveFrom,
@@ -2572,7 +2953,7 @@ fn click(hwnd: HWND, hit: Hit) {
                     p.confirm = Some(Confirm::ApplyProfile(i, c));
                     None
                 }
-                SheetList::Clean(_) => None,
+                SheetList::Clean(_) | SheetList::Macros => None,
             }
         }
         Hit::ProfileConfirm => match p.confirm.take()? {
@@ -2725,7 +3106,14 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     p.hover.is_some_and(|h| {
                         !matches!(
                             h,
-                            Hit::History(_) | Hit::CleanInfo(_) | Hit::Sheet | Hit::ProfileInfo(_) | Hit::SaveInfo | Hit::ApplyBlocked(_)
+                            Hit::History(_)
+                                | Hit::CleanInfo(_)
+                                | Hit::Sheet
+                                | Hit::ProfileInfo(_)
+                                | Hit::SaveInfo
+                                | Hit::ApplyBlocked(_)
+                                | Hit::NamesInfo
+                                | Hit::MacroRow(_)
                         )
                     })
                 })
@@ -2796,7 +3184,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         return p.prof_first != first;
                     };
                     let first = sheet_first(&p.view, s);
-                    s.first = if up { first.saturating_sub(3) } else { first + 3 };
+                    let step = if s.list == SheetList::Macros { 1 } else { 3 };
+                    s.first = if up { first.saturating_sub(step) } else { first + step };
                     s.first = sheet_first(&p.view, s);
                     s.first != first
                 });
@@ -2879,14 +3268,18 @@ pub fn snapshot(
         Tab::Backup => Hit::Backup,
         Tab::Cleanup => Hit::Clean(Item::Backups),
         Tab::Profiles => Hit::SaveProfile,
+        Tab::Macros => Hit::MacroScan,
     };
     let hover = tip
-        .map(match tab {
-            Tab::Cleanup => Hit::CleanInfo,
+        .map(|k| match tab {
+            Tab::Cleanup => Hit::CleanInfo(k),
             // With a game running the demo hovers the blocked apply button.
-            Tab::Profiles if !view.running.is_empty() => Hit::ApplyBlocked,
-            Tab::Profiles => Hit::ProfileInfo,
-            _ => Hit::History,
+            Tab::Profiles if !view.running.is_empty() => Hit::ApplyBlocked(k),
+            Tab::Profiles => Hit::ProfileInfo(k),
+            // The findings sheet: finding `k`; else the name data card.
+            Tab::Macros if sheet.is_some() => Hit::MacroRow(k),
+            Tab::Macros => Hit::NamesInfo,
+            _ => Hit::History(k),
         })
         .or(header.map(|h| match h {
             Header::Update => Hit::SelfUpdate,

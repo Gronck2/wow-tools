@@ -9,7 +9,7 @@ use crate::panel::{self, View};
 use crate::profiles::{self, CharEntry, Profile};
 use crate::snapshot::{self, Kind};
 use crate::watch::{self, Event, Request, Work};
-use crate::{maintenance, menu, schedule, selfupdate, settings, wow};
+use crate::{macro_names, macros, maintenance, menu, schedule, selfupdate, settings, wow};
 use anyhow::{Result, bail};
 use chrono::{Local, NaiveDateTime};
 use std::cell::RefCell;
@@ -18,9 +18,9 @@ use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Sender};
+use std::sync::{Arc, Mutex};
 use windows_sys::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateBitmap, CreateDIBSection, DIB_RGB_COLORS, DeleteObject, GetDC, GetDIBits, ReleaseDC,
@@ -47,6 +47,8 @@ const WM_RESCAN: u32 = WM_APP + 5;
 const WM_QUIT_APP: u32 = WM_APP + 6;
 const QUIT_EXITING: LRESULT = 1;
 const QUIT_BUSY: LRESULT = 2;
+/// Check the macros again (posted by the worker after a name data download, when a check was done).
+const WM_RESCAN_MACROS: u32 = WM_APP + 7;
 /// Restore points the panel lists.
 const POINTS: usize = 5;
 
@@ -145,6 +147,12 @@ pub enum Action {
     Clean(maintenance::Item),
     /// The folder screenshots are moved to.
     OpenScreenshots,
+    /// Check the macros of every character (read-only, in the background).
+    ScanMacros,
+    /// The report of the last macro check to the clipboard.
+    CopyMacros,
+    /// Download the spell and item names for the macro check.
+    UpdateNames,
     SaveProfile(CharEntry),
     ApplyProfile {
         profile: Profile,
@@ -204,6 +212,24 @@ struct State {
     profile_done: Option<(ProfileJob, String, Tone)>,
     /// The saved profiles (`saved_profiles`).
     profiles: Option<Vec<Profile>>,
+    macros: MacroCheck,
+}
+
+/// What the macros tab shows.
+#[derive(Clone, Default)]
+pub struct MacroCheck {
+    /// The last check; `None` until the button is pressed. The name tables it used are gone: it holds findings only.
+    pub scan: Option<Arc<macros::Scan>>,
+    pub scanning: bool,
+    /// Why the check could not run.
+    pub error: Option<String>,
+    /// The name data is being downloaded (the worker is busy with it).
+    pub downloading: bool,
+    /// How the last download and the last copy of the report went (shown until the panel closes).
+    pub names_done: Option<(String, Tone)>,
+    pub copied: Option<(String, Tone)>,
+    /// The name data on disk, read for each view.
+    pub cached: Vec<macro_names::Cached>,
 }
 
 /// How a job ended, as its row shows it: done (green), nothing done but worth a look (warning), failed (red).
@@ -249,6 +275,15 @@ static STATE: Mutex<State> = Mutex::new(State {
     profile_job: None,
     profile_done: None,
     profiles: None,
+    macros: MacroCheck {
+        scan: None,
+        scanning: false,
+        error: None,
+        downloading: false,
+        names_done: None,
+        copied: None,
+        cached: Vec::new(),
+    },
 });
 static HWND_MAIN: AtomicIsize = AtomicIsize::new(0);
 static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
@@ -505,6 +540,10 @@ pub fn view() -> View {
     let (mut status, self_update, scan, cleaning, cleaned) = (st.status.clone(), st.update.clone(), st.scan.clone(), st.cleaning, st.cleaned.clone());
     status.progress = crate::snapshot::progress();
     let (chars, profile_job, profile_done) = (st.chars.clone(), st.profile_job.clone(), st.profile_done.clone());
+    let macros = MacroCheck {
+        cached: macro_names::cached(&macro_names::dir()),
+        ..st.macros.clone()
+    };
     drop(st);
     View {
         self_update,
@@ -531,6 +570,7 @@ pub fn view() -> View {
             .map(|fl| fl.name.clone())
             .collect(),
         tabs: cfg.shown_tabs(),
+        macros,
     }
 }
 
@@ -573,11 +613,43 @@ pub fn rescan() {
     });
 }
 
+/// Checks the macros on a thread of its own: it reads every macro file and, per game version, the cached name tables
+/// (large; they are loaded inside `macros::scan` and dropped with it). Read-only, so a running game does not matter.
+/// UI thread only.
+pub fn scan_macros() {
+    {
+        let mut st = STATE.lock().unwrap();
+        if st.macros.scanning {
+            return;
+        }
+        st.macros.scanning = true;
+        st.macros.error = None;
+        st.macros.copied = None;
+    }
+    let ctx = load_ctx();
+    std::thread::spawn(move || {
+        let flavors = ctx.ok_or_else(|| anyhow::anyhow!(tr!("macros.no_config"))).and_then(|c| c.flavors(None));
+        let scan = flavors.map(|f| macros::scan(&f, &macro_names::dir()));
+        {
+            let mut st = STATE.lock().unwrap();
+            st.macros.scanning = false;
+            match scan {
+                Ok(scan) => st.macros.scan = Some(Arc::new(scan)),
+                Err(e) => st.macros.error = Some(format!("{e:#}")),
+            }
+        }
+        post_state();
+    });
+    post_state();
+}
+
 /// Drops how the last cleanup and profile job went (the panel shows it until it closes).
 pub fn forget_results() {
     let mut st = STATE.lock().unwrap();
     st.cleaned = None;
     st.profile_done = None;
+    st.macros.names_done = None;
+    st.macros.copied = None;
 }
 
 fn start_profile_job(job: ProfileJob) {
@@ -632,6 +704,22 @@ pub fn act(action: Action) {
             }
             send(Request::Cleanup(item))
         }
+        Action::ScanMacros => {
+            scan_macros();
+            Ok(())
+        }
+        Action::CopyMacros => {
+            copy_macro_report();
+            Ok(())
+        }
+        Action::UpdateNames => {
+            {
+                let mut st = STATE.lock().unwrap();
+                st.macros.downloading = true;
+                st.macros.names_done = None;
+            }
+            send(Request::UpdateNames)
+        }
         Action::SaveProfile(entry) => {
             start_profile_job(ProfileJob::Save);
             send(Request::SaveProfile {
@@ -676,6 +764,18 @@ pub fn act(action: Action) {
         });
         post_state();
     }
+}
+
+/// Puts the report of the last macro check on the clipboard; the panel shows how it went.
+fn copy_macro_report() {
+    let scan = STATE.lock().unwrap().macros.scan.clone();
+    let Some(scan) = scan else { return };
+    let result = crate::diag::copy_to_clipboard(HWND_MAIN.load(Ordering::Relaxed) as HWND, &macros::report(&scan));
+    STATE.lock().unwrap().macros.copied = Some(match result {
+        Ok(()) => (tr!("macros.copied").to_string(), Tone::Ok),
+        Err(e) => (tr!("macros.copy_failed", error = format!("{e:#}")), Tone::Error),
+    });
+    post_state();
 }
 
 /// Saves the order the panel's tabs were dragged into; the settings window shows it at once.
@@ -882,6 +982,7 @@ fn restart() {
 
 fn on_event(event: Event) {
     let mut rescan_after = false;
+    let mut rescan_macros_after = false;
     {
         let mut st = STATE.lock().unwrap();
         match event {
@@ -1005,6 +1106,28 @@ fn on_event(event: Event) {
                     },
                 });
             }
+            Event::Names(result) => {
+                st.status.phase = Phase::Idle;
+                st.macros.downloading = false;
+                // A check on screen is judged by the new names.
+                rescan_macros_after = st.macros.scan.is_some();
+                st.macros.names_done = Some(match &result {
+                    Ok(summary) => (summary.clone(), Tone::Ok),
+                    Err(e) => (format!("{e:#}"), Tone::Error),
+                });
+                st.balloon = Some(match result {
+                    Ok(summary) => Balloon {
+                        title: tr!("macros.title"),
+                        text: summary,
+                        error: false,
+                    },
+                    Err(e) => Balloon {
+                        title: tr!("macros.names_failed_title"),
+                        text: format!("{e:#}"),
+                        error: true,
+                    },
+                });
+            }
             Event::Cleanup(result) => {
                 st.status.phase = Phase::Idle;
                 rescan_after = true;
@@ -1035,6 +1158,9 @@ fn on_event(event: Event) {
     if rescan_after {
         post(WM_RESCAN);
     }
+    if rescan_macros_after {
+        post(WM_RESCAN_MACROS);
+    }
     post_state();
 }
 
@@ -1061,6 +1187,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             WM_RESCAN => {
                 rescan();
+                0
+            }
+            WM_RESCAN_MACROS => {
+                scan_macros();
                 0
             }
             WM_QUIT_APP => {

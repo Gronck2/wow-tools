@@ -115,6 +115,7 @@ The icon shows the current state:
 - **Cleanup** tab: what can be tidied up in WTF and the game folder, with sizes and a button each — see
   [Cleanup](#cleanup).
 - **Profiles** tab: saved UI profiles and **Save a profile** — see [UI profiles](#ui-profiles).
+- **Macros** tab: **Check macros** and what it found — see [Checking macros](#checking-macros).
 - A tab can be dragged to another place along the strip; **Settings → General → Panel tabs** hides the ones you
   do not need.
 - At the top: the lock, the paperclip, the backups folder and the settings (hover one to see what it does); at the
@@ -367,6 +368,8 @@ in which case the server copy can override the copied files on login.
 
 ## Checking macros
 
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-en-dark.png"><img src="docs/images/macros-en.png" width="360" alt="Panel, Macros tab"></picture></p>
+
 WoW Tools can read the macros of every account and character and list what is broken, without starting the game:
 `wow-tools macros`. It checks `/run` and `/script` lines for functions removed from the game (and says what replaces
 them), macros over 255 characters, unbalanced `[ ]`, and slash aliases of another language (`/закл`) against the
@@ -379,6 +382,14 @@ it also checks the names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/u
 a name in the wrong language is reported with the name the realm's language uses, a name found nowhere as "unknown"
 (a typo, or removed; it may also be an equipment set, a pet or something an addon adds). Otherwise it only reads the
 `WTF` folder.
+
+The **Macros** tab of the panel does the same without the command line. **Check macros** reads every macro in the
+background (it works while the game runs and changes nothing), then the tab shows how many problems of each kind were
+found. The list button opens them all over the tab: the macro, where it is (the account's shared macros or a
+character), the line, what is wrong and how to fix it; hover a row for the full text, scroll with the wheel, close
+with ✕ or Esc. **Copy** puts the whole report on the clipboard. The last card shows the downloaded spell and item names
+(game build and languages) and **Download** fetches them — only when you press it; the check runs again afterwards.
+The check is done only when you press the button, never by itself.
 
 ## Command line
 

@@ -123,6 +123,7 @@ Das Symbol zeigt den aktuellen Zustand:
 - Reiter **Aufräumen**: was sich in WTF und im Spielordner aufräumen lässt, mit Größenangaben und je einer
   Schaltfläche – siehe [Aufräumen](#aufräumen).
 - Reiter **Profile**: gespeicherte UI-Profile und **Profil speichern** — siehe [UI-Profile](#ui-profile).
+- Reiter **Makros**: **Makros prüfen** und was gefunden wurde — siehe [Makros prüfen](#makros-prüfen).
 - Ein Reiter lässt sich in der Leiste an eine andere Stelle ziehen; nicht benötigte Reiter blendet **Einstellungen →
   Allgemein → Tabs des Panels** aus.
 - Oben: das Schloss, die Büroklammer, der Sicherungsordner und die Einstellungen (beim Darüberfahren steht, was sie
@@ -405,6 +406,8 @@ Tastenbelegung und Makros können auf den Servern von Blizzard gespeichert sein 
 
 ## Makros prüfen
 
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-de-dark.png"><img src="docs/images/macros-de.png" width="360" alt="Bereich, Reiter „Makros“"></picture></p>
+
 WoW Tools liest die Makros aller Accounts und Charaktere und zeigt, was daran defekt ist, ohne das Spiel zu starten:
 `wow-tools macros`. Geprüft werden `/run`- und `/script`-Zeilen auf aus dem Spiel entfernte Funktionen (mit Ersatz),
 Makros über 255 Zeichen, unausgeglichene `[ ]` und Befehle einer anderen Sprache (`/закл`) gegen die Sprache des
@@ -417,6 +420,14 @@ werden auch die Namen in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/user
 geprüft: ein Name in der falschen Sprache wird mit dem Namen der Realm-Sprache gemeldet, ein Name, der nirgends
 vorkommt, als „unbekannt“ (Tippfehler oder entfernt; es kann auch ein Ausrüstungsset, ein Begleiter oder etwas von
 einem Addon sein). Der Ordner `WTF` wird nur gelesen.
+
+Der Reiter **Makros** im Panel macht dasselbe ohne Kommandozeile. **Makros prüfen** liest alle Makros im Hintergrund
+(das geht auch bei laufendem Spiel und ändert nichts); danach zeigt der Reiter, wie viele Probleme es je Art gibt. Die
+Listenschaltfläche öffnet sie alle über dem Reiter: das Makro, wo es liegt (die gemeinsamen Makros des Accounts oder ein
+Charakter), die Zeile, was falsch ist und wie man es behebt; über einer Zeile erscheint der volle Text, das Mausrad
+scrollt, geschlossen wird mit ✕ oder Esc. **Kopieren** legt den ganzen Bericht in die Zwischenablage. Die letzte Karte
+zeigt die geladenen Zauber- und Gegenstandsnamen (Spielversion und Sprachen); **Laden** holt sie — nur auf Knopfdruck,
+danach läuft die Prüfung neu. Geprüft wird nur auf Knopfdruck, nie von selbst.
 
 ## Befehlszeile
 

@@ -41,6 +41,8 @@ pub enum Request {
         profile: Profile,
         target: Character,
     },
+    /// Download the spell and item names the macro check needs (`macro_names::update_for`).
+    UpdateNames,
 }
 
 /// What a busy worker is doing.
@@ -52,6 +54,7 @@ pub enum Work {
     Restore,
     Cleanup,
     Profile,
+    Names,
 }
 
 pub enum Event {
@@ -76,6 +79,8 @@ pub enum Event {
         result: Result<String>,
         notice: bool,
     },
+    /// The name data download finished: its summary or the error.
+    Names(Result<String>),
 }
 
 /// How often client versions are compared with the last ones seen.
@@ -232,6 +237,16 @@ pub fn run(config_path: &Path, explicit_config: Option<&Path>, interval_override
                     log::error!("{e:#}");
                 }
                 emit(Event::Profile { result, notice: false });
+            }
+            Ok(Request::UpdateNames) => {
+                emit(Event::Busy(Work::Names));
+                let result = ctx
+                    .flavors(None)
+                    .and_then(|flavors| crate::macro_names::update_for(&flavors, &mut |line| log::info!("{line}")));
+                if let Err(e) = &result {
+                    log::error!("{e:#}");
+                }
+                emit(Event::Names(result.map(|()| tr!("macros.names_updated").to_string())));
             }
             Ok(Request::Restore { flavor, id, kind }) => {
                 emit(Event::Busy(Work::Restore));

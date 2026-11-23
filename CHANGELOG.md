@@ -16,6 +16,10 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
   names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show` that are in the
   wrong language for the realm (with the right name) or unknown (a typo), by the same rule; the names of the client
   languages you use are downloaded too. The README privacy section says so.
+- The panel has a new **Macros** tab: **Check macros** (in the background, also while the game runs), the number of
+  problems of each kind, a list of them over the tab (macro, where, line, what is wrong, the fix), **Copy** for the
+  report and **Download** for the spell and item names (only on that button), with what is downloaded. It is shown by
+  default; **Settings → General → Panel tabs** hides it. With five tabs the strip's padding is a little tighter.
 
 ## [0.7.1] - 2026-11-16
 

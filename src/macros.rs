@@ -216,7 +216,7 @@ pub enum How {
     Realm,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Kind {
     Deprecated {
         func: &'static str,
@@ -253,6 +253,21 @@ pub enum Kind {
     UnknownName {
         name: String,
     },
+}
+
+impl Kind {
+    /// The short name of the kind, for the counts of the panel.
+    pub fn title(&self) -> &'static str {
+        match self {
+            Kind::Deprecated { .. } => tr!("macros.kind_deprecated"),
+            Kind::TooLong { .. } => tr!("macros.kind_too_long"),
+            Kind::Brackets => tr!("macros.kind_brackets"),
+            Kind::Alias { .. } => tr!("macros.kind_alias"),
+            Kind::Secret { .. } => tr!("macros.kind_secret"),
+            Kind::WrongLanguage { .. } => tr!("macros.kind_wrong"),
+            Kind::UnknownName { .. } => tr!("macros.kind_unknown"),
+        }
+    }
 }
 
 /// Whole-word match: not part of a longer name and not a field (`C_Spell.GetSpellInfo`, `x:GetSpellInfo`).
@@ -344,7 +359,7 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
     out
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Finding {
     pub flavor: String,
     /// "Account X" or "Name-Realm".
@@ -355,7 +370,7 @@ pub struct Finding {
 }
 
 impl Finding {
-    fn problem(&self) -> String {
+    pub fn problem(&self) -> String {
         match &self.kind {
             Kind::Deprecated { func, patch, .. } => tr!("macros.deprecated", func = func, patch = patch),
             Kind::TooLong { chars } => tr!("macros.too_long", n = chars, max = MAX_LEN),
@@ -407,7 +422,7 @@ impl Finding {
         }
     }
 
-    fn fix(&self) -> Option<String> {
+    pub fn fix(&self) -> Option<String> {
         match &self.kind {
             Kind::Deprecated { replacement, url, .. } => Some(tr!("macros.fix_deprecated", replacement = replacement, url = url)),
             Kind::TooLong { chars } => Some(tr!("macros.fix_too_long", over = chars - MAX_LEN)),
@@ -419,7 +434,7 @@ impl Finding {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Scan {
     pub findings: Vec<Finding>,
     /// Macros read.
@@ -428,6 +443,22 @@ pub struct Scan {
     pub locales: BTreeMap<String, BTreeSet<&'static str>>,
     /// Flavors with macros whose realm languages have no name data yet.
     pub missing: Vec<String>,
+}
+
+impl Scan {
+    /// How many findings there are of each kind, the most first.
+    pub fn counts(&self) -> Vec<(&'static str, usize)> {
+        let mut out: Vec<(&'static str, usize)> = Vec::new();
+        for f in &self.findings {
+            let title = f.kind.title();
+            match out.iter_mut().find(|(t, _)| *t == title) {
+                Some((_, n)) => *n += 1,
+                None => out.push((title, 1)),
+            }
+        }
+        out.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
+        out
+    }
 }
 
 /// Checks the macros of every account and character of `flavors`; names are checked against the cache in `names_dir`.
@@ -884,5 +915,23 @@ mod tests {
         };
         assert_eq!(unknown, &["Bbb-Nowhere"]);
         assert!(bad[0].starts_with("Aaa-Нигде (deDE, ") && bad[0] != "Aaa-Нигде (deDE)");
+    }
+
+    #[test]
+    fn counts_group_findings_by_kind_most_first() {
+        let f = |kind| Finding {
+            flavor: "Retail".into(),
+            scope: "s".into(),
+            name: "n".into(),
+            line: 1,
+            kind,
+        };
+        let name = |n: &str| Kind::UnknownName { name: n.into() };
+        let scan = Scan {
+            findings: vec![f(Kind::Brackets), f(name("a")), f(name("b"))],
+            ..Default::default()
+        };
+        assert_eq!(scan.counts(), [(tr!("macros.kind_unknown"), 2), (tr!("macros.kind_brackets"), 1)]);
+        assert!(Scan::default().counts().is_empty());
     }
 }
