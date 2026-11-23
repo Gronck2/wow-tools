@@ -542,6 +542,14 @@ mod tests {
     }
 
     #[test]
+    fn russian_realm_stays_firm_whatever_the_client_language() {
+        let mut ru = target("A-Ru", "ruRU");
+        ru.client = vec!["enUS"];
+        let f = check(&mac(&["/cast Fireball"]), std::slice::from_ref(&ru), true, &names());
+        assert!(matches!(&f[..], [(_, Kind::WrongLanguage { firm: true, fix, .. })] if fix == "Огненный шар"));
+    }
+
+    #[test]
     fn rejects_english_for_another_locale_but_keeps_real_data() {
         let en = rows(&[(1, "A"), (2, "B"), (3, "C"), (4, "D")]);
         assert!(validate("ruRU", &en, &en, &en).is_err());

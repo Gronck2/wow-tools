@@ -671,6 +671,50 @@ mod tests {
         assert_eq!(portal(&fl.wtf_dir()).as_deref(), Some("EU"));
     }
 
+    #[test]
+    fn client_locale_reads_text_locale_then_locale_and_maps_engb() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = |text: &str| {
+            fs::write(dir.path().join("Config.wtf"), text).unwrap();
+            client_locale(dir.path())
+        };
+        assert_eq!(client_locale(dir.path()), None);
+        assert_eq!(cfg("SET locale \"enUS\"\r\nSET textLocale \"deDE\"\r\n"), Some("deDE"));
+        assert_eq!(cfg("SET locale \"frFR\"\r\n"), Some("frFR"));
+        assert_eq!(cfg("SET textLocale \"enGB\"\r\n"), Some("enUS"));
+        assert_eq!(cfg("SET textLocale \"xxXX\"\r\n"), None);
+    }
+
+    #[test]
+    fn scan_client_languages_count_per_account_and_feed_update_names() {
+        let (_d, fl) = tree(&[("Tarren Mill", "Aaa")]);
+        let wtf = fl.wtf_dir();
+        fs::write(wtf.join("Config.wtf"), "SET portal \"EU\"\r\nSET textLocale \"deDE\"\r\n").unwrap();
+        // A second account with a Russian realm: its characters must not give ACC a Russian client.
+        fs::create_dir_all(wtf.join("Account").join("RU").join("Гордунни").join("Bbb")).unwrap();
+        put(
+            &fl,
+            "Tarren Mill/Aaa/macros-cache.txt",
+            "VER 3 0000000000000001 \"F\" \"1\"\n/cast Огненный шар\nEND\n",
+        );
+        let names = tempfile::tempdir().unwrap();
+        put_names(names.path(), "enUS", "1\tFireball\n");
+        put_names(names.path(), "deDE", "1\tFeuerball\n");
+        put_names(names.path(), "ruRU", "1\tОгненный шар\n");
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        // Download set: realm + client languages of ACC, plus the Russian realm's own.
+        assert_eq!(s.locales["wow"], BTreeSet::from(["enUS", "deDE", "ruRU"]));
+        assert!(
+            s.findings
+                .iter()
+                .any(|f| f.scope == "Aaa-Tarren Mill" && matches!(&f.kind, Kind::WrongLanguage { .. }))
+        );
+        // A Russian-realm character on the same account: ACC's characters get a Russian client.
+        fs::create_dir_all(wtf.join("Account").join("ACC").join("Гордунни").join("Ccc")).unwrap();
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
+    }
+
     /// A name cache as `macro_names` writes it: `wow-<locale>.zip` with tab-separated `spell` and `item` entries.
     fn put_names(dir: &Path, locale: &str, spell: &str) {
         use std::io::Write;
