@@ -5,7 +5,7 @@
 //! shortcut: the key is the build of `/api/builds/<product>/latest`; the CSV can come from a slightly newer build,
 //! which is harmless for names; upgrade only if names ever lag behind a patch.
 
-use crate::macros::{Kind, Macro, Target, canonical_command};
+use crate::macros::{How, Kind, Macro, Target, canonical_command};
 use anyhow::{Context, Result, bail};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
@@ -358,15 +358,21 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
                 lc = name.to_lowercase();
             }
             let mut unknown = false;
-            // (language of the name, name in the realm's language, firm) -> targets
-            let mut wrong: BTreeMap<(String, String, bool), Vec<String>> = BTreeMap::new();
+            // (language of the name, name in the realm's language, how sure) -> targets
+            let mut wrong: BTreeMap<(String, String, How), Vec<String>> = BTreeMap::new();
             for (t, valid) in &ready {
                 if valid.iter().any(|c| names.locales[*c].has(&lc)) {
                     continue;
                 }
                 let fix = names.locales.iter().filter(|(_, l)| l.has(&lc)).find_map(|(code, other)| {
                     let fix = valid.iter().find_map(|c| names.locales[*c].translate(other, &lc))?;
-                    Some((code.clone(), fix, firm && t.ru()))
+                    let how = match (t.ru(), t.loc.is_some()) {
+                        (true, _) if firm => How::Firm,
+                        (true, _) => How::Maybe,
+                        (_, true) => How::Client,
+                        _ => How::Realm,
+                    };
+                    Some((code.clone(), fix, how))
                 });
                 match fix {
                     Some(key) => wrong.entry(key).or_default().push(t.label.clone()),
@@ -376,7 +382,7 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
             if unknown {
                 out.push((i + 1, Kind::UnknownName { name: name.clone() }));
             }
-            for ((lang, fix, firm), bad) in wrong {
+            for ((lang, fix, how), bad) in wrong {
                 out.push((
                     i + 1,
                     Kind::WrongLanguage {
@@ -384,7 +390,7 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
                         lang,
                         fix,
                         bad,
-                        firm,
+                        how,
                     },
                 ));
             }
@@ -492,7 +498,7 @@ mod tests {
         // wrong language: an enUS name on a ruRU realm, with the fix
         let f = found(&["/cast fireball"], std::slice::from_ref(&ru), true);
         assert_eq!(f.len(), 1);
-        assert!(f[0].1.contains("WrongLanguage") && f[0].1.contains("enUS") && f[0].1.contains("Огненный шар") && f[0].1.contains("firm: true"));
+        assert!(f[0].1.contains("WrongLanguage") && f[0].1.contains("enUS") && f[0].1.contains("Огненный шар") && f[0].1.contains("how: Firm"));
         // typo: unknown anywhere
         let f = found(&["/cast Огненый шар"], std::slice::from_ref(&ru), true);
         assert!(f.len() == 1 && f[0].1.contains("UnknownName"));
@@ -500,7 +506,10 @@ mod tests {
         let both = [ru.clone(), de.clone()];
         let f = found(&["/cast Fireball"], &both, false);
         assert_eq!(f.len(), 2);
-        assert!(f.iter().all(|(_, k)| k.contains("WrongLanguage") && k.contains("firm: false")));
+        assert!(f.iter().all(|(_, k)| k.contains("WrongLanguage")));
+        // the Russian realm only "may not work" (never the client clause), the German one has the client clause
+        assert!(f.iter().any(|(_, k)| k.contains("how: Maybe") && k.contains("A-Ru")));
+        assert!(f.iter().any(|(_, k)| k.contains("how: Client") && k.contains("B-De")));
         // German has no Death and Decay: unknown there, wrong language on the ruRU realm
         let f = found(&["/cast Death and Decay"], &both, false);
         assert!(f.iter().any(|(_, k)| k.contains("UnknownName")) && f.iter().any(|(_, k)| k.contains("WrongLanguage")));
@@ -530,15 +539,16 @@ mod tests {
         );
         // No Russian client: soft even for the character's own macro, with the fix in the realm's language.
         let f = verdict(&["/cast Огненный шар"], std::slice::from_ref(&en), true);
-        assert!(matches!(&f[..], [Kind::WrongLanguage { lang, fix, firm: false, .. }] if lang == "ruRU" && fix == "Fireball"));
+        assert!(matches!(&f[..], [Kind::WrongLanguage { lang, fix, how: How::Client, .. }] if lang == "ruRU" && fix == "Fireball"));
         // Account list: only the character without the Russian client is named.
         let f = verdict(&["/cast Огненный шар"], &[en.clone(), en_ru], false);
-        assert!(matches!(&f[..], [Kind::WrongLanguage { bad, firm: false, .. }] if bad == &["A-En"]));
+        assert!(matches!(&f[..], [Kind::WrongLanguage { bad, how: How::Client, .. }] if bad == &["A-En"]));
         // An unknown realm is judged by the client languages alone.
         let mut nowhere = Target { loc: None, ..en };
         assert!(verdict(&["/cast Огненный шар"], std::slice::from_ref(&nowhere), true).is_empty());
         nowhere.client = vec!["enUS"];
-        assert_eq!(verdict(&["/cast Огненный шар"], &[nowhere], true).len(), 1);
+        let f = verdict(&["/cast Огненный шар"], &[nowhere], true);
+        assert!(matches!(&f[..], [Kind::WrongLanguage { how: How::Realm, .. }]));
     }
 
     #[test]
@@ -546,7 +556,7 @@ mod tests {
         let mut ru = target("A-Ru", "ruRU");
         ru.client = vec!["enUS"];
         let f = check(&mac(&["/cast Fireball"]), std::slice::from_ref(&ru), true, &names());
-        assert!(matches!(&f[..], [(_, Kind::WrongLanguage { firm: true, fix, .. })] if fix == "Огненный шар"));
+        assert!(matches!(&f[..], [(_, Kind::WrongLanguage { how: How::Firm, fix, .. })] if fix == "Огненный шар"));
     }
 
     #[test]

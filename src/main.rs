@@ -427,13 +427,15 @@ fn cmd_clean(ctx: &Ctx, items: &[String]) -> Result<()> {
 fn cmd_macros(ctx: &Ctx, flavor: Option<&str>, update_names: bool) -> Result<()> {
     let flavors = ctx.flavors(flavor)?;
     let dir = config::data_dir().join("names");
+    let mut downloaded = Ok(());
     if update_names {
         let mut needs = macros::scan(&flavors, &dir).locales;
         needs.retain(|_, l| !l.is_empty());
-        macro_names::update(&dir, &needs, &mut |line| println!("{line}"))?;
+        downloaded = macro_names::update(&dir, &needs, &mut |line| println!("{line}"));
     }
+    // The report comes even when a download failed (the cached names still check), then the error.
     println!("{}", macros::report(&macros::scan(&flavors, &dir)));
-    Ok(())
+    downloaded
 }
 
 fn cmd_outdated(ctx: &Ctx) -> Result<()> {

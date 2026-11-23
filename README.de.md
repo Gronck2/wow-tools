@@ -409,7 +409,9 @@ WoW Tools liest die Makros aller Accounts und Charaktere und zeigt, was daran de
 `wow-tools macros`. Geprüft werden `/run`- und `/script`-Zeilen auf aus dem Spiel entfernte Funktionen (mit Ersatz),
 Makros über 255 Zeichen, unausgeglichene `[ ]` und Befehle einer anderen Sprache (`/закл`) gegen die Sprache des
 Realms des Charakters. Ein gemeinsames Account-Makro wird als „funktioniert eventuell nicht“ bei den betroffenen
-Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Nach
+Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Ein russischer Realm akzeptiert nur Russisch; jeder andere seine eigene Sprache
+und die Sprachen des genutzten Spiel-Clients (`textLocale` in `Config.wtf`, dazu Russisch, wenn der Account Charaktere
+auf einem russischen Realm hat); alles andere wird als „funktioniert nur mit einem Client in dieser Sprache“ gemeldet. Nach
 `wow-tools macros --update-names` (lädt die Namen von Zaubern und Gegenständen von wago.tools, einmal pro Spielbuild)
 werden auch die Namen in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` und `#show`
 geprüft: ein Name in der falschen Sprache wird mit dem Namen der Realm-Sprache gemeldet, ein Name, der nirgends

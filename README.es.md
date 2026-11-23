@@ -395,7 +395,9 @@ WoW Tools lee las macros de todas las cuentas y personajes y muestra lo que est�
 `wow-tools macros`. Revisa las líneas `/run` y `/script` (funciones eliminadas del juego, con su sustituta), las macros
 de más de 255 caracteres, los `[ ]` desparejados y los comandos de otro idioma (`/закл`) según el idioma del reino del
 personaje. Una macro común de la cuenta se marca como «puede no funcionar» en los personajes afectados; si se desconoce
-el idioma de un reino, se dice, nunca se adivina. Tras
+el idioma de un reino, se dice, nunca se adivina. Un reino ruso solo acepta ruso; cualquier otro acepta su idioma y los del cliente del juego que uses
+(`textLocale` en `Config.wtf`, más el ruso si la cuenta tiene personajes en un reino ruso); lo demás se indica como
+que solo funciona con un cliente en ese idioma. Tras
 `wow-tools macros --update-names` (descarga de wago.tools los nombres de hechizos y objetos, una vez por versión del
 juego) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` y
 `#show`: un nombre en otro idioma se indica con el nombre del idioma del reino, y uno que no existe en ninguno como

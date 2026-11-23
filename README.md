@@ -371,7 +371,9 @@ WoW Tools can read the macros of every account and character and list what is br
 `wow-tools macros`. It checks `/run` and `/script` lines for functions removed from the game (and says what replaces
 them), macros over 255 characters, unbalanced `[ ]`, and slash aliases of another language (`/закл`) against the
 language of the realm the character is on. A macro shared by the whole account is reported as "may not work on" the
-characters where it would fail; a realm whose language is not known is said so, never guessed. After
+characters where it would fail; a realm whose language is not known is said so, never guessed. A Russian realm accepts only Russian; any other realm accepts its own
+language and the languages of the game client you use (`textLocale` in `Config.wtf`, plus Russian when the account has
+characters on a Russian realm); anything else is reported as working only with a client in that language. After
 `wow-tools macros --update-names` (it downloads the names of spells and items from wago.tools, once per game build)
 it also checks the names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show`:
 a name in the wrong language is reported with the name the realm's language uses, a name found nowhere as "unknown"

@@ -203,6 +203,19 @@ impl Target {
     }
 }
 
+/// How sure a wrong-language name is for its targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum How {
+    /// A Russian realm, the character's own macro.
+    Firm,
+    /// A Russian realm, an account-wide macro.
+    Maybe,
+    /// Another realm: works with a client in the name's language.
+    Client,
+    /// The realm's language is unknown.
+    Realm,
+}
+
 #[derive(Debug)]
 pub enum Kind {
     Deprecated {
@@ -215,12 +228,14 @@ pub enum Kind {
         chars: usize,
     },
     Brackets,
-    /// `firm`: a character's own macro; else an account-wide one that may not work on `bad`.
+    /// `bad`: Russian realms (`firm`: a character's own macro, else it may not work there); `soft`: other realms,
+    /// where it works with a client in that language; `unknown`: realms of unknown language.
     Alias {
         alias: String,
         command: &'static str,
         locales: String,
         bad: Vec<String>,
+        soft: Vec<String>,
         unknown: Vec<String>,
         firm: bool,
     },
@@ -233,7 +248,7 @@ pub enum Kind {
         lang: String,
         fix: String,
         bad: Vec<String>,
-        firm: bool,
+        how: How,
     },
     UnknownName {
         name: String,
@@ -300,18 +315,17 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
                 Some(l) => format!("{} ({})", t.label, l.code),
                 None => t.label.clone(),
             };
-            let bad_targets: Vec<&Target> = targets
-                .iter()
-                .filter(|t| {
-                    let valid = t.valid();
-                    !valid.is_empty() && !valid.iter().any(|c| locales.contains(c))
-                })
-                .collect();
-            // Only a Russian realm is certain; elsewhere a client in the alias's language is possible.
-            let firm = firm && bad_targets.iter().all(|t| t.ru());
-            let bad: Vec<String> = bad_targets.into_iter().map(label).collect();
-            let unknown: Vec<String> = targets.iter().filter(|t| t.valid().is_empty()).map(label).collect();
-            if !bad.is_empty() || !unknown.is_empty() {
+            let (mut bad, mut soft, mut unknown) = (Vec::new(), Vec::new(), Vec::new());
+            for t in targets.iter().filter(|t| !t.valid().iter().any(|c| locales.contains(c))) {
+                // A realm of unknown language is never called bad: it may well be the alias's language.
+                match (t.ru(), t.loc.is_some()) {
+                    (true, _) => bad.push(label(t)),
+                    (_, true) => soft.push(label(t)),
+                    _ => unknown.push(label(t)),
+                }
+            }
+            let firm = firm && !bad.is_empty();
+            if !bad.is_empty() || !soft.is_empty() || !unknown.is_empty() {
                 out.push((
                     i,
                     Kind::Alias {
@@ -319,6 +333,7 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
                         command: first[0],
                         locales: locales.join("/"),
                         bad,
+                        soft,
                         unknown,
                         firm,
                     },
@@ -350,17 +365,22 @@ impl Finding {
                 command,
                 locales,
                 bad,
+                soft,
                 unknown,
                 firm,
             } => {
                 let mut parts = Vec::new();
-                let targets = crate::maintenance::names_text(bad, 6);
                 if !bad.is_empty() {
+                    let targets = crate::maintenance::names_text(bad, 6);
                     parts.push(if *firm {
                         tr!("macros.alias_firm", alias = alias, command = command, locale = locales, targets = targets)
                     } else {
-                        tr!("macros.alias_soft", alias = alias, command = command, locale = locales, targets = targets)
+                        tr!("macros.alias_maybe", alias = alias, command = command, locale = locales, targets = targets)
                     });
+                }
+                if !soft.is_empty() {
+                    let targets = crate::maintenance::names_text(soft, 6);
+                    parts.push(tr!("macros.alias_soft", alias = alias, command = command, locale = locales, targets = targets));
                 }
                 if !unknown.is_empty() {
                     parts.push(tr!(
@@ -374,12 +394,13 @@ impl Finding {
                 parts.join("; ")
             }
             Kind::Secret { func } => tr!("macros.secret", func = func),
-            Kind::WrongLanguage { name, lang, bad, firm, .. } => {
+            Kind::WrongLanguage { name, lang, bad, how, .. } => {
                 let targets = crate::maintenance::names_text(bad, 6);
-                if *firm {
-                    tr!("macros.wrong_firm", name = name, lang = lang, targets = targets)
-                } else {
-                    tr!("macros.wrong_soft", name = name, lang = lang, targets = targets)
+                match how {
+                    How::Firm => tr!("macros.wrong_firm", name = name, lang = lang, targets = targets),
+                    How::Maybe => tr!("macros.wrong_maybe", name = name, lang = lang, targets = targets),
+                    How::Client => tr!("macros.wrong_soft", name = name, lang = lang, targets = targets),
+                    How::Realm => tr!("macros.wrong_realm", name = name, lang = lang, targets = targets),
                 }
             }
             Kind::UnknownName { name } => tr!("macros.unknown_name", name = name),
@@ -608,18 +629,24 @@ mod tests {
         let en = target("B-En", Some("enUS"));
         assert!(check(&mac, true, std::slice::from_ref(&ru), true).is_empty());
         let firm = check(&mac, true, std::slice::from_ref(&en), true);
-        let Kind::Alias { bad, firm: false, command, .. } = &firm[0].1 else {
+        let Kind::Alias { soft, bad, command, .. } = &firm[0].1 else {
             panic!("{firm:?}")
         };
-        assert_eq!((bad.as_slice(), *command), (&["B-En (enUS)".to_string()][..], "/cast"));
+        assert_eq!((soft.as_slice(), *command), (&["B-En (enUS)".to_string()][..], "/cast"));
+        assert!(bad.is_empty());
         let soft = check(&mac, true, &[ru.clone(), en.clone()], false);
-        assert!(matches!(&soft[0].1, Kind::Alias { firm: false, bad, .. } if bad.len() == 1));
+        assert!(matches!(&soft[0].1, Kind::Alias { firm: false, bad, soft, .. } if bad.is_empty() && soft.len() == 1));
         // An English realm with a Russian client language (or an unknown realm with one) knows the alias.
         let mut ru_client = en;
         ru_client.client = vec!["ruRU"];
         let mut nowhere = target("C-Nowhere", None);
         nowhere.client = vec!["ruRU"];
         assert!(check(&mac, true, &[ru_client, nowhere], false).is_empty());
+        // An unknown realm whose client language is not the alias's is never "bad": its language is unknown.
+        let mut en_client = target("D-Nowhere", None);
+        en_client.client = vec!["enUS"];
+        let f = check(&mac, true, &[en_client], true);
+        assert!(matches!(&f[0].1, Kind::Alias { bad, soft, unknown, .. } if bad.is_empty() && soft.is_empty() && unknown.len() == 1));
         let unknown = check(&mac, true, &[target("C-Nowhere", None)], true);
         assert!(matches!(&unknown[0].1, Kind::Alias { bad, unknown, .. } if bad.is_empty() && unknown.len() == 1));
         // The English command is fine everywhere.
@@ -745,17 +772,18 @@ mod tests {
         put_names(names.path(), "ruRU", "1\tОгненный шар\n");
         let s = scan(std::slice::from_ref(&fl), names.path());
         assert!(s.missing.is_empty() && !report(&s).contains("--update-names"));
-        let wrong: Vec<(&str, bool)> = s
+        let wrong: Vec<(&str, How)> = s
             .findings
             .iter()
             .filter_map(|f| match &f.kind {
-                Kind::WrongLanguage { firm, fix, .. } if fix == "Огненный шар" => Some((f.scope.as_str(), *firm)),
+                Kind::WrongLanguage { how, fix, .. } if fix == "Огненный шар" => Some((f.scope.as_str(), *how)),
                 _ => None,
             })
             .collect();
         assert_eq!(wrong.len(), 2);
-        assert!(wrong.contains(&("Bbb-Гордунни", true)));
-        assert!(wrong.iter().any(|(scope, firm)| *scope != "Bbb-Гордунни" && !firm));
+        assert!(wrong.contains(&("Bbb-Гордунни", How::Firm)));
+        // The Russian realm in the account list "may not work", it never gets the client clause.
+        assert!(wrong.iter().any(|(scope, how)| *scope != "Bbb-Гордунни" && *how == How::Maybe));
         assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
     }
 
@@ -845,7 +873,13 @@ mod tests {
             client: Vec::new(),
         };
         let found = check(&m(&["/закл Heal"]), true, &[guessed, target("Bbb-Nowhere", None)], false);
-        let Kind::Alias { bad, unknown, firm: false, .. } = &found[0].1 else {
+        let Kind::Alias {
+            soft: bad,
+            unknown,
+            firm: false,
+            ..
+        } = &found[0].1
+        else {
             panic!("{found:?}")
         };
         assert_eq!(unknown, &["Bbb-Nowhere"]);
