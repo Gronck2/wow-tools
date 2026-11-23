@@ -610,6 +610,20 @@ mod tests {
     }
 
     #[test]
+    fn untranslated_item_rows_are_not_names_of_the_language() {
+        let en = locale(&[], &[(10, "Healing Potion"), (11, "Bandage"), (12, "Torch")], None);
+        let ru = locale(&[], &[(10, "Healing Potion"), (11, "Бинт"), (12, "Healing Potion")], Some(&en));
+        let mut names = Names::default();
+        names.locales.insert("ruRU".into(), ru);
+        names.locales.insert("enUS".into(), en);
+        let ru = target("A-Ru", "ruRU");
+        let f = check(&mac(&["/use Bandage"]), std::slice::from_ref(&ru), true, &names);
+        assert!(matches!(&f[..], [(_, Kind::WrongLanguage { fix, .. })] if fix == "Бинт"));
+        // id 12 really is "Healing Potion" in Russian, so the text stays valid there; id 10 is left untranslated
+        assert!(check(&mac(&["/use Healing Potion"]), std::slice::from_ref(&ru), true, &names).is_empty());
+    }
+
+    #[test]
     fn russian_realm_stays_firm_whatever_the_client_language() {
         let mut ru = target("A-Ru", "ruRU");
         ru.client = vec!["enUS"];
