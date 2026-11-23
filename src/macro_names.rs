@@ -94,10 +94,15 @@ struct Table {
 }
 
 impl Table {
-    fn new(rows: Rows) -> Table {
+    /// With `en` (the enUS table), a row that still has the English text of its id is an untranslated one: it is
+    /// kept in `by_id` but is not a name of this language. Per row: another id with the same text stays.
+    fn new(rows: Rows, en: Option<&Table>) -> Table {
         let mut t = Table::default();
         for (id, name) in rows {
-            t.by_name.entry(name.trim().to_lowercase()).or_default().push(id);
+            let untranslated = en.and_then(|e| e.by_id.get(&id)).is_some_and(|e| e.trim().eq_ignore_ascii_case(name.trim()));
+            if !untranslated {
+                t.by_name.entry(name.trim().to_lowercase()).or_default().push(id);
+            }
             t.by_id.entry(id).or_insert(name);
         }
         t
@@ -116,6 +121,13 @@ struct Locale {
 }
 
 impl Locale {
+    fn new([spell, item]: [Rows; 2], en: Option<&Locale>) -> Locale {
+        Locale {
+            spell: Table::new(spell, en.map(|e| &e.spell)),
+            item: Table::new(item, en.map(|e| &e.item)),
+        }
+    }
+
     fn has(&self, lc: &str) -> bool {
         self.spell.by_name.contains_key(lc) || self.item.by_name.contains_key(lc)
     }
@@ -140,20 +152,21 @@ impl Names {
     pub fn load(dir: &Path, product: &str) -> Names {
         let mut names = Names::default();
         let prefix = format!("{product}-");
+        let mut raw = BTreeMap::new();
         for e in fs::read_dir(dir).into_iter().flatten().flatten() {
             let file = e.file_name().to_string_lossy().into_owned();
             if let Some(locale) = file.strip_prefix(&prefix).and_then(|f| f.strip_suffix(".zip"))
-                && let Ok([spell, item]) = read_cache(dir, product, locale)
+                && let Ok(tables) = read_cache(dir, product, locale)
             {
-                names.locales.insert(
-                    locale.to_string(),
-                    Locale {
-                        spell: Table::new(spell),
-                        item: Table::new(item),
-                    },
-                );
+                raw.insert(locale.to_string(), tables);
             }
         }
+        // enUS first: the other locales are compared with it
+        let en = raw.remove(ENUS).map(|t| Locale::new(t, None));
+        for (locale, tables) in raw {
+            names.locales.insert(locale, Locale::new(tables, en.as_ref()));
+        }
+        names.locales.extend(en.map(|l| (ENUS.to_string(), l)));
         names
     }
 
@@ -375,6 +388,8 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
                     Some((code.clone(), fix, how))
                 });
                 match fix {
+                    // the same text in both languages (an untranslated row of this id): nothing to fix
+                    Some((_, fix, _)) if fix.trim().to_lowercase() == lc => {}
                     Some(key) => wrong.entry(key).or_default().push(t.label.clone()),
                     None => unknown = true,
                 }
@@ -408,23 +423,33 @@ mod tests {
         r.iter().map(|(i, n)| (*i, n.to_string())).collect()
     }
 
-    fn locale(spell: &[(u32, &str)], item: &[(u32, &str)]) -> Locale {
-        Locale {
-            spell: Table::new(rows(spell)),
-            item: Table::new(rows(item)),
-        }
+    fn locale(spell: &[(u32, &str)], item: &[(u32, &str)], en: Option<&Locale>) -> Locale {
+        Locale::new([rows(spell), rows(item)], en)
     }
 
     /// enUS, ruRU (spells 1 and 2, item 10) and deDE (spell 1 only).
     fn names() -> Names {
         let mut n = Names::default();
-        n.locales
-            .insert("enUS".into(), locale(&[(1, "Fireball"), (2, "Death and Decay")], &[(10, "Healing Potion")]));
-        n.locales.insert(
-            "ruRU".into(),
-            locale(&[(1, "Огненный шар"), (2, "Смерть и разложение")], &[(10, "Лечебное зелье")]),
+        let en = locale(
+            &[(1, "Fireball"), (2, "Death and Decay"), (261403, "Fireball"), (3, "Charge"), (5, "Smite")],
+            &[(10, "Healing Potion")],
+            None,
         );
-        n.locales.insert("deDE".into(), locale(&[(1, "Feuerball")], &[]));
+        // 261403 and 3 are untranslated rows; id 5 is really called "Flash Heal" in Russian
+        let ru = locale(
+            &[
+                (1, "Огненный шар"),
+                (2, "Смерть и разложение"),
+                (261403, "Fireball"),
+                (3, "Charge"),
+                (5, "Flash Heal"),
+            ],
+            &[(10, "Лечебное зелье")],
+            Some(&en),
+        );
+        n.locales.insert("deDE".into(), locale(&[(1, "Feuerball")], &[], Some(&en)));
+        n.locales.insert("ruRU".into(), ru);
+        n.locales.insert("enUS".into(), en);
         n
     }
 
@@ -569,6 +594,19 @@ mod tests {
         assert!(by(How::Client).is_some_and(|k| k.contains("B-En") && !k.contains("A-Ru") && k.contains("Fireball")));
         assert!(by(How::Realm).is_some_and(|k| k.contains("C-Nowhere")));
         assert!(by(How::Firm).is_none() && f.len() == 3);
+    }
+
+    #[test]
+    fn untranslated_rows_are_not_names_of_the_language() {
+        let names = names();
+        let ru = target("A-Ru", "ruRU");
+        let f = check(&mac(&["/cast Fireball"]), std::slice::from_ref(&ru), true, &names);
+        assert!(matches!(&f[..], [(_, Kind::WrongLanguage { fix, .. })] if fix == "Огненный шар"));
+        // the row stays in by_id; id 5 (its own English name differs) keeps the text valid
+        assert!(names.locales["ruRU"].spell.by_id.contains_key(&261403));
+        assert!(check(&mac(&["/cast Flash Heal"]), std::slice::from_ref(&ru), true, &names).is_empty());
+        // identical in both languages for the same id: not flagged
+        assert!(check(&mac(&["/cast Charge"]), std::slice::from_ref(&ru), true, &names).is_empty());
     }
 
     #[test]
