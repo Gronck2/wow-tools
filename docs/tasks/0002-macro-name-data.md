@@ -52,3 +52,8 @@ The most common real breakage is `/cast Fireball` on a Russian realm or a misspe
   descriptive User-Agent and the cache reused until the build changes.
 - No ADR: the network use is recorded here and in README "Privacy".
 - Unknown names only for spell/item commands; a typo shows as "unknown name" (no fuzzy match).
+- Language rule refined (owner via orchestrator, after review): a Russian realm (ruRU) accepts only ruRU names, firm
+  verdict. Any other realm accepts names in the realm's language or in any client language the player really uses:
+  Config.wtf `textLocale`, plus ruRU when the account has characters on ruRU realms. A name in none of these gets a
+  soft finding "on <Realm> it works only with a <lang> client". The same rule applies to the localized slash aliases
+  from 0001 (`/закл`). The report states the counts before/after on the real install.
