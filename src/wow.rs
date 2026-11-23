@@ -65,6 +65,13 @@ pub struct Flavor {
 }
 
 impl Flavor {
+    /// The wago.tools product: the folder's own code from `.flavor.info`, else by the folder name.
+    pub fn product(&self) -> Option<String> {
+        flavor_info_product(&self.dir)
+            .filter(|c| is_wow_product(c))
+            .or_else(|| product(&self.name).map(str::to_string))
+    }
+
     pub fn new(name: impl Into<String>, dir: impl Into<PathBuf>) -> Flavor {
         Flavor {
             name: name.into(),

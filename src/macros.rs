@@ -366,7 +366,7 @@ pub struct Scan {
     /// Macros read.
     pub checked: usize,
     /// Per product, the realm languages of the characters found (what `--update-names` downloads).
-    pub locales: BTreeMap<&'static str, BTreeSet<&'static str>>,
+    pub locales: BTreeMap<String, BTreeSet<&'static str>>,
     /// Flavors with macros whose realm languages have no name data yet.
     pub missing: Vec<String>,
 }
@@ -378,8 +378,8 @@ pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
         let wtf = fl.wtf_dir();
         let region = portal(&wtf);
         let retail = is_retail(&fl.name);
-        let product = crate::wow::product(&fl.name);
-        let names = product.map(|p| Names::load(names_dir, p)).unwrap_or_default();
+        let product = fl.product();
+        let names = product.as_deref().map(|p| Names::load(names_dir, p)).unwrap_or_default();
         let (checked_before, mut seen) = (scan.checked, BTreeSet::new());
         let mut check_file = |path: &Path, scope: &str, targets: &[Target], firm: bool| {
             let Ok(bytes) = fs::read(path) else { return };

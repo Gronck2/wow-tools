@@ -24,48 +24,67 @@ const NAME_COMMANDS: &[&str] = &["/cast", "/use", "/castsequence", "/castrandom"
 
 type Rows = Vec<(u32, String)>;
 
-/// `ID,Name_lang,...` of a wago.tools export; only the first two columns are read. Fields may be quoted
-/// (`""` is a quote) and a quoted field may span lines. Rows without a number and a name are dropped.
-fn parse_csv(text: &str) -> Rows {
+/// Longest record kept; a stray quote would otherwise swallow the rest of the file into one record.
+const RECORD_MAX: usize = 64 * 1024;
+
+/// Splits one CSV record into fields (`""` is a quote inside a quoted field).
+fn split_fields(rec: &str) -> Vec<String> {
+    let (mut out, mut cur, mut quoted) = (Vec::new(), String::new(), false);
+    let mut it = rec.chars().peekable();
+    while let Some(c) = it.next() {
+        match c {
+            '"' if quoted && it.peek() == Some(&'"') => {
+                it.next();
+                cur.push('"');
+            }
+            '"' => quoted = !quoted,
+            ',' if !quoted => out.push(std::mem::take(&mut cur)),
+            _ => cur.push(c),
+        }
+    }
+    out.push(cur);
+    out
+}
+
+/// A wago.tools export: the `ID` column and the first `*_lang` column are found by header name. A quoted field
+/// may span lines; a record that grows past `RECORD_MAX` (a stray quote) is dropped and the next line starts fresh.
+/// Rows without a number and a name are dropped.
+fn parse_csv(text: &str) -> Result<Rows> {
+    let mut lines = text.trim_start_matches('\u{feff}').lines();
+    let header = split_fields(lines.next().unwrap_or_default());
+    let (Some(id_col), Some(name_col)) = (
+        header.iter().position(|h| h.trim() == "ID"),
+        header.iter().position(|h| h.trim().ends_with("_lang")),
+    ) else {
+        bail!(tr!("macros.names_columns"));
+    };
     let mut out = Vec::new();
     let mut rec = String::new();
-    for line in text.lines() {
+    let mut odd = false;
+    for line in lines {
         if !rec.is_empty() {
             rec.push('\n');
         }
         rec.push_str(line);
-        if rec.matches('"').count() % 2 == 1 {
+        odd ^= line.matches('"').count() % 2 == 1;
+        if odd && rec.len() <= RECORD_MAX {
             continue;
         }
-        if let Some((id, rest)) = rec.split_once(',')
-            && let Ok(id) = id.parse::<u32>()
-        {
-            let name = match rest.strip_prefix('"') {
-                Some(q) => {
-                    let mut s = String::new();
-                    let mut it = q.chars().peekable();
-                    while let Some(c) = it.next() {
-                        if c == '"' {
-                            if it.peek() == Some(&'"') {
-                                it.next();
-                            } else {
-                                break;
-                            }
-                        }
-                        s.push(c);
-                    }
-                    s
+        if !odd {
+            let f = split_fields(&rec);
+            if let (Some(id), Some(name)) = (f.get(id_col), f.get(name_col))
+                && let Ok(id) = id.trim().parse::<u32>()
+            {
+                let name = name.replace(['\t', '\n', '\r'], " ");
+                if !name.trim().is_empty() {
+                    out.push((id, name));
                 }
-                None => rest.split(',').next().unwrap_or_default().to_string(),
-            };
-            let name = name.replace(['\t', '\n', '\r'], " ");
-            if !name.trim().is_empty() {
-                out.push((id, name));
             }
         }
         rec.clear();
+        odd = false;
     }
-    out
+    Ok(out)
 }
 
 #[derive(Default)]
@@ -183,8 +202,8 @@ fn write_cache(dir: &Path, product: &str, locale: &str, build: &str, tables: &[R
 }
 
 /// Rejects a table that is empty, or English although another language was asked for.
-fn validate(locale: &str, spell: &Rows, en: &Rows) -> Result<()> {
-    if spell.is_empty() {
+fn validate(locale: &str, spell: &Rows, item: &Rows, en: &Rows) -> Result<()> {
+    if spell.is_empty() || item.is_empty() {
         bail!(tr!("macros.names_empty", locale = locale));
     }
     if locale != ENUS {
@@ -220,26 +239,30 @@ fn update_locale(dir: &Path, product: &str, locale: &str, build: &str, progress:
     if meta.trim() == build && cache_path(dir, product, locale, "zip").exists() {
         return Ok(false);
     }
+    // enUS is done first in `update`; its cache is what a translation is compared with.
+    let en = if locale == ENUS {
+        Rows::new()
+    } else {
+        read_cache(dir, product, ENUS)
+            .with_context(|| tr!("macros.names_no_en", product = product, locale = locale))?
+            .into_iter()
+            .next()
+            .unwrap_or_default()
+    };
     progress(tr!("macros.names_download", product = product, locale = locale, build = build));
     let mut tables: [Rows; 2] = Default::default();
     for (slot, (table, _)) in tables.iter_mut().zip(TABLES) {
         let url = format!("https://wago.tools/db2/{table}/csv?product={product}&locale={locale}");
-        *slot = parse_csv(&String::from_utf8_lossy(&get(&url, "text/csv")?));
+        *slot = parse_csv(&String::from_utf8_lossy(&get(&url, "text/csv")?))?;
     }
-    // enUS is done first in `update`, so its cache is there to compare with.
-    let en = if locale == ENUS {
-        Rows::new()
-    } else {
-        read_cache(dir, product, ENUS)?.into_iter().next().unwrap_or_default()
-    };
-    validate(locale, &tables[0], &en)?;
+    validate(locale, &tables[0], &tables[1], &en)?;
     write_cache(dir, product, locale, build, &tables)?;
     Ok(true)
 }
 
 /// Brings the cache of every product in `needs` (product -> realm locales) up to date, enUS always included.
 /// A failure of one locale does not stop the others; it is reported and counted.
-pub fn update(dir: &Path, needs: &BTreeMap<&str, BTreeSet<&str>>, progress: &mut dyn FnMut(String)) -> Result<()> {
+pub fn update(dir: &Path, needs: &BTreeMap<String, BTreeSet<&str>>, progress: &mut dyn FnMut(String)) -> Result<()> {
     let mut failed = 0;
     for (product, locales) in needs {
         let build = match latest_build(product) {
@@ -286,7 +309,7 @@ fn command_names(line: &str) -> Vec<String> {
             _ => {}
         }
     }
-    let list = matches!(cmd.as_str(), "/castsequence" | "/castrandom");
+    let list = matches!(cmd.as_str(), "/castsequence" | "/castrandom" | "/userandom");
     let mut out = Vec::new();
     for clause in text.split(';') {
         let clause = clause.split_whitespace().filter(|w| !w.starts_with("reset=")).collect::<Vec<_>>().join(" ");
@@ -318,7 +341,17 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
     }
     for (i, line) in m.body.iter().enumerate() {
         for name in command_names(line) {
-            let lc = name.to_lowercase();
+            let mut name = name;
+            let mut lc = name.to_lowercase();
+            // `Spell(Subtext)`: when the whole text is no name anywhere, the part before the bracket may be
+            if !names.locales.values().any(|l| l.has(&lc))
+                && let Some(i) = name.rfind('(')
+                && name.ends_with(')')
+                && names.locales.values().any(|l| l.has(&name[..i].trim_end().to_lowercase()))
+            {
+                name = name[..i].trim_end().to_string();
+                lc = name.to_lowercase();
+            }
             let mut unknown = false;
             // (language of the name, name that works on the realm) -> targets
             let mut wrong: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
@@ -404,9 +437,23 @@ mod tests {
     fn csv_handles_quotes_commas_and_embedded_lines() {
         let text = "ID,Name_lang\n1,Fireball\n2,\"Hand of Gul'dan, the \"\"Big\"\"\"\n3,\"two\nlines\"\n4,\n5,\"\"\nx,Bad\n6,Last,extra,cols\n";
         assert_eq!(
-            parse_csv(text),
+            parse_csv(text).unwrap(),
             rows(&[(1, "Fireball"), (2, "Hand of Gul'dan, the \"Big\""), (3, "two lines"), (6, "Last")])
         );
+    }
+
+    #[test]
+    fn csv_finds_columns_by_header_and_survives_a_stray_quote() {
+        assert_eq!(parse_csv("Flags,Name_lang,ID\n0,Fireball,1\n").unwrap(), rows(&[(1, "Fireball")]));
+        assert!(parse_csv("ID,Other\n1,x\n").is_err() && parse_csv("Name_lang,Other\n1,x\n").is_err() && parse_csv("").is_err());
+        let mut text = String::from("ID,Name_lang\n1,Before\n2,\"stray\n");
+        for i in 3..20000 {
+            text.push_str(&format!("{i},Row {i}\n"));
+        }
+        // the quote eats rows up to the record limit, then parsing goes on
+        let got = parse_csv(&text).unwrap();
+        assert_eq!(got[0], (1, "Before".to_string()));
+        assert!(got.len() > 10000 && got.len() < 19000);
     }
 
     #[test]
@@ -414,6 +461,7 @@ mod tests {
         let n = command_names;
         assert_eq!(n("/cast [@focus,harm] !Fireball(Rank 3); [help] Heal"), ["Fireball", "Heal"]);
         assert_eq!(n("#showtooltip Fireball"), ["Fireball"]);
+        assert_eq!(n("/userandom A b, C d"), ["A b", "C d"]);
         assert_eq!(n("/castsequence reset=5/target/shift A b, C d"), ["A b", "C d"]);
         assert_eq!(n("/cast Name With (OLD)"), ["Name With (OLD)"]);
         assert!(n("/use 13").is_empty() && n("/use 0 1").is_empty() && n("/use item:19019").is_empty());
@@ -451,6 +499,10 @@ mod tests {
         // German has no Death and Decay: unknown there, wrong language on the ruRU realm
         let f = found(&["/cast Death and Decay"], &both, false);
         assert!(f.iter().any(|(_, k)| k.contains("UnknownName")) && f.iter().any(|(_, k)| k.contains("WrongLanguage")));
+        // `Spell(Subtext)`: the bracket is not part of the name
+        let f = found(&["/cast Fireball(Racial)"], std::slice::from_ref(&ru), true);
+        assert!(f.len() == 1 && f[0].1.contains("WrongLanguage") && f[0].1.contains("\"Fireball\""));
+        assert!(found(&["/cast Огненный шар(Racial)"], std::slice::from_ref(&ru), true).is_empty());
         // a realm whose language is not cached is not judged
         assert!(found(&["/cast Fireball"], &[target("C-Fr", "frFR")], true).is_empty());
     }
@@ -458,24 +510,25 @@ mod tests {
     #[test]
     fn rejects_english_for_another_locale_but_keeps_real_data() {
         let en = rows(&[(1, "A"), (2, "B"), (3, "C"), (4, "D")]);
-        assert!(validate("ruRU", &en, &en).is_err());
-        assert!(validate("ruRU", &rows(&[]), &en).is_err());
-        assert!(validate("enUS", &en, &en).is_ok());
+        assert!(validate("ruRU", &en, &en, &en).is_err());
+        assert!(validate("ruRU", &rows(&[]), &en, &en).is_err());
+        assert!(validate("enUS", &en, &rows(&[]), &en).is_err());
+        assert!(validate("enUS", &en, &en, &en).is_ok());
         // Era leaves rows untranslated; 70% English is still real data
         let en: Rows = (1..=100).map(|i| (i, format!("N{i}"))).collect();
         let mut ru = en.clone();
         for r in ru.iter_mut().take(30) {
             r.1 = format!("Ru{}", r.0);
         }
-        assert!(validate("ruRU", &ru, &en).is_ok());
+        assert!(validate("ruRU", &ru, &en, &en).is_ok());
     }
 
     #[test]
     fn english_limit_is_98_percent() {
         let en: Rows = (1..=100).map(|i| (i, format!("N{i}"))).collect();
         let translated = |n: u32| -> Rows { en.iter().map(|(i, s)| (*i, if *i <= n { format!("Ru{i}") } else { s.clone() })).collect() };
-        assert!(validate("ruRU", &translated(2), &en).is_ok()); // 98 identical
-        assert!(validate("ruRU", &translated(1), &en).is_err()); // 99 identical
+        assert!(validate("ruRU", &translated(2), &en, &en).is_ok()); // 98 identical
+        assert!(validate("ruRU", &translated(1), &en, &en).is_err()); // 99 identical
     }
 
     #[test]
@@ -497,7 +550,7 @@ mod tests {
     #[ignore = "network: wago.tools"]
     fn live_wago() {
         let dir = tempfile::tempdir().unwrap();
-        let needs = BTreeMap::from([("wow_classic_era", BTreeSet::from(["ruRU"]))]);
+        let needs = BTreeMap::from([("wow_classic_era".to_string(), BTreeSet::from(["ruRU"]))]);
         update(dir.path(), &needs, &mut |_| {}).unwrap();
         let n = Names::load(dir.path(), "wow_classic_era");
         assert!(n.has("enUS") && n.has("ruRU") && n.locales["enUS"].has("fireball"));
