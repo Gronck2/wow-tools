@@ -76,7 +76,7 @@ impl Part {
     }
 }
 
-fn subdirs(dir: &Path) -> Vec<(String, PathBuf)> {
+pub(crate) fn subdirs(dir: &Path) -> Vec<(String, PathBuf)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };

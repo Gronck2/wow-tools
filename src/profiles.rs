@@ -704,7 +704,7 @@ pub fn characters(flavors: &[Flavor]) -> Vec<CharEntry> {
 /// The same records give the class and the race or faction (WorldQuestTracker, AllTheThings,
 /// AltVault); ElvUI keeps class and faction by realm and name (`elvui_looks`).
 #[derive(Debug, Default)]
-struct Roster {
+pub(crate) struct Roster {
     /// The list was read; when the game wrote it.
     listed: bool,
     listed_at: Option<NaiveDateTime>,
@@ -717,7 +717,7 @@ struct Roster {
 }
 
 impl Roster {
-    fn read(account: &Path) -> Roster {
+    pub(crate) fn read(account: &Path) -> Roster {
         let elvui = elvui_looks(account);
         let Ok(list) = fs::read_to_string(account.join("character-list-order.txt")) else {
             return Roster { elvui, ..Roster::default() };
@@ -827,6 +827,11 @@ impl Roster {
             .map(|k| k.3)
             .unwrap_or_default();
         records.or(self.elvui.get(&(realm, name)).copied().unwrap_or_default())
+    }
+
+    /// The realm id (`1602`) of the realm with this `realm_key`, when a character's GUID tells it.
+    pub(crate) fn realm_id(&self, realm: &str) -> Option<&str> {
+        self.known.iter().find(|(_, _, r, _)| r.as_deref() == Some(realm)).map(|k| k.0.as_str())
     }
 
     /// Some addons keep the name without the realm. The realm id tells it when another named
@@ -949,7 +954,7 @@ fn elvui_looks(account: &Path) -> HashMap<(String, String), Look> {
 }
 
 /// "Tarren Mill" and "TarrenMill", "The Sha'tar" and "TheShatar" are the same realm.
-fn realm_key(realm: &str) -> String {
+pub(crate) fn realm_key(realm: &str) -> String {
     realm
         .chars()
         .filter(|c| !c.is_whitespace() && *c != '\'' && *c != '-')

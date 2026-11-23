@@ -43,6 +43,7 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
 - [Aufräumen](#aufräumen)
 - [UI-Profile](#ui-profile)
 - [Einstellungen zwischen Charakteren kopieren](#einstellungen-zwischen-charakteren-kopieren)
+- [Makros prüfen](#makros-prüfen)
 - [Befehlszeile](#befehlszeile)
 - [Dateien und Ordner](#dateien-und-ordner)
 - [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
@@ -402,6 +403,15 @@ gespeichert, und die Spielversion muss geschlossen sein.
 Tastenbelegung und Makros können auf den Servern von Blizzard gespeichert sein (CVars `synchronizeBindings` /
 `synchronizeMacros`); dann kann die Serverkopie die kopierten Dateien beim Einloggen überschreiben.
 
+## Makros prüfen
+
+WoW Tools liest die Makros aller Accounts und Charaktere und zeigt, was daran defekt ist, ohne das Spiel zu starten:
+`wow-tools macros`. Geprüft werden `/run`- und `/script`-Zeilen auf aus dem Spiel entfernte Funktionen (mit Ersatz),
+Makros über 255 Zeichen, unausgeglichene `[ ]` und Befehle einer anderen Sprache (`/закл`) gegen die Sprache des
+Realms des Charakters. Ein gemeinsames Account-Makro wird als „funktioniert eventuell nicht“ bei den betroffenen
+Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Der Ordner `WTF`
+wird nur gelesen.
+
 ## Befehlszeile
 
 `wow-tools` ohne Befehl startet das Infobereichssymbol. Alles andere ist auch über die Konsole verfügbar:
@@ -423,6 +433,7 @@ Tastenbelegung und Makros können auf den Servern von Blizzard gespeichert sein 
 | `schedule interval [--every MIN]` | Aufgabe in der Aufgabenplanung, die `backup` alle N Minuten ausführt (standardmäßig einmal täglich) |
 | `schedule status` / `schedule remove` | Autostart und Aufgabe anzeigen / entfernen |
 | `outdated` | Addons, die nicht für die installierte Spielversion gemacht sind |
+| `macros [--flavor F]` | defekte Makros finden (entfernte API, zu lang, falsche Klammern, Befehle einer anderen Sprache) |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | anzeigen, was sich aufräumen lässt; mit Angaben aufräumen |
 | `self-update [--check]` | bei GitHub nach einer neuen Version von WoW Tools suchen und sie installieren |
 
@@ -549,3 +560,5 @@ WoW Tools ist nicht signiert. Stattdessen lässt sich jede Release-Datei prüfen
 Nach deiner Wahl unter der [Apache License, Version 2.0](LICENSE-APACHE) oder der [MIT-Lizenz](LICENSE-MIT). Sofern
 nicht ausdrücklich anders angegeben, steht jeder Beitrag, den du absichtlich zur Aufnahme in WoW Tools einreichst (im
 Sinne der Apache-2.0-Lizenz), unter derselben doppelten Lizenz, ohne zusätzliche Bedingungen.
+
+Die Realmsprachen stammen aus [LibRealmInfo](https://github.com/phanx-wow/LibRealmInfo) (Phanx, zlib-Lizenz); der Hinweis steht in [THIRD-PARTY.md](THIRD-PARTY.md).

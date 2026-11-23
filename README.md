@@ -41,6 +41,7 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
 - [Cleanup](#cleanup)
 - [UI profiles](#ui-profiles)
 - [Copying settings between characters](#copying-settings-between-characters)
+- [Checking macros](#checking-macros)
 - [Command line](#command-line)
 - [Files and folders](#files-and-folders)
 - [Privacy and safety](#privacy-and-safety)
@@ -364,6 +365,15 @@ closed.
 Key bindings and macros may be stored on Blizzard's servers (the `synchronizeBindings` / `synchronizeMacros` CVars),
 in which case the server copy can override the copied files on login.
 
+## Checking macros
+
+WoW Tools can read the macros of every account and character and list what is broken, without starting the game:
+`wow-tools macros`. It checks `/run` and `/script` lines for functions removed from the game (and says what replaces
+them), macros over 255 characters, unbalanced `[ ]`, and slash aliases of another language (`/закл`) against the
+language of the realm the character is on. A macro shared by the whole account is reported as "may not work on" the
+characters where it would fail; a realm whose language is not known is said so, never guessed. It only reads the
+`WTF` folder.
+
 ## Command line
 
 `wow-tools` with no command starts the tray. Everything else is also available from a console:
@@ -385,6 +395,7 @@ in which case the server copy can override the copied files on login.
 | `schedule interval [--every MIN]` | a Task Scheduler task running `backup` every N minutes (a day by default) |
 | `schedule status` / `schedule remove` | show / remove autostart and the task |
 | `outdated` | addons not made for the installed game version |
+| `macros [--flavor F]` | find broken macros (removed API, too long, bad brackets, slash aliases of another language) |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | show what can be tidied up; with items, tidy them up |
 | `self-update [--check]` | check GitHub for a new version of WoW Tools and install it |
 
@@ -500,3 +511,5 @@ WoW Tools is not code-signed. Instead, every release file can be checked:
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in WoW Tools by you, as
 defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+
+The realm languages come from [LibRealmInfo](https://github.com/phanx-wow/LibRealmInfo) (Phanx, zlib license); its notice is in [THIRD-PARTY.md](THIRD-PARTY.md).

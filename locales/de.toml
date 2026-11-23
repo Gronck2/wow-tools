@@ -548,6 +548,30 @@ cli_available = "Version {version} ist verfügbar: {url}"
 about = "Finden, was aufgeräumt werden kann; mit Angaben aufräumen"
 items = "Was aufgeräumt wird"
 
+[cli.macros]
+about = "Defekte Makros finden"
+flavor = "Spielversion: _retail_, _classic_, ..."
+
+[macros]
+account = "Account {account} (gemeinsame Makros)"
+from_name = "Sprache aus dem Realmnamen"
+item = "  {name}: {problem}"
+item_line = "  {name} (Zeile {line}): {problem}"
+none = "Keine Probleme gefunden. Geprüfte Makros: {n}"
+total = "Gefundene Probleme: {found}. Geprüfte Makros: {n}"
+deprecated = "{func} wurde in Patch {patch} aus dem Spiel entfernt"
+fix_deprecated = "verwende {replacement} ({url})"
+too_long = "der Makrotext hat {n} Zeichen, das Limit ist {max}: den Rest schneidet das Spiel ab"
+fix_too_long = "kürze das Makro um mindestens {over} Zeichen oder teile es in zwei"
+long_bytes = "{chars} Zeichen, aber {bytes} Bytes bei einem Limit von {max}: manche Clients schneiden den Text eventuell ab"
+brackets = "unausgeglichene Klammern [ ] in Bedingungen"
+fix_brackets = "prüfe, dass zu jeder [ ein ] gehört"
+alias_firm = "{alias} ({command}) kennt nur der {locale}-Client und es funktioniert nicht auf: {targets}"
+alias_soft = "{alias} ({command}) kennt nur der {locale}-Client und es funktioniert eventuell nicht auf: {targets}"
+alias_unknown = "{alias} ({command}) kennt nur der {locale}-Client; die Sprache dieser Realms ist unbekannt: {targets}"
+fix_alias = "schreibe {command}"
+secret = "in Midnight (12.0) können Werte wie {func} im Kampf vor Makros verborgen sein"
+
 [cli.outdated]
 about = "Addons, die nicht für die installierte Spielversion gemacht sind"
 

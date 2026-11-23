@@ -548,6 +548,30 @@ cli_available = "Version {version} is available: {url}"
 about = "Find what can be tidied up; with items given, tidy them up"
 items = "What to tidy up"
 
+[cli.macros]
+about = "Find broken macros"
+flavor = "Game version: _retail_, _classic_, ..."
+
+[macros]
+account = "Account {account} (shared macros)"
+from_name = "language taken from the realm name"
+item = "  {name}: {problem}"
+item_line = "  {name} (line {line}): {problem}"
+none = "No problems found. Macros checked: {n}"
+total = "Problems found: {found}. Macros checked: {n}"
+deprecated = "{func} was removed from the game in patch {patch}"
+fix_deprecated = "use {replacement} ({url})"
+too_long = "the macro text is {n} characters, the limit is {max}: the game cuts the rest"
+fix_too_long = "shorten the macro by at least {over} characters or split it in two"
+long_bytes = "{chars} characters but {bytes} bytes against a limit of {max}: some clients may cut the text"
+brackets = "unbalanced brackets [ ] in conditions"
+fix_brackets = "check that every [ has its ]"
+alias_firm = "{alias} ({command}) is known only to the {locale} client and will not work on: {targets}"
+alias_soft = "{alias} ({command}) is known only to the {locale} client and may not work on: {targets}"
+alias_unknown = "{alias} ({command}) is known only to the {locale} client; the language of these realms is unknown: {targets}"
+fix_alias = "write {command}"
+secret = "in Midnight (12.0) values such as {func} may be hidden from macros in combat"
+
 [cli.outdated]
 about = "Addons not made for the installed game version"
 

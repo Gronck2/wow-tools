@@ -222,6 +222,7 @@ of the process while it runs. Only per-addon
   is respected and reported. Downloading `latestFile.downloadUrl` ourselves was rejected: authors of some addons
   forbid third-party downloads (`allowModDistribution: false`) and the app's records would go stale.
 - `chars.rs`: characters at `WTF/Account/<ACC>/<Realm>/<Name>`; names are often Cyrillic, so matching uses `to_lowercase`.
+- `macros.rs`: `wow-tools macros`, read-only check of every `macros-cache.txt` (parser, `check`, `scan`, `report`). Tables embedded from `data/`: `realms.tsv` (LibRealmInfo, zlib: `THIRD-PARTY.md`; realm folder matched by name, then realm id via `profiles::Roster`, Cyrillic = ruRU "from the name"), `deprecated-api.tsv` (Retail only), `slash-aliases.tsv` (hand table). Findings are judged by the realm language, not `textLocale`.
 - `profiles.rs`: UI profiles, zips in `<backup_dir>\profiles\<flavor>\` (`profile.json` meta, `addons.json`, `character/`
   files, `account/edit-mode-cache-account.txt`): every file of the character folder + its `SavedVariables\*.lua`, except
   `SKIP` (`cache.md5`; bindings, click bindings and macros belong to the character: neither saved nor applied, older
