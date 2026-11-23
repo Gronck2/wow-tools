@@ -334,7 +334,12 @@ fn command_names(line: &str) -> Vec<String> {
 /// Wrong-language and unknown names of one macro, as (body line from 1, kind). Targets whose realm language
 /// is not cached are skipped (the caller says so).
 pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(usize, Kind)> {
-    let ready: Vec<(&Target, &Locale)> = targets.iter().filter_map(|t| Some((t, names.locales.get(t.loc?.code)?))).collect();
+    // A target is judged only when every language valid for it is cached.
+    let ready: Vec<(&Target, Vec<&str>)> = targets
+        .iter()
+        .map(|t| (t, t.valid()))
+        .filter(|(_, valid)| !valid.is_empty() && valid.iter().all(|c| names.locales.contains_key(*c)))
+        .collect();
     let mut out = Vec::new();
     if ready.is_empty() {
         return out;
@@ -353,17 +358,16 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
                 lc = name.to_lowercase();
             }
             let mut unknown = false;
-            // (language of the name, name that works on the realm) -> targets
-            let mut wrong: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
-            for (t, realm) in &ready {
-                if realm.has(&lc) {
+            // (language of the name, name in the realm's language, firm) -> targets
+            let mut wrong: BTreeMap<(String, String, bool), Vec<String>> = BTreeMap::new();
+            for (t, valid) in &ready {
+                if valid.iter().any(|c| names.locales[*c].has(&lc)) {
                     continue;
                 }
-                let fix = names
-                    .locales
-                    .iter()
-                    .filter(|(_, l)| l.has(&lc))
-                    .find_map(|(code, other)| Some((code.clone(), realm.translate(other, &lc)?)));
+                let fix = names.locales.iter().filter(|(_, l)| l.has(&lc)).find_map(|(code, other)| {
+                    let fix = valid.iter().find_map(|c| names.locales[*c].translate(other, &lc))?;
+                    Some((code.clone(), fix, firm && t.ru()))
+                });
                 match fix {
                     Some(key) => wrong.entry(key).or_default().push(t.label.clone()),
                     None => unknown = true,
@@ -372,7 +376,7 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
             if unknown {
                 out.push((i + 1, Kind::UnknownName { name: name.clone() }));
             }
-            for ((lang, fix), bad) in wrong {
+            for ((lang, fix, firm), bad) in wrong {
                 out.push((
                     i + 1,
                     Kind::WrongLanguage {
@@ -422,6 +426,7 @@ mod tests {
         Target {
             label: label.into(),
             loc: Some(Loc { code, guessed: false }),
+            client: Vec::new(),
         }
     }
 
@@ -505,6 +510,35 @@ mod tests {
         assert!(found(&["/cast Огненный шар(Racial)"], std::slice::from_ref(&ru), true).is_empty());
         // a realm whose language is not cached is not judged
         assert!(found(&["/cast Fireball"], &[target("C-Fr", "frFR")], true).is_empty());
+    }
+
+    #[test]
+    fn other_realms_accept_the_realm_language_or_a_client_language() {
+        let names = names();
+        let en = target("A-En", "enUS");
+        let mut en_ru = target("B-En", "enUS");
+        en_ru.client = vec!["ruRU"];
+        let verdict = |body: &[&str], t: &[Target], firm| check(&mac(body), t, firm, &names).into_iter().map(|(_, k)| k).collect::<Vec<_>>();
+        // A Russian client language on an English realm: Russian and English names both work.
+        assert!(
+            verdict(
+                &["/cast Огненный шар", "/cast Fireball", "/закл Огненный шар"],
+                std::slice::from_ref(&en_ru),
+                true
+            )
+            .is_empty()
+        );
+        // No Russian client: soft even for the character's own macro, with the fix in the realm's language.
+        let f = verdict(&["/cast Огненный шар"], std::slice::from_ref(&en), true);
+        assert!(matches!(&f[..], [Kind::WrongLanguage { lang, fix, firm: false, .. }] if lang == "ruRU" && fix == "Fireball"));
+        // Account list: only the character without the Russian client is named.
+        let f = verdict(&["/cast Огненный шар"], &[en.clone(), en_ru], false);
+        assert!(matches!(&f[..], [Kind::WrongLanguage { bad, firm: false, .. }] if bad == &["A-En"]));
+        // An unknown realm is judged by the client languages alone.
+        let mut nowhere = Target { loc: None, ..en };
+        assert!(verdict(&["/cast Огненный шар"], std::slice::from_ref(&nowhere), true).is_empty());
+        nowhere.client = vec!["enUS"];
+        assert_eq!(verdict(&["/cast Огненный шар"], &[nowhere], true).len(), 1);
     }
 
     #[test]
