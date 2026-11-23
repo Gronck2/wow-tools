@@ -583,4 +583,35 @@ mod tests {
         assert!(text.contains("Heal (строка 1)") && text.contains("C_Spell.GetSpellInfo"));
         assert!(report(&Scan::default()).contains('0'));
     }
+
+    #[test]
+    fn parser_survives_quotes_and_unterminated_macros() {
+        let ms = parse("VER 3 0000000000000001 \"Say \"hi\"\" \"12\"\n/say x\nEND\nVER 3 0000000000000002 \"Cut\" \"3\"\n/cast Heal");
+        assert_eq!(ms.len(), 2);
+        assert_eq!((ms[0].name.as_str(), ms[0].icon.as_str()), ("Say \"hi\"", "12"));
+        assert_eq!((ms[1].name.as_str(), ms[1].body.as_slice()), ("Cut", &["/cast Heal".to_string()][..]));
+    }
+
+    #[test]
+    fn field_access_and_classic_are_not_flagged_and_limit_is_exact() {
+        assert!(kinds(&m(&["/run print(x.GetSpellInfo(1))"]), true, &[], true).is_empty());
+        assert!(kinds(&m(&["/run print(UnitHealth(\"target\"))"]), false, &[], true).is_empty());
+        // 255 characters pass, 256 do not.
+        assert!(kinds(&m(&[&format!("/say {}", "a".repeat(250))]), true, &[], true).is_empty());
+        assert!(kinds(&m(&[&format!("/say {}", "a".repeat(251))]), true, &[], true)[0].1.starts_with("TooLong"));
+    }
+
+    #[test]
+    fn guessed_language_is_marked_and_soft_wording_lists_the_characters() {
+        let guessed = Target {
+            label: "Aaa-Нигде".into(),
+            loc: Some(Loc { code: "deDE", guessed: true }),
+        };
+        let found = check(&m(&["/закл Heal"]), true, &[guessed, target("Bbb-Nowhere", None)], false);
+        let Kind::Alias { bad, unknown, firm: false, .. } = &found[0].1 else {
+            panic!("{found:?}")
+        };
+        assert_eq!(unknown, &["Bbb-Nowhere"]);
+        assert!(bad[0].starts_with("Aaa-Нигде (deDE, ") && bad[0] != "Aaa-Нигде (deDE)");
+    }
 }
