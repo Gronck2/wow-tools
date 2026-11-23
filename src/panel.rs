@@ -3293,3 +3293,85 @@ pub fn snapshot(
         draw(p, view, &theme, &fmt, tab, hover, confirm, sheet.as_ref(), 0, lifted)
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::macros::{Finding, Kind, Scan};
+    use std::sync::Arc;
+
+    fn view(findings: Vec<Finding>) -> View {
+        View {
+            status: Status {
+                phase: Phase::Idle,
+                work: Work::Backup,
+                last: None,
+                game: None,
+                progress: None,
+            },
+            points: Vec::new(),
+            autostart: false,
+            schedule: String::new(),
+            update_app: None,
+            update_text: String::new(),
+            last_update: None,
+            updates: Vec::new(),
+            update_waits_for_game: false,
+            self_update: Default::default(),
+            scan: None,
+            cleaning: None,
+            cleaned: None,
+            shots_dir: Default::default(),
+            profiles: Vec::new(),
+            chars: None,
+            profile_job: None,
+            profile_done: None,
+            running: Vec::new(),
+            tabs: vec![Tab::Macros],
+            macros: tray::MacroCheck {
+                scan: Some(Arc::new(Scan {
+                    findings,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+        }
+    }
+
+    fn finding(flavor: &str, line: usize, kind: Kind) -> Finding {
+        Finding {
+            flavor: flavor.into(),
+            scope: "Acc".into(),
+            name: "Heal".into(),
+            line,
+            kind,
+        }
+    }
+
+    #[test]
+    fn macro_rows_and_counts_text() {
+        let s = Sheet {
+            list: SheetList::Macros,
+            first: 5,
+            search: String::new(),
+        };
+        let mut v = view(vec![finding("Retail", 2, Kind::Brackets), finding("Retail", 0, Kind::Brackets)]);
+        let rows = sheet_entries(&v, &s);
+        assert_eq!(rows[0].name, tr!("macros.sheet_line", name = "Heal", line = 2));
+        assert_eq!(rows[1].name, "Heal");
+        assert_eq!(rows[0].right, "Acc");
+        assert_eq!(macro_counts_text(&v), format!("{}: 2", Kind::Brackets.title()));
+        // A scroll position past the end is pulled back; with one game version the right column omits it.
+        assert_eq!(sheet_first(&v, &s), 0);
+        v.macros.scan = Some(Arc::new(Scan {
+            findings: vec![finding("Retail", 1, Kind::Brackets), finding("Era", 1, Kind::Brackets)],
+            ..Default::default()
+        }));
+        assert_eq!(sheet_entries(&v, &s)[1].right, "Era · Acc");
+        v.macros.scan = Some(Arc::new(Scan::default()));
+        assert_eq!(macro_counts_text(&v), tr!("macros.counts_clean"));
+        v.macros.scan = None;
+        assert_eq!(macro_counts_text(&v), tr!("macros.counts_hint"));
+        assert!(sheet_entries(&v, &s).is_empty());
+    }
+}

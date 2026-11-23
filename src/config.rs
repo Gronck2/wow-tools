@@ -628,6 +628,10 @@ mod tests {
         assert_eq!(cfg.tab_order(), [Profiles, Backup, Addons, Cleanup, Macros]);
         assert_eq!(cfg.shown_tabs(), [Profiles, Backup, Addons, Macros]);
 
+        // The saved name of the new tab, and an old four-tab list that gets it appended.
+        let old: Config = toml::from_str("panel_tabs = ['backup', 'addons', 'cleanup', 'profiles']\nhidden_tabs = ['macros']\n").unwrap();
+        assert_eq!((old.tab_order()[4], old.shown_tabs().len()), (Macros, 4));
+
         // Rearranged in the panel: the hidden tab keeps its place.
         cfg.hidden_tabs = vec![Backup];
         cfg.set_shown_order(&[Cleanup, Profiles, Addons, Macros]);
