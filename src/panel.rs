@@ -2110,12 +2110,13 @@ fn macro_names_rect(f: &Formats) -> R {
     }
 }
 
+// One at a time: a check during a download would miss the re-check the download ends with.
 fn macro_scan_allowed(v: &View) -> bool {
-    !v.macros.scanning
+    !v.macros.scanning && !v.macros.downloading
 }
 
 fn macro_names_allowed(v: &View) -> bool {
-    v.status.phase != Phase::Busy && !v.macros.downloading
+    v.status.phase != Phase::Busy && !v.macros.downloading && !v.macros.scanning
 }
 
 fn macro_hits(v: &View, f: &Formats, out: &mut Vec<(R, Hit)>) {
@@ -2204,8 +2205,12 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
     if m.scanning {
         button(p, f, button_rect(), "\u{E895}", tr!("macros.scanning"), Style::Disabled, t);
     } else {
-        let style = Style::Accent {
-            hover: hover == Some(Hit::MacroScan),
+        let style = if macro_scan_allowed(v) {
+            Style::Accent {
+                hover: hover == Some(Hit::MacroScan),
+            }
+        } else {
+            Style::Disabled
         };
         button(p, f, button_rect(), "\u{E721}", tr!("macros.scan"), style, t);
     }
