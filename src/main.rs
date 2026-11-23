@@ -10,6 +10,7 @@ mod elvui;
 #[cfg(windows)]
 mod gfx;
 mod lua;
+mod macro_names;
 mod macros;
 mod maintenance;
 #[cfg(windows)]
@@ -124,6 +125,9 @@ enum Cmd {
         /// Game version: _retail_, _classic_, ...
         #[arg(long)]
         flavor: Option<String>,
+        /// Download spell and item names (from wago.tools) for the name check
+        #[arg(long)]
+        update_names: bool,
     },
     /// Copy settings from one character to others
     CopyChar {
@@ -366,7 +370,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::List { flavor, kind } => cmd_list(&ctx, flavor.as_deref(), kind),
         Cmd::Restore { snapshot, flavor, kind, yes } => cmd_restore(&ctx, snapshot.as_deref(), flavor.as_deref(), kind, yes),
         Cmd::Chars { flavor } => cmd_chars(&ctx, flavor.as_deref()),
-        Cmd::Macros { flavor } => cmd_macros(&ctx, flavor.as_deref()),
+        Cmd::Macros { flavor, update_names } => cmd_macros(&ctx, flavor.as_deref(), update_names),
         Cmd::CopyChar {
             from,
             to,
@@ -420,9 +424,18 @@ fn cmd_clean(ctx: &Ctx, items: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn cmd_macros(ctx: &Ctx, flavor: Option<&str>) -> Result<()> {
-    println!("{}", macros::report(&macros::scan(&ctx.flavors(flavor)?)));
-    Ok(())
+fn cmd_macros(ctx: &Ctx, flavor: Option<&str>, update_names: bool) -> Result<()> {
+    let flavors = ctx.flavors(flavor)?;
+    let dir = config::data_dir().join("names");
+    let mut downloaded = Ok(());
+    if update_names {
+        let mut needs = macros::scan(&flavors, &dir).locales;
+        needs.retain(|_, l| !l.is_empty());
+        downloaded = macro_names::update(&dir, &needs, &mut |line| println!("{line}"));
+    }
+    // The report comes even when a download failed (the cached names still check), then the error.
+    println!("{}", macros::report(&macros::scan(&flavors, &dir)));
+    downloaded
 }
 
 fn cmd_outdated(ctx: &Ctx) -> Result<()> {

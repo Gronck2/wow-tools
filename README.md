@@ -371,7 +371,13 @@ WoW Tools can read the macros of every account and character and list what is br
 `wow-tools macros`. It checks `/run` and `/script` lines for functions removed from the game (and says what replaces
 them), macros over 255 characters, unbalanced `[ ]`, and slash aliases of another language (`/закл`) against the
 language of the realm the character is on. A macro shared by the whole account is reported as "may not work on" the
-characters where it would fail; a realm whose language is not known is said so, never guessed. It only reads the
+characters where it would fail; a realm whose language is not known is said so, never guessed. A Russian realm accepts only Russian; any other realm accepts its own
+language and the languages of the game client you use (`textLocale` in `Config.wtf`, plus Russian when the account has
+characters on a Russian realm); anything else is reported as working only with a client in that language. After
+`wow-tools macros --update-names` (it downloads the names of spells and items from wago.tools, once per game build)
+it also checks the names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show`:
+a name in the wrong language is reported with the name the realm's language uses, a name found nowhere as "unknown"
+(a typo, or removed; it may also be an equipment set, a pet or something an addon adds). Otherwise it only reads the
 `WTF` folder.
 
 ## Command line
@@ -429,6 +435,10 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
   [Updating WoW Tools](#updating-wow-tools)) — once a day, and it can be switched off. And **tukui.org**, during an
   addon update run when ElvUI is installed and its switch is on, for [ElvUI](#elvui). Both are plain requests for the
   latest version, like opening the download page in a browser; nothing about you, your game or your addons is sent.
+- Only when you ask for it (`wow-tools macros --update-names`), WoW Tools also downloads spell and item names from
+  **wago.tools** (about 15–30 MB per language, kept in `%LOCALAPPDATA%\WoW Tools\data\names` and downloaded again only
+  after a new game build) for [checking macros](#checking-macros). The requests carry only the game version and the
+  language, nothing about you.
 - Addons are downloaded only by the addon program you chose — except ElvUI, which WoW Tools takes from its official site.
 - It never touches the game itself, does not read game memory and does not automate anything in game.
 - It writes to the game folder only when you restore, copy character settings, tidy up, or an addon program updates

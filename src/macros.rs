@@ -1,13 +1,16 @@
 //! Macro check: reads every `macros-cache.txt` (account-wide and per character) and reports what is
-//! broken by checks that need no downloaded data. Read-only over WTF.
+//! broken: by checks that need no downloaded data, and by spell/item names against the cached name data
+//! (`macro_names`) when it is there. Read-only over WTF.
 //!
 //! File format: `VER 3 <16 hex id> "<name>" "<icon>"`, the body lines, `END`. Lines of a body that
 //! start with neither `/` nor `#` are addon data (HealBot `hbCrashProt_*`, `!dosmarkers`) and ignored.
 
 use crate::chars::{Character, subdirs};
+use crate::macro_names::{self, Names};
 use crate::profiles::{Roster, last_played, realm_key};
 use crate::wow::Flavor;
 use std::cell::OnceCell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -110,6 +113,11 @@ fn aliases() -> &'static [[&'static str; 3]] {
     T.get_or_init(|| rows(ALIASES).filter_map(|r| r[..].try_into().ok()).collect())
 }
 
+/// The command an alias stands for (`/закл` -> `/cast`); any other word comes back as it is.
+pub fn canonical_command(cmd: &str) -> String {
+    aliases().iter().find(|a| a[2] == cmd).map_or(cmd, |a| a[0]).to_string()
+}
+
 /// The language of a realm and whether it was only taken from the realm's name.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Loc {
@@ -122,6 +130,22 @@ fn portal(wtf: &Path) -> Option<String> {
     let text = fs::read_to_string(wtf.join("Config.wtf")).ok()?;
     let value = text.lines().find_map(|l| l.trim().strip_prefix("SET portal "))?;
     Some(value.trim().trim_matches('"').to_string())
+}
+
+/// Locales of the game client's text (`enGB` has the names of `enUS`).
+const CLIENT_LOCALES: [&str; 11] = ["enUS", "deDE", "esES", "esMX", "frFR", "itIT", "koKR", "ptBR", "ruRU", "zhCN", "zhTW"];
+
+/// The text language of the client of a flavor: `SET textLocale` of `WTF\Config.wtf`, else `SET locale`.
+fn client_locale(wtf: &Path) -> Option<&'static str> {
+    let text = fs::read_to_string(wtf.join("Config.wtf")).ok()?;
+    let get = |key: &str| {
+        text.lines()
+            .find_map(|l| l.trim().strip_prefix(key))
+            .map(|v| v.trim().trim_matches('"').to_string())
+    };
+    let value = get("SET textLocale ").or_else(|| get("SET locale "))?;
+    let value = if value == "enGB" { "enUS" } else { value.as_str() };
+    CLIENT_LOCALES.iter().copied().find(|c| *c == value)
 }
 
 /// The language of the realm whose folder is `folder`: by name (also the English one), else by the
@@ -160,6 +184,36 @@ fn realm_locale(acc_dir: &Path, folder: &str, region: Option<&str>, roster: &Onc
 pub struct Target {
     pub label: String,
     pub loc: Option<Loc>,
+    /// Client languages the player really uses (see `scan`); a Russian realm ignores them.
+    pub client: Vec<&'static str>,
+}
+
+impl Target {
+    pub fn ru(&self) -> bool {
+        self.loc.is_some_and(|l| l.code == "ruRU")
+    }
+
+    /// The languages whose names and aliases work for this character, the realm's first: a Russian realm
+    /// accepts only ruRU, any other the realm's language or a client language of the player.
+    pub fn valid(&self) -> Vec<&'static str> {
+        if self.ru() {
+            return vec!["ruRU"];
+        }
+        self.loc.map(|l| l.code).into_iter().chain(self.client.iter().copied()).collect()
+    }
+}
+
+/// How sure a wrong-language name is for its targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum How {
+    /// A Russian realm, the character's own macro.
+    Firm,
+    /// A Russian realm, an account-wide macro.
+    Maybe,
+    /// Another realm: works with a client in the name's language.
+    Client,
+    /// The realm's language is unknown.
+    Realm,
 }
 
 #[derive(Debug)]
@@ -174,17 +228,30 @@ pub enum Kind {
         chars: usize,
     },
     Brackets,
-    /// `firm`: a character's own macro; else an account-wide one that may not work on `bad`.
+    /// `bad`: Russian realms (`firm`: a character's own macro, else it may not work there); `soft`: other realms,
+    /// where it works with a client in that language; `unknown`: realms of unknown language.
     Alias {
         alias: String,
         command: &'static str,
         locales: String,
         bad: Vec<String>,
+        soft: Vec<String>,
         unknown: Vec<String>,
         firm: bool,
     },
     Secret {
         func: &'static str,
+    },
+    /// A name of the language `lang`; `fix` is what the realm's language calls it.
+    WrongLanguage {
+        name: String,
+        lang: String,
+        fix: String,
+        bad: Vec<String>,
+        how: How,
+    },
+    UnknownName {
+        name: String,
     },
 }
 
@@ -248,13 +315,17 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
                 Some(l) => format!("{} ({})", t.label, l.code),
                 None => t.label.clone(),
             };
-            let bad: Vec<String> = targets
-                .iter()
-                .filter(|t| t.loc.is_some_and(|l| !locales.contains(&l.code)))
-                .map(label)
-                .collect();
-            let unknown: Vec<String> = targets.iter().filter(|t| t.loc.is_none()).map(label).collect();
-            if !bad.is_empty() || !unknown.is_empty() {
+            let (mut bad, mut soft, mut unknown) = (Vec::new(), Vec::new(), Vec::new());
+            for t in targets.iter().filter(|t| !t.valid().iter().any(|c| locales.contains(c))) {
+                // A realm of unknown language is never called bad: it may well be the alias's language.
+                match (t.ru(), t.loc.is_some()) {
+                    (true, _) => bad.push(label(t)),
+                    (_, true) => soft.push(label(t)),
+                    _ => unknown.push(label(t)),
+                }
+            }
+            let firm = firm && !bad.is_empty();
+            if !bad.is_empty() || !soft.is_empty() || !unknown.is_empty() {
                 out.push((
                     i,
                     Kind::Alias {
@@ -262,6 +333,7 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
                         command: first[0],
                         locales: locales.join("/"),
                         bad,
+                        soft,
                         unknown,
                         firm,
                     },
@@ -293,17 +365,22 @@ impl Finding {
                 command,
                 locales,
                 bad,
+                soft,
                 unknown,
                 firm,
             } => {
                 let mut parts = Vec::new();
-                let targets = crate::maintenance::names_text(bad, 6);
                 if !bad.is_empty() {
+                    let targets = crate::maintenance::names_text(bad, 6);
                     parts.push(if *firm {
                         tr!("macros.alias_firm", alias = alias, command = command, locale = locales, targets = targets)
                     } else {
-                        tr!("macros.alias_soft", alias = alias, command = command, locale = locales, targets = targets)
+                        tr!("macros.alias_maybe", alias = alias, command = command, locale = locales, targets = targets)
                     });
+                }
+                if !soft.is_empty() {
+                    let targets = crate::maintenance::names_text(soft, 6);
+                    parts.push(tr!("macros.alias_soft", alias = alias, command = command, locale = locales, targets = targets));
                 }
                 if !unknown.is_empty() {
                     parts.push(tr!(
@@ -317,6 +394,16 @@ impl Finding {
                 parts.join("; ")
             }
             Kind::Secret { func } => tr!("macros.secret", func = func),
+            Kind::WrongLanguage { name, lang, bad, how, .. } => {
+                let targets = crate::maintenance::names_text(bad, 6);
+                match how {
+                    How::Firm => tr!("macros.wrong_firm", name = name, lang = lang, targets = targets),
+                    How::Maybe => tr!("macros.wrong_maybe", name = name, lang = lang, targets = targets),
+                    How::Client => tr!("macros.wrong_soft", name = name, lang = lang, targets = targets),
+                    How::Realm => tr!("macros.wrong_realm", name = name, lang = lang, targets = targets),
+                }
+            }
+            Kind::UnknownName { name } => tr!("macros.unknown_name", name = name),
         }
     }
 
@@ -326,7 +413,8 @@ impl Finding {
             Kind::TooLong { chars } => Some(tr!("macros.fix_too_long", over = chars - MAX_LEN)),
             Kind::Brackets => Some(tr!("macros.fix_brackets").to_string()),
             Kind::Alias { command, .. } => Some(tr!("macros.fix_alias", command = command)),
-            Kind::Secret { .. } => None,
+            Kind::Secret { .. } | Kind::UnknownName { .. } => None,
+            Kind::WrongLanguage { fix, .. } => Some(tr!("macros.fix_wrong", fix = fix)),
         }
     }
 }
@@ -336,20 +424,31 @@ pub struct Scan {
     pub findings: Vec<Finding>,
     /// Macros read.
     pub checked: usize,
+    /// Per product, the realm languages of the characters found (what `--update-names` downloads).
+    pub locales: BTreeMap<String, BTreeSet<&'static str>>,
+    /// Flavors with macros whose realm languages have no name data yet.
+    pub missing: Vec<String>,
 }
 
-/// Checks the macros of every account and character of `flavors`.
-pub fn scan(flavors: &[Flavor]) -> Scan {
+/// Checks the macros of every account and character of `flavors`; names are checked against the cache in `names_dir`.
+pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
     let mut scan = Scan::default();
     for fl in flavors {
         let wtf = fl.wtf_dir();
         let region = portal(&wtf);
         let retail = is_retail(&fl.name);
+        let product = fl.product();
+        let names = product.as_deref().map(|p| Names::load(names_dir, p)).unwrap_or_default();
+        let client = client_locale(&wtf);
+        let (checked_before, mut seen) = (scan.checked, BTreeSet::new());
         let mut check_file = |path: &Path, scope: &str, targets: &[Target], firm: bool| {
             let Ok(bytes) = fs::read(path) else { return };
             for m in parse(&String::from_utf8_lossy(&bytes)) {
                 scan.checked += 1;
-                for (line, kind) in check(&m, retail, targets, firm) {
+                let mut found = check(&m, retail, targets, firm);
+                found.extend(macro_names::check(&m, targets, firm, &names));
+                found.sort_by_key(|(line, _)| *line);
+                for (line, kind) in found {
                     scan.findings.push(Finding {
                         flavor: fl.title(),
                         scope: scope.to_string(),
@@ -380,15 +479,27 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
                         Target {
                             label: format!("{name}-{realm}"),
                             loc,
+                            client: client.into_iter().collect(),
                         },
                         dir,
                     ));
                 }
             }
+            // Russian realms on the account: its other characters may well run a Russian client.
+            if chars.iter().any(|(t, _)| t.ru()) {
+                chars.iter_mut().for_each(|(t, _)| t.client.push("ruRU"));
+            }
+            seen.extend(chars.iter().flat_map(|(t, _)| t.valid()));
             let all: Vec<Target> = chars.iter().map(|(t, _)| t.clone()).collect();
             check_file(&acc_dir.join("macros-cache.txt"), &tr!("macros.account", account = account), &all, false);
             for (target, dir) in &chars {
                 check_file(&dir.join("macros-cache.txt"), &target.label, std::slice::from_ref(target), true);
+            }
+        }
+        if let Some(product) = product {
+            scan.locales.entry(product).or_default().extend(&seen);
+            if scan.checked > checked_before && seen.iter().any(|l| !names.has(l)) {
+                scan.missing.push(fl.title());
             }
         }
     }
@@ -424,6 +535,10 @@ pub fn report(scan: &Scan) -> String {
     } else {
         tr!("macros.total", found = scan.findings.len(), n = scan.checked)
     });
+    if !scan.missing.is_empty() {
+        out.push('\n');
+        out.push_str(&tr!("macros.no_names", flavors = scan.missing.join(", ")));
+    }
     out
 }
 
@@ -443,6 +558,7 @@ mod tests {
         Target {
             label: label.into(),
             loc: code.map(|code| Loc { code, guessed: false }),
+            client: Vec::new(),
         }
     }
 
@@ -513,12 +629,24 @@ mod tests {
         let en = target("B-En", Some("enUS"));
         assert!(check(&mac, true, std::slice::from_ref(&ru), true).is_empty());
         let firm = check(&mac, true, std::slice::from_ref(&en), true);
-        let Kind::Alias { bad, firm: true, command, .. } = &firm[0].1 else {
+        let Kind::Alias { soft, bad, command, .. } = &firm[0].1 else {
             panic!("{firm:?}")
         };
-        assert_eq!((bad.as_slice(), *command), (&["B-En (enUS)".to_string()][..], "/cast"));
-        let soft = check(&mac, true, &[ru, en], false);
-        assert!(matches!(&soft[0].1, Kind::Alias { firm: false, bad, .. } if bad.len() == 1));
+        assert_eq!((soft.as_slice(), *command), (&["B-En (enUS)".to_string()][..], "/cast"));
+        assert!(bad.is_empty());
+        let soft = check(&mac, true, &[ru.clone(), en.clone()], false);
+        assert!(matches!(&soft[0].1, Kind::Alias { firm: false, bad, soft, .. } if bad.is_empty() && soft.len() == 1));
+        // An English realm with a Russian client language (or an unknown realm with one) knows the alias.
+        let mut ru_client = en;
+        ru_client.client = vec!["ruRU"];
+        let mut nowhere = target("C-Nowhere", None);
+        nowhere.client = vec!["ruRU"];
+        assert!(check(&mac, true, &[ru_client, nowhere], false).is_empty());
+        // An unknown realm whose client language is not the alias's is never "bad": its language is unknown.
+        let mut en_client = target("D-Nowhere", None);
+        en_client.client = vec!["enUS"];
+        let f = check(&mac, true, &[en_client], true);
+        assert!(matches!(&f[0].1, Kind::Alias { bad, soft, unknown, .. } if bad.is_empty() && soft.is_empty() && unknown.len() == 1));
         let unknown = check(&mac, true, &[target("C-Nowhere", None)], true);
         assert!(matches!(&unknown[0].1, Kind::Alias { bad, unknown, .. } if bad.is_empty() && unknown.len() == 1));
         // The English command is fine everywhere.
@@ -571,21 +699,110 @@ mod tests {
     }
 
     #[test]
-    fn scan_groups_account_and_character_findings() {
+    fn client_locale_reads_text_locale_then_locale_and_maps_engb() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = |text: &str| {
+            fs::write(dir.path().join("Config.wtf"), text).unwrap();
+            client_locale(dir.path())
+        };
+        assert_eq!(client_locale(dir.path()), None);
+        assert_eq!(cfg("SET locale \"enUS\"\r\nSET textLocale \"deDE\"\r\n"), Some("deDE"));
+        assert_eq!(cfg("SET locale \"frFR\"\r\n"), Some("frFR"));
+        assert_eq!(cfg("SET textLocale \"enGB\"\r\n"), Some("enUS"));
+        assert_eq!(cfg("SET textLocale \"xxXX\"\r\n"), None);
+    }
+
+    #[test]
+    fn scan_client_languages_count_per_account_and_feed_update_names() {
+        let (_d, fl) = tree(&[("Tarren Mill", "Aaa")]);
+        let wtf = fl.wtf_dir();
+        fs::write(wtf.join("Config.wtf"), "SET portal \"EU\"\r\nSET textLocale \"deDE\"\r\n").unwrap();
+        // A second account with a Russian realm: its characters must not give ACC a Russian client.
+        fs::create_dir_all(wtf.join("Account").join("RU").join("Гордунни").join("Bbb")).unwrap();
+        put(
+            &fl,
+            "Tarren Mill/Aaa/macros-cache.txt",
+            "VER 3 0000000000000001 \"F\" \"1\"\n/cast Огненный шар\nEND\n",
+        );
+        let names = tempfile::tempdir().unwrap();
+        put_names(names.path(), "enUS", "1\tFireball\n");
+        put_names(names.path(), "deDE", "1\tFeuerball\n");
+        put_names(names.path(), "ruRU", "1\tОгненный шар\n");
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        // Download set: realm + client languages of ACC, plus the Russian realm's own.
+        assert_eq!(s.locales["wow"], BTreeSet::from(["enUS", "deDE", "ruRU"]));
+        assert!(
+            s.findings
+                .iter()
+                .any(|f| f.scope == "Aaa-Tarren Mill" && matches!(&f.kind, Kind::WrongLanguage { .. }))
+        );
+        // A Russian-realm character on the same account: ACC's characters get a Russian client.
+        fs::create_dir_all(wtf.join("Account").join("ACC").join("Гордунни").join("Ccc")).unwrap();
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
+    }
+
+    /// A name cache as `macro_names` writes it: `wow-<locale>.zip` with tab-separated `spell` and `item` entries.
+    fn put_names(dir: &Path, locale: &str, spell: &str) {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(fs::File::create(dir.join(format!("wow-{locale}.zip"))).unwrap());
+        for (entry, text) in [("spell", spell), ("item", "")] {
+            zip.start_file(entry, zip::write::SimpleFileOptions::default()).unwrap();
+            zip.write_all(text.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn scan_checks_names_firm_for_character_soft_for_account_and_hints_without_cache() {
         let (_d, fl) = tree(&[("Tarren Mill", "Aaa"), ("Гордунни", "Bbb")]);
-        let mac = "VER 3 0000000000000001 \"Heal\" \"1\"\n/закл Heal\nEND\nVER 3 0000000000000002 \"Old\" \"2\"\n/run GetSpellInfo(1)\nEND\n";
+        let mac = "VER 3 0000000000000001 \"F\" \"1\"\n/cast Fireball\nEND\n";
         put(&fl, "macros-cache.txt", mac);
         put(&fl, "Tarren Mill/Aaa/macros-cache.txt", mac);
         put(&fl, "Гордунни/Bbb/macros-cache.txt", mac);
-        let s = scan(std::slice::from_ref(&fl));
+        let names = tempfile::tempdir().unwrap();
+        put_names(names.path(), "enUS", "1\tFireball\n");
+        // ruRU not cached: its realm is skipped and the hint names the flavor.
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        assert!(s.findings.is_empty());
+        assert_eq!(s.missing.len(), 1);
+        assert!(report(&s).contains("--update-names"));
+        assert_eq!(s.locales["wow"], BTreeSet::from(["enUS", "ruRU"]));
+        // With ruRU: Bbb's own file is firm, the account's list is soft, Aaa is fine.
+        put_names(names.path(), "ruRU", "1\tОгненный шар\n");
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        assert!(s.missing.is_empty() && !report(&s).contains("--update-names"));
+        let wrong: Vec<(&str, How)> = s
+            .findings
+            .iter()
+            .filter_map(|f| match &f.kind {
+                Kind::WrongLanguage { how, fix, .. } if fix == "Огненный шар" => Some((f.scope.as_str(), *how)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(wrong.len(), 2);
+        assert!(wrong.contains(&("Bbb-Гордунни", How::Firm)));
+        // The Russian realm in the account list "may not work", it never gets the client clause.
+        assert!(wrong.iter().any(|(scope, how)| *scope != "Bbb-Гордунни" && *how == How::Maybe));
+        assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
+    }
+
+    #[test]
+    fn scan_groups_account_and_character_findings() {
+        let (_d, fl) = tree(&[("Tarren Mill", "Aaa"), ("Tarren Mill", "Bbb")]);
+        let mac = "VER 3 0000000000000001 \"Heal\" \"1\"\n/закл Heal\nEND\nVER 3 0000000000000002 \"Old\" \"2\"\n/run GetSpellInfo(1)\nEND\n";
+        put(&fl, "macros-cache.txt", mac);
+        put(&fl, "Tarren Mill/Aaa/macros-cache.txt", mac);
+        put(&fl, "Tarren Mill/Bbb/macros-cache.txt", mac);
+        let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         assert_eq!(s.checked, 6);
-        // Account: alias (may not work for Aaa) + deprecated; Aaa: both; Bbb: deprecated only.
+        // Account: alias (works only with a Russian client on both) + deprecated; Aaa and Bbb: both, soft.
         let scopes: Vec<&str> = s.findings.iter().map(|f| f.scope.as_str()).collect();
         assert_eq!(scopes.iter().filter(|x| **x == "Aaa-Tarren Mill").count(), 2);
-        assert_eq!(scopes.iter().filter(|x| **x == "Bbb-Гордунни").count(), 1);
+        assert_eq!(scopes.iter().filter(|x| **x == "Bbb-Tarren Mill").count(), 2);
         let alias = s.findings.iter().find(|f| matches!(&f.kind, Kind::Alias { firm: false, .. })).unwrap();
         assert!(alias.problem().contains("Aaa-Tarren Mill (enUS)"));
-        assert!(s.findings.iter().any(|f| matches!(&f.kind, Kind::Alias { firm: true, .. })));
+        assert!(!s.findings.iter().any(|f| matches!(&f.kind, Kind::Alias { firm: true, .. })));
         let text = report(&s);
         assert!(text.contains("Heal (строка 1)") && text.contains("C_Spell.GetSpellInfo"));
         assert!(report(&Scan::default()).contains('0'));
@@ -607,7 +824,7 @@ mod tests {
             "X = { [\"Player-1602-0000AAAA\"] = { [\"name\"] = \"Ccc\", [\"realm\"] = \"Oldname\" } }",
         )
         .unwrap();
-        let s = scan(std::slice::from_ref(&fl));
+        let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         // The account's and Ccc's file; Gone's folder is left alone.
         assert_eq!(s.checked, 2);
         assert!(s.findings.is_empty());
@@ -625,7 +842,7 @@ mod tests {
             "X = { [\"Player-1306-0000AAAA\"] = { [\"name\"] = \"Aaa\", [\"realm\"] = \"Tarren Mill\" } }",
         )
         .unwrap();
-        let s = scan(std::slice::from_ref(&fl));
+        let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         assert_eq!(s.checked, 1);
         let alias = s.findings.iter().find(|f| matches!(&f.kind, Kind::Alias { .. })).unwrap();
         assert!(alias.problem().contains("Aaa-Tarren Mill") && !alias.problem().contains("Gone"));
@@ -653,9 +870,16 @@ mod tests {
         let guessed = Target {
             label: "Aaa-Нигде".into(),
             loc: Some(Loc { code: "deDE", guessed: true }),
+            client: Vec::new(),
         };
         let found = check(&m(&["/закл Heal"]), true, &[guessed, target("Bbb-Nowhere", None)], false);
-        let Kind::Alias { bad, unknown, firm: false, .. } = &found[0].1 else {
+        let Kind::Alias {
+            soft: bad,
+            unknown,
+            firm: false,
+            ..
+        } = &found[0].1
+        else {
             panic!("{found:?}")
         };
         assert_eq!(unknown, &["Bbb-Nowhere"]);

@@ -362,6 +362,8 @@ pub(crate) mod http {
         Ok(())
     }
 
+    const MAX_BODY: usize = 64 << 20;
+
     /// A GET over HTTPS (redirects followed); returns the status and the body.
     pub fn get(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {
         let host = url.trim_start_matches("https://").split('/').next().unwrap_or_default();
@@ -410,6 +412,10 @@ pub(crate) mod http {
                     break;
                 }
                 let start = body.len();
+                // The biggest download is a ~20 MB name table (macro_names); the exe is smaller.
+                if start + available as usize > MAX_BODY {
+                    bail!("response over {} MB", MAX_BODY >> 20);
+                }
                 body.resize(start + available as usize, 0);
                 let mut read = 0u32;
                 ok(WinHttpReadData(request.0, body[start..].as_mut_ptr() as *mut c_void, available, &mut read))?;

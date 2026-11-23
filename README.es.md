@@ -395,7 +395,14 @@ WoW Tools lee las macros de todas las cuentas y personajes y muestra lo que est�
 `wow-tools macros`. Revisa las líneas `/run` y `/script` (funciones eliminadas del juego, con su sustituta), las macros
 de más de 255 caracteres, los `[ ]` desparejados y los comandos de otro idioma (`/закл`) según el idioma del reino del
 personaje. Una macro común de la cuenta se marca como «puede no funcionar» en los personajes afectados; si se desconoce
-el idioma de un reino, se dice, nunca se adivina. La carpeta `WTF` solo se lee.
+el idioma de un reino, se dice, nunca se adivina. Un reino ruso solo acepta ruso; cualquier otro acepta su idioma y los del cliente del juego que uses
+(`textLocale` en `Config.wtf`, más el ruso si la cuenta tiene personajes en un reino ruso); lo demás se indica como
+que solo funciona con un cliente en ese idioma. Tras
+`wow-tools macros --update-names` (descarga de wago.tools los nombres de hechizos y objetos, una vez por versión del
+juego) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` y
+`#show`: un nombre en otro idioma se indica con el nombre del idioma del reino, y uno que no existe en ninguno como
+«desconocido» (errata o eliminado; también puede ser un conjunto de equipo, una mascota o algo de un addon). La
+carpeta `WTF` solo se lee.
 
 ## Línea de comandos
 
@@ -453,6 +460,10 @@ defecto) y `language` (`ru`, `en`, `de`, `fr`, `es`; si no está = el idioma de 
   una actualización de addons cuando ElvUI está instalado y su interruptor está activado, para [ElvUI](#elvui). Las dos
   son simples consultas de la última versión, como abrir la página de descarga en el navegador; no se envía nada sobre
   ti, tu juego ni tus addons.
+- Solo cuando lo pides (`wow-tools macros --update-names`), WoW Tools también descarga de **wago.tools** los nombres
+  de hechizos y objetos (unos 15–30 MB por idioma, guardados en `%LOCALAPPDATA%\WoW Tools\data\names`, de nuevo solo
+  tras una nueva versión del juego) para [revisar macros](#revisar-macros). Las peticiones solo llevan la versión del
+  juego y el idioma, nada sobre ti.
 - Los addons solo los descarga el programa de addons que hayas elegido, salvo ElvUI, que WoW Tools toma de su web
   oficial.
 - Nunca toca el juego en sí, no lee la memoria del juego y no automatiza nada dentro del juego.

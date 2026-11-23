@@ -409,8 +409,14 @@ WoW Tools liest die Makros aller Accounts und Charaktere und zeigt, was daran de
 `wow-tools macros`. Geprüft werden `/run`- und `/script`-Zeilen auf aus dem Spiel entfernte Funktionen (mit Ersatz),
 Makros über 255 Zeichen, unausgeglichene `[ ]` und Befehle einer anderen Sprache (`/закл`) gegen die Sprache des
 Realms des Charakters. Ein gemeinsames Account-Makro wird als „funktioniert eventuell nicht“ bei den betroffenen
-Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Der Ordner `WTF`
-wird nur gelesen.
+Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Ein russischer Realm akzeptiert nur Russisch; jeder andere seine eigene Sprache
+und die Sprachen des genutzten Spiel-Clients (`textLocale` in `Config.wtf`, dazu Russisch, wenn der Account Charaktere
+auf einem russischen Realm hat); alles andere wird als „funktioniert nur mit einem Client in dieser Sprache“ gemeldet. Nach
+`wow-tools macros --update-names` (lädt die Namen von Zaubern und Gegenständen von wago.tools, einmal pro Spielbuild)
+werden auch die Namen in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` und `#show`
+geprüft: ein Name in der falschen Sprache wird mit dem Namen der Realm-Sprache gemeldet, ein Name, der nirgends
+vorkommt, als „unbekannt“ (Tippfehler oder entfernt; es kann auch ein Ausrüstungsset, ein Begleiter oder etwas von
+einem Addon sein). Der Ordner `WTF` wird nur gelesen.
 
 ## Befehlszeile
 
@@ -470,6 +476,10 @@ Windows).
   ausschalten. Und zu **tukui.org** während eines Addon-Updates, wenn ElvUI installiert und sein Schalter an ist, für
   [ElvUI](#elvui). Beides sind einfache Abfragen der neuesten Version, wie das Öffnen der Download-Seite im Browser;
   über Sie, Ihr Spiel oder Ihre Addons wird nichts gesendet.
+- Nur auf Ihren Wunsch (`wow-tools macros --update-names`) lädt WoW Tools außerdem Namen von Zaubern und Gegenständen
+  von **wago.tools** herunter (etwa 15–30 MB pro Sprache, gespeichert in `%LOCALAPPDATA%\WoW Tools\data\names`, neu
+  erst nach einem neuen Spielbuild) für das [Prüfen von Makros](#makros-prüfen). Die Anfragen enthalten nur die
+  Spielversion und die Sprache, nichts über Sie.
 - Addons lädt nur das von Ihnen gewählte Addon-Programm herunter – außer ElvUI, das WoW Tools von seiner offiziellen
   Website holt.
 - Das Spiel selbst wird nie angefasst: kein Lesen des Spielspeichers, keine Automatisierung im Spiel.
