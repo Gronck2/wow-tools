@@ -10,6 +10,7 @@ mod elvui;
 #[cfg(windows)]
 mod gfx;
 mod lua;
+mod macros;
 mod maintenance;
 #[cfg(windows)]
 mod menu;
@@ -114,6 +115,12 @@ enum Cmd {
     },
     /// List characters
     Chars {
+        /// Game version: _retail_, _classic_, ...
+        #[arg(long)]
+        flavor: Option<String>,
+    },
+    /// Find broken macros
+    Macros {
         /// Game version: _retail_, _classic_, ...
         #[arg(long)]
         flavor: Option<String>,
@@ -359,6 +366,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::List { flavor, kind } => cmd_list(&ctx, flavor.as_deref(), kind),
         Cmd::Restore { snapshot, flavor, kind, yes } => cmd_restore(&ctx, snapshot.as_deref(), flavor.as_deref(), kind, yes),
         Cmd::Chars { flavor } => cmd_chars(&ctx, flavor.as_deref()),
+        Cmd::Macros { flavor } => cmd_macros(&ctx, flavor.as_deref()),
         Cmd::CopyChar {
             from,
             to,
@@ -409,6 +417,11 @@ fn cmd_clean(ctx: &Ctx, items: &[String]) -> Result<()> {
         let item = maintenance::Item::from_key(key).with_context(|| key.clone())?;
         println!("{}: {}", item.title(), maintenance::clean(ctx, item)?.replace('\n', "; "));
     }
+    Ok(())
+}
+
+fn cmd_macros(ctx: &Ctx, flavor: Option<&str>) -> Result<()> {
+    println!("{}", macros::report(&macros::scan(&ctx.flavors(flavor)?)));
     Ok(())
 }
 

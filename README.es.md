@@ -42,6 +42,7 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
 - [Limpieza](#limpieza)
 - [Perfiles de interfaz](#perfiles-de-interfaz)
 - [Copiar la configuración entre personajes](#copiar-la-configuración-entre-personajes)
+- [Revisar macros](#revisar-macros)
 - [Línea de comandos](#línea-de-comandos)
 - [Archivos y carpetas](#archivos-y-carpetas)
 - [Privacidad y seguridad](#privacidad-y-seguridad)
@@ -388,6 +389,14 @@ esa versión del juego debe estar cerrada.
 Los atajos y las macros pueden guardarse en los servidores de Blizzard (CVars `synchronizeBindings` /
 `synchronizeMacros`); en ese caso, la copia del servidor puede sobrescribir los archivos copiados al iniciar sesión.
 
+## Revisar macros
+
+WoW Tools lee las macros de todas las cuentas y personajes y muestra lo que está roto, sin abrir el juego:
+`wow-tools macros`. Revisa las líneas `/run` y `/script` (funciones eliminadas del juego, con su sustituta), las macros
+de más de 255 caracteres, los `[ ]` desparejados y los comandos de otro idioma (`/закл`) según el idioma del reino del
+personaje. Una macro común de la cuenta se marca como «puede no funcionar» en los personajes afectados; si se desconoce
+el idioma de un reino, se dice, nunca se adivina. La carpeta `WTF` solo se lee.
+
 ## Línea de comandos
 
 `wow-tools` sin comando inicia el icono de la bandeja. Todo lo demás también está disponible desde una consola:
@@ -409,6 +418,7 @@ Los atajos y las macros pueden guardarse en los servidores de Blizzard (CVars `s
 | `schedule interval [--every MIN]` | una tarea del Programador de tareas que ejecuta `backup` cada N minutos (una vez al día por defecto) |
 | `schedule status` / `schedule remove` | muestra / quita el inicio automático y la tarea |
 | `outdated` | addons no hechos para la versión instalada del juego |
+| `macros [--flavor F]` | busca macros rotas (API eliminada, demasiado largas, corchetes, comandos de otro idioma) |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | muestra lo que se puede limpiar; con elementos, los limpia |
 | `self-update [--check]` | busca en GitHub una nueva versión de WoW Tools y la instala |
 
@@ -529,3 +539,5 @@ WoW Tools no está firmado. En su lugar, cada archivo de una versión publicada 
 A tu elección, bajo [Apache License, Version 2.0](LICENSE-APACHE) o [licencia MIT](LICENSE-MIT). Salvo que indiques
 expresamente lo contrario, cualquier contribución que envíes intencionadamente para incluirla en WoW Tools (según la
 licencia Apache-2.0) tendrá la misma doble licencia, sin términos ni condiciones adicionales.
+
+Los idiomas de los reinos proceden de [LibRealmInfo](https://github.com/phanx-wow/LibRealmInfo) (Phanx, licencia zlib); su aviso está en [THIRD-PARTY.md](THIRD-PARTY.md).

@@ -1,0 +1,663 @@
+# name<TAB>english name<TAB>locale<TAB>region<TAB>id
+# Generated from LibRealmInfo (realmData: US, EU, KR, TW).
+# Copyright 2014-2019 Phanx <addons@phanx.net>. https://github.com/phanx-wow/LibRealmInfo (also in THIRD-PARTY.md)
+#
+# This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held
+# liable for any damages arising from the use of this software.
+#
+# Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter
+# it and redistribute it freely, subject to the following restrictions:
+#
+# 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If
+#    you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not
+#    required.
+# 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original
+#    software.
+# 3. This notice may not be removed or altered from any source distribution.
+Lightbringer	Lightbringer	enUS	US	1
+Cenarius	Cenarius	enUS	US	2
+Uther	Uther	enUS	US	3
+Kilrogg	Kilrogg	enUS	US	4
+Proudmoore	Proudmoore	enUS	US	5
+Hyjal	Hyjal	enUS	US	6
+Frostwolf	Frostwolf	enUS	US	7
+Ner'zhul	Ner'zhul	enUS	US	8
+Kil'jaeden	Kil'jaeden	enUS	US	9
+Blackrock	Blackrock	enUS	US	10
+Tichondrius	Tichondrius	enUS	US	11
+Silver Hand	Silver Hand	enUS	US	12
+Doomhammer	Doomhammer	enUS	US	13
+Icecrown	Icecrown	enUS	US	14
+Deathwing	Deathwing	enUS	US	15
+Kel'Thuzad	Kel'Thuzad	enUS	US	16
+Eitrigg	Eitrigg	enUS	US	47
+Garona	Garona	enUS	US	51
+Alleria	Alleria	enUS	US	52
+Hellscream	Hellscream	enUS	US	53
+Blackhand	Blackhand	enUS	US	54
+Whisperwind	Whisperwind	enUS	US	55
+Archimonde	Archimonde	enUS	US	56
+Illidan	Illidan	enUS	US	57
+Stormreaver	Stormreaver	enUS	US	58
+Mal'Ganis	Mal'Ganis	enUS	US	59
+Stormrage	Stormrage	enUS	US	60
+Zul'jin	Zul'jin	enUS	US	61
+Medivh	Medivh	enUS	US	62
+Durotan	Durotan	enUS	US	63
+Bloodhoof	Bloodhoof	enUS	US	64
+Khadgar	Khadgar	enUS	US	65
+Dalaran	Dalaran	enUS	US	66
+Elune	Elune	enUS	US	67
+Lothar	Lothar	enUS	US	68
+Arthas	Arthas	enUS	US	69
+Mannoroth	Mannoroth	enUS	US	70
+Warsong	Warsong	enUS	US	71
+Shattered Hand	Shattered Hand	enUS	US	72
+Bleeding Hollow	Bleeding Hollow	enUS	US	73
+Skullcrusher	Skullcrusher	enUS	US	74
+Argent Dawn	Argent Dawn	enUS	US	75
+Sargeras	Sargeras	enUS	US	76
+Azgalor	Azgalor	enUS	US	77
+Magtheridon	Magtheridon	enUS	US	78
+Destromath	Destromath	enUS	US	79
+Gorgonnash	Gorgonnash	enUS	US	80
+Dethecus	Dethecus	enUS	US	81
+Spinebreaker	Spinebreaker	enUS	US	82
+Bonechewer	Bonechewer	enUS	US	83
+Dragonmaw	Dragonmaw	enUS	US	84
+Shadowsong	Shadowsong	enUS	US	85
+Silvermoon	Silvermoon	enUS	US	86
+Windrunner	Windrunner	enUS	US	87
+Cenarion Circle	Cenarion Circle	enUS	US	88
+Nathrezim	Nathrezim	enUS	US	89
+Terenas	Terenas	enUS	US	90
+Burning Blade	Burning Blade	enUS	US	91
+Gorefiend	Gorefiend	enUS	US	92
+Eredar	Eredar	enUS	US	93
+Shadowmoon	Shadowmoon	enUS	US	94
+Lightning's Blade	Lightning's Blade	enUS	US	95
+Eonar	Eonar	enUS	US	96
+Gilneas	Gilneas	enUS	US	97
+Kargath	Kargath	enUS	US	98
+Llane	Llane	enUS	US	99
+Earthen Ring	Earthen Ring	enUS	US	100
+Laughing Skull	Laughing Skull	enUS	US	101
+Burning Legion	Burning Legion	enUS	US	102
+Thunderlord	Thunderlord	enUS	US	103
+Malygos	Malygos	enUS	US	104
+Thunderhorn	Thunderhorn	enUS	US	105
+Aggramar	Aggramar	enUS	US	106
+Crushridge	Crushridge	enUS	US	107
+Stonemaul	Stonemaul	enUS	US	108
+Daggerspine	Daggerspine	enUS	US	109
+Stormscale	Stormscale	enUS	US	110
+Dunemaul	Dunemaul	enUS	US	111
+Boulderfist	Boulderfist	enUS	US	112
+Suramar	Suramar	enUS	US	113
+Dragonblight	Dragonblight	enUS	US	114
+Draenor	Draenor	enUS	US	115
+Uldum	Uldum	enUS	US	116
+Bronzebeard	Bronzebeard	enUS	US	117
+Feathermoon	Feathermoon	enUS	US	118
+Bloodscalp	Bloodscalp	enUS	US	119
+Darkspear	Darkspear	enUS	US	120
+Azjol-Nerub	Azjol-Nerub	enUS	US	121
+Perenolde	Perenolde	enUS	US	122
+Eldre'Thalas	Eldre'Thalas	enUS	US	123
+Spirestone	Spirestone	enUS	US	124
+Shadow Council	Shadow Council	enUS	US	125
+Scarlet Crusade	Scarlet Crusade	enUS	US	126
+Firetree	Firetree	enUS	US	127
+Frostmane	Frostmane	enUS	US	128
+Gurubashi	Gurubashi	enUS	US	129
+Smolderthorn	Smolderthorn	enUS	US	130
+Skywall	Skywall	enUS	US	131
+Runetotem	Runetotem	enUS	US	151
+Moonrunner	Moonrunner	enUS	US	153
+Detheroc	Detheroc	enUS	US	154
+Kalecgos	Kalecgos	enUS	US	155
+Ursin	Ursin	enUS	US	156
+Dark Iron	Dark Iron	enUS	US	157
+Greymane	Greymane	enUS	US	158
+Wildhammer	Wildhammer	enUS	US	159
+Staghelm	Staghelm	enUS	US	160
+Emerald Dream	Emerald Dream	enUS	US	162
+Maelstrom	Maelstrom	enUS	US	163
+Twisting Nether	Twisting Nether	enUS	US	164
+불타는 군단	Burning Legion	koKR	KR	201
+아즈샤라	Azshara	koKR	KR	205
+달라란	Dalaran	koKR	KR	207
+듀로탄	Durotan	koKR	KR	210
+노르간논	Norgannon	koKR	KR	211
+가로나	Garona	koKR	KR	212
+윈드러너	Windrunner	koKR	KR	214
+굴단	Gul'dan	koKR	KR	215
+알렉스트라자	Alexstrasza	koKR	KR	258
+말퓨리온	Malfurion	koKR	KR	264
+헬스크림	Hellscream	koKR	KR	293
+Aggramar	Aggramar	enUS	EU	500
+Arathor	Arathor	enUS	EU	501
+Aszune	Aszune	enUS	EU	502
+Azjol-Nerub	Azjol-Nerub	enUS	EU	503
+Bloodhoof	Bloodhoof	enUS	EU	504
+Doomhammer	Doomhammer	enUS	EU	505
+Draenor	Draenor	enUS	EU	506
+Dragonblight	Dragonblight	enUS	EU	507
+Emerald Dream	Emerald Dream	enUS	EU	508
+Garona	Garona	frFR	EU	509
+Vol'jin	Vol'jin	frFR	EU	510
+Sunstrider	Sunstrider	enUS	EU	511
+Arak-arahm	Arak-arahm	frFR	EU	512
+Twilight's Hammer	Twilight's Hammer	enUS	EU	513
+Zenedar	Zenedar	enUS	EU	515
+Forscherliga	Forscherliga	deDE	EU	516
+Medivh	Medivh	frFR	EU	517
+Agamaggan	Agamaggan	enUS	EU	518
+Al'Akir	Al'Akir	enUS	EU	519
+Bladefist	Bladefist	enUS	EU	521
+Bloodscalp	Bloodscalp	enUS	EU	522
+Burning Blade	Burning Blade	enUS	EU	523
+Burning Legion	Burning Legion	enUS	EU	524
+Crushridge	Crushridge	enUS	EU	525
+Daggerspine	Daggerspine	enUS	EU	526
+Deathwing	Deathwing	enUS	EU	527
+Dragonmaw	Dragonmaw	enUS	EU	528
+Dunemaul	Dunemaul	enUS	EU	529
+Dethecus	Dethecus	deDE	EU	531
+Sinstralis	Sinstralis	frFR	EU	533
+Durotan	Durotan	deDE	EU	535
+Argent Dawn	Argent Dawn	enUS	EU	536
+Kirin Tor	Kirin Tor	frFR	EU	537
+Dalaran	Dalaran	frFR	EU	538
+Archimonde	Archimonde	frFR	EU	539
+Elune	Elune	frFR	EU	540
+Illidan	Illidan	frFR	EU	541
+Hyjal	Hyjal	frFR	EU	542
+Kael'thas	Kael'thas	frFR	EU	543
+Ner’zhul	Ner’zhul	frFR	EU	544
+Cho’gall	Cho’gall	frFR	EU	545
+Sargeras	Sargeras	frFR	EU	546
+Runetotem	Runetotem	enUS	EU	547
+Shadowsong	Shadowsong	enUS	EU	548
+Silvermoon	Silvermoon	enUS	EU	549
+Stormrage	Stormrage	enUS	EU	550
+Terenas	Terenas	enUS	EU	551
+Thunderhorn	Thunderhorn	enUS	EU	552
+Turalyon	Turalyon	enUS	EU	553
+Ravencrest	Ravencrest	enUS	EU	554
+Shattered Hand	Shattered Hand	enUS	EU	556
+Skullcrusher	Skullcrusher	enUS	EU	557
+Spinebreaker	Spinebreaker	enUS	EU	558
+Stormreaver	Stormreaver	enUS	EU	559
+Stormscale	Stormscale	enUS	EU	560
+Earthen Ring	Earthen Ring	enUS	EU	561
+Alexstrasza	Alexstrasza	deDE	EU	562
+Alleria	Alleria	deDE	EU	563
+Antonidas	Antonidas	deDE	EU	564
+Baelgun	Baelgun	deDE	EU	565
+Blackhand	Blackhand	deDE	EU	566
+Gilneas	Gilneas	deDE	EU	567
+Kargath	Kargath	deDE	EU	568
+Khaz'goroth	Khaz'goroth	deDE	EU	569
+Lothar	Lothar	deDE	EU	570
+Madmortem	Madmortem	deDE	EU	571
+Malfurion	Malfurion	deDE	EU	572
+Zuluhed	Zuluhed	deDE	EU	573
+Nozdormu	Nozdormu	deDE	EU	574
+Perenolde	Perenolde	deDE	EU	575
+Die Silberne Hand	Die Silberne Hand	deDE	EU	576
+Aegwynn	Aegwynn	deDE	EU	577
+Arthas	Arthas	deDE	EU	578
+Azshara	Azshara	deDE	EU	579
+Blackmoore	Blackmoore	deDE	EU	580
+Blackrock	Blackrock	deDE	EU	581
+Destromath	Destromath	deDE	EU	582
+Eredar	Eredar	deDE	EU	583
+Frostmourne	Frostmourne	deDE	EU	584
+Frostwolf	Frostwolf	deDE	EU	585
+Gorgonnash	Gorgonnash	deDE	EU	586
+Gul'dan	Gul'dan	deDE	EU	587
+Kel'Thuzad	Kel'Thuzad	deDE	EU	588
+Kil'jaeden	Kil'jaeden	deDE	EU	589
+Mal'Ganis	Mal'Ganis	deDE	EU	590
+Mannoroth	Mannoroth	deDE	EU	591
+Zirkel des Cenarius	Zirkel des Cenarius	deDE	EU	592
+Proudmoore	Proudmoore	deDE	EU	593
+Nathrezim	Nathrezim	deDE	EU	594
+Dun Morogh	Dun Morogh	deDE	EU	600
+Aman'thul	Aman'thul	deDE	EU	601
+Sen'jin	Sen'jin	deDE	EU	602
+Thrall	Thrall	deDE	EU	604
+Theradras	Theradras	deDE	EU	605
+Genjuros	Genjuros	enUS	EU	606
+Balnazzar	Balnazzar	enUS	EU	607
+Anub'arak	Anub'arak	deDE	EU	608
+Wrathbringer	Wrathbringer	deDE	EU	609
+Onyxia	Onyxia	deDE	EU	610
+Nera'thor	Nera'thor	deDE	EU	611
+Nefarian	Nefarian	deDE	EU	612
+Kult der Verdammten	Kult der Verdammten	deDE	EU	613
+Das Syndikat	Das Syndikat	deDE	EU	614
+Terrordar	Terrordar	deDE	EU	615
+Krag'jin	Krag'jin	deDE	EU	616
+Der Rat von Dalaran	Der Rat von Dalaran	deDE	EU	617
+Nordrassil	Nordrassil	enUS	EU	618
+Hellscream	Hellscream	enUS	EU	619
+Laughing Skull	Laughing Skull	enUS	EU	621
+Magtheridon	Magtheridon	enUS	EU	622
+Quel'Thalas	Quel'Thalas	enUS	EU	623
+Neptulon	Neptulon	enUS	EU	624
+Twisting Nether	Twisting Nether	enUS	EU	625
+Ragnaros	Ragnaros	enUS	EU	626
+The Maelstrom	The Maelstrom	enUS	EU	627
+Sylvanas	Sylvanas	enUS	EU	628
+Vashj	Vashj	enUS	EU	629
+Bloodfeather	Bloodfeather	enUS	EU	630
+Darksorrow	Darksorrow	enUS	EU	631
+Frostwhisper	Frostwhisper	enUS	EU	632
+Kor'gall	Kor'gall	enUS	EU	633
+Defias Brotherhood	Defias Brotherhood	enUS	EU	635
+The Venture Co	The Venture Co	enUS	EU	636
+Lightning's Blade	Lightning's Blade	enUS	EU	637
+Haomarush	Haomarush	enUS	EU	638
+Xavius	Xavius	enUS	EU	639
+Khaz Modan	Khaz Modan	frFR	EU	640
+Drek'Thar	Drek'Thar	frFR	EU	641
+Rashgarroth	Rashgarroth	frFR	EU	642
+Throk'Feroth	Throk'Feroth	frFR	EU	643
+Conseil des Ombres	Conseil des Ombres	frFR	EU	644
+Varimathras	Varimathras	frFR	EU	645
+Hakkar	Hakkar	enUS	EU	646
+Les Sentinelles	Les Sentinelles	frFR	EU	647
+暗影之月	Shadowmoon	zhTW	TW	963
+尖石	Spirestone	zhTW	TW	964
+雷鱗	Stormscale	zhTW	TW	965
+巨龍之喉	Dragonmaw	zhTW	TW	966
+冰霜之刺	Frostmane	zhTW	TW	977
+日落沼澤	Sundown Marsh	zhTW	TW	978
+地獄吼	Hellscream	zhTW	TW	979
+天空之牆	Skywall	zhTW	TW	980
+世界之樹	World Tree	zhTW	TW	982
+水晶之刺	Crystalpine Stinger	zhTW	TW	985
+狂熱之刃	Zealot Blade	zhTW	TW	999
+冰風崗哨	Chillwind Point	zhTW	TW	1001
+米奈希爾	Menethil	zhTW	TW	1006
+屠魔山谷	Demon Fall Canyon	zhTW	TW	1023
+語風	Whisperwind	zhTW	TW	1033
+血之谷	Bleeding Hollow	zhTW	TW	1037
+亞雷戈斯	Arygos	zhTW	TW	1038
+夜空之歌	Nightsong	zhTW	TW	1043
+聖光之願	Light's Hope	zhTW	TW	1046
+銀翼要塞	Silverwing Hold	zhTW	TW	1048
+憤怒使者	Wrathbringer	zhTW	TW	1049
+阿薩斯	Arthas	zhTW	TW	1054
+眾星之子	Quel'dorei	zhTW	TW	1056
+寒冰皇冠	Icecrown	zhTW	TW	1057
+Cho'gall	Cho'gall	enUS	US	1067
+Gul'dan	Gul'dan	enUS	US	1068
+Kael'thas	Kael'thas	enUS	US	1069
+Alexstrasza	Alexstrasza	enUS	US	1070
+Kirin Tor	Kirin Tor	enUS	US	1071
+Ravencrest	Ravencrest	enUS	US	1072
+Balnazzar	Balnazzar	enUS	US	1075
+Khadgar	Khadgar	enUS	EU	1080
+Bronzebeard	Bronzebeard	enUS	EU	1081
+Kul Tiras	Kul Tiras	enUS	EU	1082
+Chromaggus	Chromaggus	enUS	EU	1083
+Dentarg	Dentarg	enUS	EU	1084
+Moonglade	Moonglade	enUS	EU	1085
+La Croisade écarlate	La Croisade écarlate	frFR	EU	1086
+Executus	Executus	enUS	EU	1087
+Trollbane	Trollbane	enUS	EU	1088
+Mazrigos	Mazrigos	enUS	EU	1089
+Talnivarr	Talnivarr	enUS	EU	1090
+Emeriss	Emeriss	enUS	EU	1091
+Drak'thul	Drak'thul	enUS	EU	1092
+Ahn'Qiraj	Ahn'Qiraj	enUS	EU	1093
+Scarshield Legion	Scarshield Legion	enUS	EU	1096
+Ysera	Ysera	deDE	EU	1097
+Malygos	Malygos	deDE	EU	1098
+Rexxar	Rexxar	deDE	EU	1099
+Anetheron	Anetheron	deDE	EU	1104
+Nazjatar	Nazjatar	deDE	EU	1105
+Tichondrius	Tichondrius	deDE	EU	1106
+Steamwheedle Cartel	Steamwheedle Cartel	enUS	EU	1117
+Die ewige Wacht	Die ewige Wacht	deDE	EU	1118
+Die Todeskrallen	Die Todeskrallen	deDE	EU	1119
+Die Arguswacht	Die Arguswacht	deDE	EU	1121
+Uldaman	Uldaman	frFR	EU	1122
+Eitrigg	Eitrigg	frFR	EU	1123
+Confrérie du Thorium	Confrérie du Thorium	frFR	EU	1127
+Azshara	Azshara	enUS	US	1128
+Agamaggan	Agamaggan	enUS	US	1129
+Lightninghoof	Lightninghoof	enUS	US	1130
+Nazjatar	Nazjatar	enUS	US	1131
+Malfurion	Malfurion	enUS	US	1132
+Aegwynn	Aegwynn	enUS	US	1136
+Akama	Akama	enUS	US	1137
+Chromaggus	Chromaggus	enUS	US	1138
+Draka	Draka	enUS	US	1139
+Drak'thul	Drak'thul	enUS	US	1140
+Garithos	Garithos	enUS	US	1141
+Hakkar	Hakkar	enUS	US	1142
+Khaz Modan	Khaz Modan	enUS	US	1143
+Mug'thol	Mug'thol	enUS	US	1145
+Korgath	Korgath	enUS	US	1146
+Kul Tiras	Kul Tiras	enUS	US	1147
+Malorne	Malorne	enUS	US	1148
+Rexxar	Rexxar	enUS	US	1151
+Thorium Brotherhood	Thorium Brotherhood	enUS	US	1154
+Arathor	Arathor	enUS	US	1165
+Madoran	Madoran	enUS	US	1173
+Trollbane	Trollbane	enUS	US	1175
+Muradin	Muradin	enUS	US	1182
+Vek'nilash	Vek'nilash	enUS	US	1184
+Sen'jin	Sen'jin	enUS	US	1185
+Baelgun	Baelgun	enUS	US	1190
+Duskwood	Duskwood	enUS	US	1258
+Zuluhed	Zuluhed	enUS	US	1259
+Steamwheedle Cartel	Steamwheedle Cartel	enUS	US	1260
+Norgannon	Norgannon	enUS	US	1262
+Thrall	Thrall	enUS	US	1263
+Anetheron	Anetheron	enUS	US	1264
+Turalyon	Turalyon	enUS	US	1265
+Haomarush	Haomarush	enUS	US	1266
+Scilla	Scilla	enUS	US	1267
+Ysondre	Ysondre	enUS	US	1268
+Ysera	Ysera	enUS	US	1270
+Dentarg	Dentarg	enUS	US	1271
+Andorhal	Andorhal	enUS	US	1276
+Executus	Executus	enUS	US	1277
+Dalvengyr	Dalvengyr	enUS	US	1278
+Black Dragonflight	Black Dragonflight	enUS	US	1280
+Altar of Storms	Altar of Storms	enUS	US	1282
+Uldaman	Uldaman	enUS	US	1283
+Aerie Peak	Aerie Peak	enUS	US	1284
+Onyxia	Onyxia	enUS	US	1285
+Demon Soul	Demon Soul	enUS	US	1286
+Gnomeregan	Gnomeregan	enUS	US	1287
+Anvilmar	Anvilmar	enUS	US	1288
+The Venture Co	The Venture Co	enUS	US	1289
+Sentinels	Sentinels	enUS	US	1290
+Jaedenar	Jaedenar	enUS	US	1291
+Tanaris	Tanaris	enUS	US	1292
+Alterac Mountains	Alterac Mountains	enUS	US	1293
+Undermine	Undermine	enUS	US	1294
+Lethon	Lethon	enUS	US	1295
+Blackwing Lair	Blackwing Lair	enUS	US	1296
+Arygos	Arygos	enUS	US	1297
+Vek'nilash	Vek'nilash	enUS	EU	1298
+Boulderfist	Boulderfist	enUS	EU	1299
+Frostmane	Frostmane	enUS	EU	1300
+Outland	Outland	enUS	EU	1301
+Grim Batol	Grim Batol	enUS	EU	1303
+Jaedenar	Jaedenar	enUS	EU	1304
+Kazzak	Kazzak	enUS	EU	1305
+Tarren Mill	Tarren Mill	enUS	EU	1306
+Chamber of Aspects	Chamber of Aspects	enUS	EU	1307
+Ravenholdt	Ravenholdt	enUS	EU	1308
+Pozzo dell'Eternità	Pozzo dell'Eternità	itIT	EU	1309
+Eonar	Eonar	enUS	EU	1310
+Kilrogg	Kilrogg	enUS	EU	1311
+Aerie Peak	Aerie Peak	enUS	EU	1312
+Wildhammer	Wildhammer	enUS	EU	1313
+Saurfang	Saurfang	enUS	EU	1314
+Nemesis	Nemesis	itIT	EU	1316
+Darkmoon Faire	Darkmoon Faire	enUS	EU	1317
+Vek'lor	Vek'lor	deDE	EU	1318
+Mug'thol	Mug'thol	deDE	EU	1319
+Taerar	Taerar	deDE	EU	1320
+Dalvengyr	Dalvengyr	deDE	EU	1321
+Rajaxx	Rajaxx	deDE	EU	1322
+Ulduar	Ulduar	deDE	EU	1323
+Malorne	Malorne	deDE	EU	1324
+Der Abyssische Rat	Der Abyssische Rat	deDE	EU	1326
+Der Mithrilorden	Der Mithrilorden	deDE	EU	1327
+Tirion	Tirion	deDE	EU	1328
+Ambossar	Ambossar	deDE	EU	1330
+Suramar	Suramar	frFR	EU	1331
+Krasus	Krasus	frFR	EU	1332
+Die Nachtwache	Die Nachtwache	deDE	EU	1333
+Arathi	Arathi	frFR	EU	1334
+Ysondre	Ysondre	frFR	EU	1335
+Eldre'Thalas	Eldre'Thalas	frFR	EU	1336
+Culte de la Rive noire	Culte de la Rive noire	frFR	EU	1337
+Echo Isles	Echo Isles	enUS	US	1342
+The Forgotten Coast	The Forgotten Coast	enUS	US	1344
+Fenris	Fenris	enUS	US	1345
+Anub'arak	Anub'arak	enUS	US	1346
+Blackwater Raiders	Blackwater Raiders	enUS	US	1347
+Vashj	Vashj	enUS	US	1348
+Korialstrasz	Korialstrasz	enUS	US	1349
+Misha	Misha	enUS	US	1350
+Darrowmere	Darrowmere	enUS	US	1351
+Ravenholdt	Ravenholdt	enUS	US	1352
+Bladefist	Bladefist	enUS	US	1353
+Shu'halo	Shu'halo	enUS	US	1354
+Winterhoof	Winterhoof	enUS	US	1355
+Sisters of Elune	Sisters of Elune	enUS	US	1356
+Maiev	Maiev	enUS	US	1357
+Rivendare	Rivendare	enUS	US	1358
+Nordrassil	Nordrassil	enUS	US	1359
+Tortheldrin	Tortheldrin	enUS	US	1360
+Cairne	Cairne	enUS	US	1361
+Drak'Tharon	Drak'Tharon	enUS	US	1362
+Antonidas	Antonidas	enUS	US	1363
+Shandris	Shandris	enUS	US	1364
+Moon Guard	Moon Guard	enUS	US	1365
+Nazgrel	Nazgrel	enUS	US	1367
+Hydraxis	Hydraxis	enUS	US	1368
+Wyrmrest Accord	Wyrmrest Accord	enUS	US	1369
+Farstriders	Farstriders	enUS	US	1370
+Borean Tundra	Borean Tundra	enUS	US	1371
+Quel'dorei	Quel'dorei	enUS	US	1372
+Garrosh	Garrosh	enUS	US	1373
+Mok'Nathal	Mok'Nathal	enUS	US	1374
+Nesingwary	Nesingwary	enUS	US	1375
+Drenden	Drenden	enUS	US	1377
+Dun Modr	Dun Modr	esES	EU	1378
+Zul'jin	Zul'jin	esES	EU	1379
+Uldum	Uldum	esES	EU	1380
+C'Thun	C'Thun	esES	EU	1381
+Sanguino	Sanguino	esES	EU	1382
+Shen'dralar	Shen'dralar	esES	EU	1383
+Tyrande	Tyrande	esES	EU	1384
+Exodar	Exodar	esES	EU	1385
+Minahonda	Minahonda	esES	EU	1386
+Los Errantes	Los Errantes	esES	EU	1387
+Lightbringer	Lightbringer	enUS	EU	1388
+Darkspear	Darkspear	enUS	EU	1389
+Alonsus	Alonsus	enUS	EU	1391
+Burning Steppes	Burning Steppes	enUS	EU	1392
+Bronze Dragonflight	Bronze Dragonflight	enUS	EU	1393
+Anachronos	Anachronos	enUS	EU	1394
+Colinas Pardas	Colinas Pardas	esES	EU	1395
+Un'Goro	Un'Goro	deDE	EU	1400
+Garrosh	Garrosh	deDE	EU	1401
+Area 52	Area 52	deDE	EU	1404
+Todeswache	Todeswache	deDE	EU	1405
+Arygos	Arygos	deDE	EU	1406
+Teldrassil	Teldrassil	deDE	EU	1407
+Norgannon	Norgannon	deDE	EU	1408
+Lordaeron	Lordaeron	deDE	EU	1409
+Aggra (Português)	Aggra (Português)	enUS	EU	1413
+Terokkar	Terokkar	enUS	EU	1415
+Blade's Edge	Blade's Edge	enUS	EU	1416
+Azuremyst	Azuremyst	enUS	EU	1417
+Drakkari	Drakkari	esMX	US	1425
+Ragnaros	Ragnaros	esMX	US	1427
+Quel'Thalas	Quel'Thalas	esMX	US	1428
+Azuremyst	Azuremyst	enUS	US	1549
+Auchindoun	Auchindoun	enUS	US	1555
+Coilfang	Coilfang	enUS	US	1556
+Shattered Halls	Shattered Halls	enUS	US	1557
+Blood Furnace	Blood Furnace	enUS	US	1558
+The Underbog	The Underbog	enUS	US	1559
+Terokkar	Terokkar	enUS	US	1563
+Blade's Edge	Blade's Edge	enUS	US	1564
+Exodar	Exodar	enUS	US	1565
+Area 52	Area 52	enUS	US	1566
+Velen	Velen	enUS	US	1567
+The Scryers	The Scryers	enUS	US	1570
+Zangarmarsh	Zangarmarsh	enUS	US	1572
+Fizzcrank	Fizzcrank	enUS	US	1576
+Ghostlands	Ghostlands	enUS	US	1578
+Grizzly Hills	Grizzly Hills	enUS	US	1579
+Galakrond	Galakrond	enUS	US	1581
+Dawnbringer	Dawnbringer	enUS	US	1582
+Hellfire	Hellfire	enUS	EU	1587
+Ghostlands	Ghostlands	enUS	EU	1588
+Nagrand	Nagrand	enUS	EU	1589
+The Sha'tar	The Sha'tar	enUS	EU	1595
+Karazhan	Karazhan	enUS	EU	1596
+Auchindoun	Auchindoun	enUS	EU	1597
+Shattered Halls	Shattered Halls	enUS	EU	1598
+Гордунни	Gordunni	ruRU	EU	1602
+Король-лич	Lich King	ruRU	EU	1603
+Свежеватель Душ	Soulflayer	ruRU	EU	1604
+Страж Смерти	Deathguard	ruRU	EU	1605
+Sporeggar	Sporeggar	enUS	EU	1606
+Nethersturm	Nethersturm	deDE	EU	1607
+Shattrath	Shattrath	deDE	EU	1608
+Подземье	Deepholm	ruRU	EU	1609
+Седогрив	Greymane	ruRU	EU	1610
+Festung der Stürme	Festung der Stürme	deDE	EU	1611
+Echsenkessel	Echsenkessel	deDE	EU	1612
+Blutkessel	Blutkessel	deDE	EU	1613
+Галакронд	Galakrond	ruRU	EU	1614
+Ревущий фьорд	Howling Fjord	ruRU	EU	1615
+Разувий	Razuvious	ruRU	EU	1616
+Ткач Смерти	Deathweaver	ruRU	EU	1617
+Die Aldor	Die Aldor	deDE	EU	1618
+Das Konsortium	Das Konsortium	deDE	EU	1619
+Chants éternels	Chants éternels	frFR	EU	1620
+Marécage de Zangar	Marécage de Zangar	frFR	EU	1621
+Temple noir	Temple noir	frFR	EU	1622
+Дракономор	Fordragon	ruRU	EU	1623
+Naxxramas	Naxxramas	frFR	EU	1624
+Борейская тундра	Borean Tundra	ruRU	EU	1625
+Les Clairvoyants	Les Clairvoyants	frFR	EU	1626
+Азурегос	Azuregos	ruRU	EU	1922
+Ясеневый лес	Ashenvale	ruRU	EU	1923
+Пиратская Бухта	Booty Bay	ruRU	EU	1924
+Вечная Песня	Eversong	ruRU	EU	1925
+Термоштепсель	Thermaplugg	ruRU	EU	1926
+Гром	Grom	ruRU	EU	1927
+Голдринн	Goldrinn	ruRU	EU	1928
+Черный Шрам	Blackscar	ruRU	EU	1929
+雲蛟衛	Order of the Cloud Serpent	zhTW	TW	2075
+와일드해머	Wildhammer	koKR	KR	2079
+렉사르	Rexxar	koKR	KR	2106
+하이잘	Hyjal	koKR	KR	2107
+데스윙	Deathwing	koKR	KR	2108
+세나리우스	Cenarius	koKR	KR	2110
+스톰레이지	Stormrage	koKR	KR	2111
+줄진	Zul'jin	koKR	KR	2116
+Goldrinn	Goldrinn	ptBR	US	3207
+Nemesis	Nemesis	ptBR	US	3208
+Azralon	Azralon	ptBR	US	3209
+Tol Barad	Tol Barad	ptBR	US	3210
+Gallywix	Gallywix	ptBR	US	3234
+Caelestrasz	Caelestrasz	enUS	US	3721
+Aman'Thul	Aman'Thul	enUS	US	3722
+Barthilas	Barthilas	enUS	US	3723
+Thaurissan	Thaurissan	enUS	US	3724
+Frostmourne	Frostmourne	enUS	US	3725
+Khaz'goroth	Khaz'goroth	enUS	US	3726
+Dreadmaul	Dreadmaul	enUS	US	3733
+Nagrand	Nagrand	enUS	US	3734
+Dath'Remar	Dath'Remar	enUS	US	3735
+Jubei'Thos	Jubei'Thos	enUS	US	3736
+Gundrak	Gundrak	enUS	US	3737
+Saurfang	Saurfang	enUS	US	3738
+Atiesh	Atiesh	enUS	US	4372
+Mzrael	Mzrael	enUS	US	4373
+Old Blanchy	Old Blanchy	enUS	US	4374
+Azuresong	Azuresong	enUS	US	4376
+Mankrik	Mankrik	enUS	US	4384
+Pagle	Pagle	enUS	US	4385
+Deviate Delight	Deviate Delight	enUS	US	4386
+Thunderfury	Thunderfury	enUS	US	4387
+Westfall	Westfall	enUS	US	4388
+Whitemane	Whitemane	enUS	US	4395
+Fairbanks	Fairbanks	enUS	US	4396
+Blaumeux	Blaumeux	enUS	US	4397
+Bigglesworth	Bigglesworth	enUS	US	4398
+Kurinaxx	Kurinaxx	enUS	US	4399
+Herod	Herod	enUS	US	4406
+Thalnos	Thalnos	enUS	US	4407
+Faerlina	Faerlina	enUS	US	4408
+Stalegg	Stalegg	enUS	US	4409
+Skeram	Skeram	enUS	US	4410
+소금 평원	Shimmering Flats	koKR	KR	4417
+로크홀라	Lokholar	koKR	KR	4419
+얼음피	Iceblood	koKR	KR	4420
+라그나로스	Ragnaros	koKR	KR	4421
+Everlook	Everlook	deDE	EU	4440
+Auberdine	Auberdine	frFR	EU	4441
+Lakeshire	Lakeshire	deDE	EU	4442
+Хроми	Chromie	ruRU	EU	4452
+Pyrewood Village	Pyrewood Village	enUS	EU	4453
+Razorfen	Razorfen	deDE	EU	4455
+Nethergarde Keep	Nethergarde Keep	enUS	EU	4456
+Mirage Raceway	Mirage Raceway	enUS	EU	4458
+Heartstriker	Heartstriker	deDE	EU	4463
+Sulfuron	Sulfuron	frFR	EU	4464
+Golemagg	Golemagg	enUS	EU	4465
+Patchwerk	Patchwerk	deDE	EU	4466
+Firemaw	Firemaw	enUS	EU	4467
+Пламегор	Flamegor	ruRU	EU	4474
+Shazzrah	Shazzrah	enUS	EU	4475
+Gehennas	Gehennas	enUS	EU	4476
+Venoxis	Venoxis	deDE	EU	4477
+Razorgore	Razorgore	enUS	EU	4478
+瑪拉頓	Maraudon	zhTW	TW	4485
+伊弗斯	Ivus	zhTW	TW	4487
+Grobbulus	Grobbulus	enUS	US	4647
+Bloodsail Buccaneers	Bloodsail Buccaneers	enUS	US	4648
+Remulos	Remulos	enUS	US	4667
+Arugal	Arugal	enUS	US	4669
+Yojamba	Yojamba	enUS	US	4670
+Zandalar Tribe	Zandalar Tribe	enUS	EU	4676
+Hydraxian Waterlords	Hydraxian Waterlords	enUS	EU	4678
+Rattlegore	Rattlegore	enUS	US	4695
+Smolderweb	Smolderweb	enUS	US	4696
+Incendius	Incendius	enUS	US	4698
+Kromcrush	Kromcrush	enUS	US	4699
+Kirtonos	Kirtonos	enUS	US	4700
+Mograine	Mograine	enUS	EU	4701
+Gandling	Gandling	enUS	EU	4702
+Amnennar	Amnennar	frFR	EU	4703
+Змейталак	Wyrmthalak	ruRU	EU	4704
+Stonespire	Stonespire	enUS	EU	4705
+Flamelash	Flamelash	enUS	EU	4706
+Thunderfury	Thunderfury	enUS	US	4714
+Anathema	Anathema	enUS	US	4715
+Arcanite Reaper	Arcanite Reaper	enUS	US	4716
+Sulfuras	Sulfuras	enUS	US	4726
+Windseeker	Windseeker	enUS	US	4727
+Benediction	Benediction	enUS	US	4728
+Netherwind	Netherwind	enUS	US	4729
+Earthfury	Earthfury	enUS	US	4731
+Heartseeker	Heartseeker	enUS	US	4732
+Sul'thraze	Sul'thraze	ptBR	US	4737
+Felstriker	Felstriker	enUS	US	4739
+Noggenfogger	Noggenfogger	enUS	EU	4741
+Ashbringer	Ashbringer	enUS	EU	4742
+Skullflame	Skullflame	enUS	EU	4743
+Finkle	Finkle	frFR	EU	4744
+Transcendence	Transcendence	deDE	EU	4745
+Bloodfang	Bloodfang	enUS	EU	4746
+Earthshaker	Earthshaker	enUS	EU	4749
+Dragonfang	Dragonfang	enUS	EU	4751
+Рок-Делар	Rhok'delar	ruRU	EU	4754
+Dreadmist	Dreadmist	enUS	EU	4755
+Dragon's Call	Dragon's Call	deDE	EU	4756
+Ten Storms	Ten Storms	enUS	EU	4757
+Judgement	Judgement	enUS	EU	4758
+Celebras	Celebras	deDE	EU	4759
+Heartstriker	Heartstriker	deDE	EU	4763
+Вестник Рока	Harbinger of Doom	ruRU	EU	4766
+Loatheb	Loatheb	esMX	US	4801
+Mandokir	Mandokir	esES	EU	4813
+힐스브래드	Hillsbrad	koKR	KR	4839

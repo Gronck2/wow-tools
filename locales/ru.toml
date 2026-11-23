@@ -548,6 +548,29 @@ cli_available = "Доступна версия {version}: {url}"
 about = "Найти, что можно убрать; с указанными пунктами — убрать"
 items = "Что убрать"
 
+[cli.macros]
+about = "Найти сломанные макросы"
+flavor = "Версия игры: _retail_, _classic_, ..."
+
+[macros]
+account = "Аккаунт {account} (общие макросы)"
+from_name = "язык по названию сервера"
+item = "  {name}: {problem}"
+item_line = "  {name} (строка {line}): {problem}"
+none = "Проблем не найдено. Проверено макросов: {n}"
+total = "Найдено проблем: {found}. Проверено макросов: {n}"
+deprecated = "{func} удалена из игры в патче {patch}"
+fix_deprecated = "используйте {replacement} ({url})"
+too_long = "текст макроса {n} символов при пределе {max}: лишнее игра отрежет"
+fix_too_long = "сократите макрос хотя бы на {over} символов или разделите на два"
+brackets = "непарные скобки [ ] в условиях"
+fix_brackets = "проверьте, что каждой [ соответствует ]"
+alias_firm = "{alias} ({command}) знает только клиент {locale}, на этом сервере не сработает: {targets}"
+alias_soft = "{alias} ({command}) знает только клиент {locale}, может не сработать: {targets}"
+alias_unknown = "{alias} ({command}) знает только клиент {locale}, язык этих серверов неизвестен: {targets}"
+fix_alias = "напишите {command}"
+secret = "в Midnight (12.0) значения вроде {func} в бою могут быть скрыты от макросов"
+
 [cli.outdated]
 about = "Аддоны, сделанные не под установленную версию игры"
 

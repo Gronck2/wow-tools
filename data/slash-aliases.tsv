@@ -1,0 +1,7 @@
+# command<TAB>locale<TAB>alias
+# Localized slash aliases of the game client. Hand table, only aliases seen in real ruRU macros: the game keeps no list
+# of them outside its localized GlobalStrings (SLASH_<COMMAND><N>). Extend as more are verified.
+# The alias works in a client of that locale only; macros are judged by the realm language (see macros.rs).
+/cast	ruRU	/закл
+/target	ruRU	/цель
+/target	ruRU	/ц

@@ -2,6 +2,13 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [Unreleased]
+
+- New command `wow-tools macros [--flavor F]`: reads the macros of every account and character and lists what is
+  broken: functions removed from the game in `/run` and `/script` (with the replacement), macros over 255 characters,
+  unbalanced `[ ]`, and slash aliases of another language (`/закл`) against the realm's language. Read-only. Realm
+  languages come from LibRealmInfo (zlib, see `THIRD-PARTY.md`).
+
 ## [0.7.1] - 2026-11-16
 
 - Settings have a new **About** tab: the version with **Check** / **Install**, **Check for updates**, **Tell me about

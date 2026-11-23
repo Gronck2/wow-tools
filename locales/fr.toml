@@ -548,6 +548,29 @@ cli_available = "La version {version} est disponible : {url}"
 about = "Trouver ce qui peut être nettoyé ; avec des éléments, les nettoyer"
 items = "Ce qu'il faut nettoyer"
 
+[cli.macros]
+about = "Trouver les macros cassées"
+flavor = "Version du jeu : _retail_, _classic_, ..."
+
+[macros]
+account = "Compte {account} (macros communes)"
+from_name = "langue tirée du nom du royaume"
+item = "  {name} : {problem}"
+item_line = "  {name} (ligne {line}) : {problem}"
+none = "Aucun problème trouvé. Macros vérifiées : {n}"
+total = "Problèmes trouvés : {found}. Macros vérifiées : {n}"
+deprecated = "{func} a été retirée du jeu au patch {patch}"
+fix_deprecated = "utilisez {replacement} ({url})"
+too_long = "le texte de la macro fait {n} caractères, la limite est {max} : le jeu coupe le reste"
+fix_too_long = "raccourcissez la macro d'au moins {over} caractères ou scindez-la en deux"
+brackets = "crochets [ ] déséquilibrés dans les conditions"
+fix_brackets = "vérifiez que chaque [ a son ]"
+alias_firm = "{alias} ({command}) n'est connu que du client {locale} et ne marchera pas sur : {targets}"
+alias_soft = "{alias} ({command}) n'est connu que du client {locale} et peut ne pas marcher sur : {targets}"
+alias_unknown = "{alias} ({command}) n'est connu que du client {locale} ; la langue de ces royaumes est inconnue : {targets}"
+fix_alias = "écrivez {command}"
+secret = "dans Midnight (12.0), des valeurs comme {func} peuvent être cachées aux macros en combat"
+
 [cli.outdated]
 about = "Addons qui ne sont pas faits pour la version installée du jeu"
 
