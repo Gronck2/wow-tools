@@ -56,3 +56,10 @@ Macros rot silently: removed API in `/run`, bodies over the length limit, bad br
    warning.
 2. Classic-family flavors: skip deprecated-API check entirely (recommended; no verified list) vs a small list.
 3. ADR: none needed (embedded data tables are not architectural).
+
+## Decisions (orchestrator, 2026-11-24)
+- Length: error over 255 characters, soft warning over 255 bytes.
+- Classic flavors: the removed-API check is skipped.
+- Realm missing from `realms.tsv` but its folder name is Cyrillic -> ruRU (EU Russian realms are the only Cyrillic
+  ones); the finding says the language was taken from the realm name.
+- LibRealmInfo (zlib) attribution in a `THIRD-PARTY.md` (or the license files) and in the READMEs.
