@@ -37,6 +37,23 @@ const KNOWN: &[(&str, &str)] = &[
     ("_submission_", "Submission"),       // wowz
 ];
 
+/// The product code of a flavor folder (the comments of `KNOWN`), where one is known.
+pub fn product(flavor: &str) -> Option<&'static str> {
+    Some(match flavor {
+        "_retail_" => "wow",
+        "_ptr_" => "wowt",
+        "_xptr_" => "wowxptr",
+        "_beta_" => "wow_beta",
+        "_classic_" => "wow_classic",
+        "_classic_ptr_" => "wow_classic_ptr",
+        "_classic_beta_" => "wow_classic_beta",
+        "_classic_era_" => "wow_classic_era",
+        "_classic_era_ptr_" => "wow_classic_era_ptr",
+        "_anniversary_" => "wow_anniversary",
+        _ => return None,
+    })
+}
+
 /// One game flavor: `_retail_`, `_classic_`, `_classic_era_`, ... Usually all of them are in
 /// one install folder, but Battle.net can put a flavor into another one.
 #[derive(Debug, Clone)]

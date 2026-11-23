@@ -551,6 +551,7 @@ items = "What to tidy up"
 [cli.macros]
 about = "Find broken macros"
 flavor = "Game version: _retail_, _classic_, ..."
+update_names = "Download spell and item names (from wago.tools) for the name check"
 
 [macros]
 account = "Account {account} (shared macros)"
@@ -570,6 +571,19 @@ alias_soft = "{alias} ({command}) is known only to the {locale} client and may n
 alias_unknown = "{alias} ({command}) is known only to the {locale} client; the language of these realms is unknown: {targets}"
 fix_alias = "write {command}"
 secret = "in Midnight (12.0) values such as {func} may be hidden from macros in combat"
+wrong_firm = "'{name}' is a {lang} name and will not work on: {targets}"
+wrong_soft = "'{name}' is a {lang} name and may not work on: {targets}"
+fix_wrong = "use '{fix}'"
+unknown_name = "unknown name '{name}' (a typo or removed; it may also be an equipment set, a pet or an addon thing)"
+no_names = "Spell and item names are not downloaded for: {flavors}. The name check was skipped; download them with: wow-tools macros --update-names"
+names_empty = "wago.tools returned an empty table for {locale}"
+names_english = "wago.tools returned English names for {locale} (not supported by this game version?), the file was rejected"
+names_http = "{url}: reply {status}"
+names_no_build = "wago.tools has no build for {product}"
+names_download = "{product} {locale}: downloading names (build {build})..."
+names_done = "{product} {locale}: done"
+names_current = "{product} {locale}: up to date (build {build})"
+names_failed = "downloads failed: {n}"
 
 [cli.outdated]
 about = "Addons not made for the installed game version"

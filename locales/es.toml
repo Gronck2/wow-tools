@@ -551,6 +551,7 @@ items = "Qué limpiar"
 [cli.macros]
 about = "Busca macros rotas"
 flavor = "Versión del juego: _retail_, _classic_, ..."
+update_names = "Descarga los nombres de hechizos y objetos (de wago.tools) para la comprobación de nombres"
 
 [macros]
 account = "Cuenta {account} (macros compartidas)"
@@ -570,6 +571,19 @@ alias_soft = "{alias} ({command}) solo lo conoce el cliente {locale} y puede no 
 alias_unknown = "{alias} ({command}) solo lo conoce el cliente {locale}; se desconoce el idioma de estos reinos: {targets}"
 fix_alias = "escribe {command}"
 secret = "en Midnight (12.0) valores como {func} pueden estar ocultos a las macros en combate"
+wrong_firm = "'{name}' es un nombre en {lang} y no funcionará en: {targets}"
+wrong_soft = "'{name}' es un nombre en {lang} y puede no funcionar en: {targets}"
+fix_wrong = "usa '{fix}'"
+unknown_name = "nombre desconocido '{name}' (errata o eliminado; también puede ser un conjunto de equipo, una mascota o algo de un addon)"
+no_names = "Los nombres de hechizos y objetos no están descargados para: {flavors}. Se omitió la comprobación de nombres; descárgalos con: wow-tools macros --update-names"
+names_empty = "wago.tools devolvió una tabla vacía para {locale}"
+names_english = "wago.tools devolvió nombres en inglés para {locale} (¿idioma no admitido por esta versión del juego?), archivo rechazado"
+names_http = "{url}: respuesta {status}"
+names_no_build = "wago.tools no tiene versión para {product}"
+names_download = "{product} {locale}: descargando nombres (versión {build})..."
+names_done = "{product} {locale}: listo"
+names_current = "{product} {locale}: al día (versión {build})"
+names_failed = "descargas fallidas: {n}"
 
 [cli.outdated]
 about = "Accesorios que no están hechos para la versión instalada del juego"

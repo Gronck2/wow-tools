@@ -551,6 +551,7 @@ items = "Ce qu'il faut nettoyer"
 [cli.macros]
 about = "Trouver les macros cassées"
 flavor = "Version du jeu : _retail_, _classic_, ..."
+update_names = "Télécharger les noms des sorts et des objets (depuis wago.tools) pour la vérification des noms"
 
 [macros]
 account = "Compte {account} (macros communes)"
@@ -570,6 +571,19 @@ alias_soft = "{alias} ({command}) n'est connu que du client {locale} et peut ne 
 alias_unknown = "{alias} ({command}) n'est connu que du client {locale} ; la langue de ces royaumes est inconnue : {targets}"
 fix_alias = "écrivez {command}"
 secret = "dans Midnight (12.0), des valeurs comme {func} peuvent être cachées aux macros en combat"
+wrong_firm = "« {name} » est un nom en {lang} et ne fonctionnera pas sur : {targets}"
+wrong_soft = "« {name} » est un nom en {lang} et pourrait ne pas fonctionner sur : {targets}"
+fix_wrong = "utilisez « {fix} »"
+unknown_name = "nom inconnu « {name} » (faute de frappe ou supprimé ; ce peut aussi être un ensemble d'équipement, une mascotte ou un élément d'addon)"
+no_names = "Les noms des sorts et des objets ne sont pas téléchargés pour : {flavors}. La vérification des noms a été ignorée ; les télécharger avec : wow-tools macros --update-names"
+names_empty = "wago.tools a renvoyé une table vide pour {locale}"
+names_english = "wago.tools a renvoyé des noms anglais pour {locale} (langue non prise en charge par cette version du jeu ?), fichier rejeté"
+names_http = "{url} : réponse {status}"
+names_no_build = "wago.tools n'a pas de version pour {product}"
+names_download = "{product} {locale} : téléchargement des noms (version {build})..."
+names_done = "{product} {locale} : terminé"
+names_current = "{product} {locale} : à jour (version {build})"
+names_failed = "échecs de téléchargement : {n}"
 
 [cli.outdated]
 about = "Addons qui ne sont pas faits pour la version installée du jeu"

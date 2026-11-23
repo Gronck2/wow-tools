@@ -8,6 +8,10 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
   broken: functions removed from the game in `/run` and `/script` (with the replacement), macros over 255 characters,
   unbalanced `[ ]`, and slash aliases of another language (`/закл`) against the realm's language. Read-only. Realm
   languages come from LibRealmInfo (zlib, see `THIRD-PARTY.md`).
+- `wow-tools macros --update-names` downloads spell and item names from wago.tools (only when you run it; about
+  15–30 MB per language, cached, downloaded again only after a new game build). With them the macro check also finds
+  names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show` that are in the
+  wrong language for the realm (with the right name) or unknown (a typo). The README privacy section says so.
 
 ## [0.7.1] - 2026-11-16
 

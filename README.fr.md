@@ -409,7 +409,12 @@ WoW Tools lit les macros de tous les comptes et personnages et indique ce qui es
 `wow-tools macros`. Il vérifie les lignes `/run` et `/script` (fonctions retirées du jeu, avec leur remplaçante), les
 macros de plus de 255 caractères, les `[ ]` déséquilibrés et les commandes d'une autre langue (`/закл`) selon la langue
 du royaume du personnage. Une macro commune au compte est signalée comme « peut ne pas marcher » sur les personnages
-concernés ; une langue de royaume inconnue est dite, jamais devinée. Le dossier `WTF` est seulement lu.
+concernés ; une langue de royaume inconnue est dite, jamais devinée. Après
+`wow-tools macros --update-names` (télécharge depuis wago.tools les noms des sorts et des objets, une fois par version
+du jeu), il vérifie aussi les noms dans `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip`
+et `#show` : un nom dans la mauvaise langue est signalé avec le nom de la langue du royaume, un nom introuvable comme
+« inconnu » (faute de frappe ou supprimé ; ce peut aussi être un ensemble d'équipement, une mascotte ou un élément
+d'addon). Le dossier `WTF` est seulement lu.
 
 ## Ligne de commande
 
@@ -468,6 +473,10 @@ défaut) et `language` (`ru`, `en`, `de`, `fr`, `es` ; absent = la langue d'affi
   **tukui.org**, pendant une mise à jour des addons quand ElvUI est installé et que son interrupteur est activé, pour
   [ElvUI](#elvui). Ce sont de simples requêtes pour obtenir la dernière version, comme si vous ouvriez la page de
   téléchargement dans un navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé.
+- Seulement à votre demande (`wow-tools macros --update-names`), WoW Tools télécharge aussi les noms des sorts et des
+  objets depuis **wago.tools** (environ 15–30 Mo par langue, gardés dans `%LOCALAPPDATA%\WoW Tools\data\names`, de
+  nouveau seulement après une nouvelle version du jeu) pour [vérifier les macros](#vérifier-les-macros). Les requêtes
+  ne contiennent que la version du jeu et la langue, rien sur vous.
 - Les addons sont téléchargés uniquement par le programme d'addons que vous avez choisi — sauf ElvUI, que WoW Tools
   prend sur son site officiel.
 - Il ne touche jamais au jeu lui-même, ne lit pas la mémoire du jeu et n'automatise rien en jeu.

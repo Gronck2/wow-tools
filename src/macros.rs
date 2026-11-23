@@ -1,13 +1,16 @@
 //! Macro check: reads every `macros-cache.txt` (account-wide and per character) and reports what is
-//! broken by checks that need no downloaded data. Read-only over WTF.
+//! broken: by checks that need no downloaded data, and by spell/item names against the cached name data
+//! (`macro_names`) when it is there. Read-only over WTF.
 //!
 //! File format: `VER 3 <16 hex id> "<name>" "<icon>"`, the body lines, `END`. Lines of a body that
 //! start with neither `/` nor `#` are addon data (HealBot `hbCrashProt_*`, `!dosmarkers`) and ignored.
 
 use crate::chars::{Character, subdirs};
+use crate::macro_names::{self, Names};
 use crate::profiles::{Roster, last_played, realm_key};
 use crate::wow::Flavor;
 use std::cell::OnceCell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -110,6 +113,11 @@ fn aliases() -> &'static [[&'static str; 3]] {
     T.get_or_init(|| rows(ALIASES).filter_map(|r| r[..].try_into().ok()).collect())
 }
 
+/// The command an alias stands for (`/закл` -> `/cast`); any other word comes back as it is.
+pub fn canonical_command(cmd: &str) -> String {
+    aliases().iter().find(|a| a[2] == cmd).map_or(cmd, |a| a[0]).to_string()
+}
+
 /// The language of a realm and whether it was only taken from the realm's name.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Loc {
@@ -185,6 +193,17 @@ pub enum Kind {
     },
     Secret {
         func: &'static str,
+    },
+    /// A name of the language `lang`; `fix` is what the realm's language calls it.
+    WrongLanguage {
+        name: String,
+        lang: String,
+        fix: String,
+        bad: Vec<String>,
+        firm: bool,
+    },
+    UnknownName {
+        name: String,
     },
 }
 
@@ -317,6 +336,15 @@ impl Finding {
                 parts.join("; ")
             }
             Kind::Secret { func } => tr!("macros.secret", func = func),
+            Kind::WrongLanguage { name, lang, bad, firm, .. } => {
+                let targets = crate::maintenance::names_text(bad, 6);
+                if *firm {
+                    tr!("macros.wrong_firm", name = name, lang = lang, targets = targets)
+                } else {
+                    tr!("macros.wrong_soft", name = name, lang = lang, targets = targets)
+                }
+            }
+            Kind::UnknownName { name } => tr!("macros.unknown_name", name = name),
         }
     }
 
@@ -326,7 +354,8 @@ impl Finding {
             Kind::TooLong { chars } => Some(tr!("macros.fix_too_long", over = chars - MAX_LEN)),
             Kind::Brackets => Some(tr!("macros.fix_brackets").to_string()),
             Kind::Alias { command, .. } => Some(tr!("macros.fix_alias", command = command)),
-            Kind::Secret { .. } => None,
+            Kind::Secret { .. } | Kind::UnknownName { .. } => None,
+            Kind::WrongLanguage { fix, .. } => Some(tr!("macros.fix_wrong", fix = fix)),
         }
     }
 }
@@ -336,20 +365,30 @@ pub struct Scan {
     pub findings: Vec<Finding>,
     /// Macros read.
     pub checked: usize,
+    /// Per product, the realm languages of the characters found (what `--update-names` downloads).
+    pub locales: BTreeMap<&'static str, BTreeSet<&'static str>>,
+    /// Flavors with macros whose realm languages have no name data yet.
+    pub missing: Vec<String>,
 }
 
-/// Checks the macros of every account and character of `flavors`.
-pub fn scan(flavors: &[Flavor]) -> Scan {
+/// Checks the macros of every account and character of `flavors`; names are checked against the cache in `names_dir`.
+pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
     let mut scan = Scan::default();
     for fl in flavors {
         let wtf = fl.wtf_dir();
         let region = portal(&wtf);
         let retail = is_retail(&fl.name);
+        let product = crate::wow::product(&fl.name);
+        let names = product.map(|p| Names::load(names_dir, p)).unwrap_or_default();
+        let (checked_before, mut seen) = (scan.checked, BTreeSet::new());
         let mut check_file = |path: &Path, scope: &str, targets: &[Target], firm: bool| {
             let Ok(bytes) = fs::read(path) else { return };
             for m in parse(&String::from_utf8_lossy(&bytes)) {
                 scan.checked += 1;
-                for (line, kind) in check(&m, retail, targets, firm) {
+                let mut found = check(&m, retail, targets, firm);
+                found.extend(macro_names::check(&m, targets, firm, &names));
+                found.sort_by_key(|(line, _)| *line);
+                for (line, kind) in found {
                     scan.findings.push(Finding {
                         flavor: fl.title(),
                         scope: scope.to_string(),
@@ -376,6 +415,7 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
                     if !roster.get_or_init(|| Roster::read(&acc_dir)).has(&c, last_played(&c)) {
                         continue;
                     }
+                    seen.extend(loc.map(|l| l.code));
                     chars.push((
                         Target {
                             label: format!("{name}-{realm}"),
@@ -389,6 +429,12 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
             check_file(&acc_dir.join("macros-cache.txt"), &tr!("macros.account", account = account), &all, false);
             for (target, dir) in &chars {
                 check_file(&dir.join("macros-cache.txt"), &target.label, std::slice::from_ref(target), true);
+            }
+        }
+        if let Some(product) = product {
+            scan.locales.entry(product).or_default().extend(&seen);
+            if scan.checked > checked_before && seen.iter().any(|l| !names.has(l)) {
+                scan.missing.push(fl.title());
             }
         }
     }
@@ -424,6 +470,10 @@ pub fn report(scan: &Scan) -> String {
     } else {
         tr!("macros.total", found = scan.findings.len(), n = scan.checked)
     });
+    if !scan.missing.is_empty() {
+        out.push('\n');
+        out.push_str(&tr!("macros.no_names", flavors = scan.missing.join(", ")));
+    }
     out
 }
 
@@ -577,7 +627,7 @@ mod tests {
         put(&fl, "macros-cache.txt", mac);
         put(&fl, "Tarren Mill/Aaa/macros-cache.txt", mac);
         put(&fl, "Гордунни/Bbb/macros-cache.txt", mac);
-        let s = scan(std::slice::from_ref(&fl));
+        let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         assert_eq!(s.checked, 6);
         // Account: alias (may not work for Aaa) + deprecated; Aaa: both; Bbb: deprecated only.
         let scopes: Vec<&str> = s.findings.iter().map(|f| f.scope.as_str()).collect();
@@ -607,7 +657,7 @@ mod tests {
             "X = { [\"Player-1602-0000AAAA\"] = { [\"name\"] = \"Ccc\", [\"realm\"] = \"Oldname\" } }",
         )
         .unwrap();
-        let s = scan(std::slice::from_ref(&fl));
+        let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         // The account's and Ccc's file; Gone's folder is left alone.
         assert_eq!(s.checked, 2);
         assert!(s.findings.is_empty());
@@ -625,7 +675,7 @@ mod tests {
             "X = { [\"Player-1306-0000AAAA\"] = { [\"name\"] = \"Aaa\", [\"realm\"] = \"Tarren Mill\" } }",
         )
         .unwrap();
-        let s = scan(std::slice::from_ref(&fl));
+        let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         assert_eq!(s.checked, 1);
         let alias = s.findings.iter().find(|f| matches!(&f.kind, Kind::Alias { .. })).unwrap();
         assert!(alias.problem().contains("Aaa-Tarren Mill") && !alias.problem().contains("Gone"));
