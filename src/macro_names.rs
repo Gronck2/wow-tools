@@ -108,9 +108,12 @@ impl Table {
         t
     }
 
-    /// The name of the first of `ids` that this table has.
-    fn name_of(&self, ids: Option<&Vec<u32>>) -> Option<&String> {
-        ids?.iter().find_map(|id| self.by_id.get(id))
+    /// The name of one of `ids` that this table has, one that differs from `lc` first (an untranslated
+    /// row of another id must not hide a real translation, whatever the row order).
+    fn name_of(&self, ids: Option<&Vec<u32>>, lc: &str) -> Option<&String> {
+        let mut found = ids?.iter().filter_map(|id| self.by_id.get(id));
+        let first = found.clone().next();
+        found.find(|n| n.trim().to_lowercase() != lc).or(first)
     }
 }
 
@@ -135,8 +138,8 @@ impl Locale {
     /// What this locale calls what `other` calls `lc` (a spell first, then an item).
     fn translate(&self, other: &Locale, lc: &str) -> Option<String> {
         self.spell
-            .name_of(other.spell.by_name.get(lc))
-            .or_else(|| self.item.name_of(other.item.by_name.get(lc)))
+            .name_of(other.spell.by_name.get(lc), lc)
+            .or_else(|| self.item.name_of(other.item.by_name.get(lc), lc))
             .cloned()
     }
 }
@@ -607,6 +610,17 @@ mod tests {
         assert!(check(&mac(&["/cast Flash Heal"]), std::slice::from_ref(&ru), true, &names).is_empty());
         // identical in both languages for the same id: not flagged
         assert!(check(&mac(&["/cast Charge"]), std::slice::from_ref(&ru), true, &names).is_empty());
+    }
+
+    #[test]
+    fn untranslated_row_listed_first_does_not_hide_the_translation() {
+        let en = locale(&[(261403, "Fireball"), (1, "Fireball")], &[], None);
+        let ru = locale(&[(261403, "Fireball"), (1, "Огненный шар")], &[], Some(&en));
+        let mut names = Names::default();
+        names.locales.insert("ruRU".into(), ru);
+        names.locales.insert("enUS".into(), en);
+        let f = check(&mac(&["/cast Fireball"]), &[target("A-Ru", "ruRU")], true, &names);
+        assert!(matches!(&f[..], [(_, Kind::WrongLanguage { fix, .. })] if fix == "Огненный шар"));
     }
 
     #[test]
