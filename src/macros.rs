@@ -493,6 +493,9 @@ mod tests {
         // 200 Cyrillic letters: 200 characters, 400 bytes: fine.
         let wide = m(&[&format!("/say {}", "ж".repeat(200))]);
         assert!(kinds(&wide, true, &[], true).is_empty());
+        // 250 Cyrillic letters + "/say ": 255 characters, 505 bytes: still fine.
+        let wider = m(&[&format!("/say {}", "ж".repeat(250))]);
+        assert!(kinds(&wider, true, &[], true).is_empty());
         assert!(kinds(&m(&["/say hi"]), true, &[], true).is_empty());
     }
 
@@ -608,6 +611,24 @@ mod tests {
         // The account's and Ccc's file; Gone's folder is left alone.
         assert_eq!(s.checked, 2);
         assert!(s.findings.is_empty());
+    }
+
+    #[test]
+    fn deleted_character_is_not_listed_in_account_wide_findings() {
+        let (_d, fl) = tree(&[("Tarren Mill", "Aaa"), ("Tarren Mill", "Gone")]);
+        let acc = fl.wtf_dir().join("Account").join("ACC");
+        put(&fl, "macros-cache.txt", "VER 3 0000000000000001 \"Heal\" \"1\"\n/закл Heal\nEND\n");
+        fs::create_dir_all(acc.join("SavedVariables")).unwrap();
+        fs::write(acc.join("character-list-order.txt"), "1306-0000AAAA").unwrap();
+        fs::write(
+            acc.join("SavedVariables").join("Some.lua"),
+            "X = { [\"Player-1306-0000AAAA\"] = { [\"name\"] = \"Aaa\", [\"realm\"] = \"Tarren Mill\" } }",
+        )
+        .unwrap();
+        let s = scan(std::slice::from_ref(&fl));
+        assert_eq!(s.checked, 1);
+        let alias = s.findings.iter().find(|f| matches!(&f.kind, Kind::Alias { .. })).unwrap();
+        assert!(alias.problem().contains("Aaa-Tarren Mill") && !alias.problem().contains("Gone"));
     }
 
     #[test]
