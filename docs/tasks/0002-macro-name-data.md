@@ -46,3 +46,9 @@ The most common real breakage is `/cast Fireball` on a Russian realm or a misspe
 2. wago.tools has no ToS page (robots allows `/db2/*/csv`, llms.txt invites tools and asks for reuse of exports);
    recommendation: proceed with on-request download and a descriptive User-Agent; the owner confirms.
 3. ADR: consider one for "third-party game data cache and its network use" (flag for the main thread).
+
+## Decisions (orchestrator, 2026-11-24)
+- Download size accepted (only the needed locales, cached compactly); wago.tools used with on-request downloads, a
+  descriptive User-Agent and the cache reused until the build changes.
+- No ADR: the network use is recorded here and in README "Privacy".
+- Unknown names only for spell/item commands; a typo shows as "unknown name" (no fuzzy match).
