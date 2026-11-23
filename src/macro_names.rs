@@ -471,6 +471,14 @@ mod tests {
     }
 
     #[test]
+    fn english_limit_is_98_percent() {
+        let en: Rows = (1..=100).map(|i| (i, format!("N{i}"))).collect();
+        let translated = |n: u32| -> Rows { en.iter().map(|(i, s)| (*i, if *i <= n { format!("Ru{i}") } else { s.clone() })).collect() };
+        assert!(validate("ruRU", &translated(2), &en).is_ok()); // 98 identical
+        assert!(validate("ruRU", &translated(1), &en).is_err()); // 99 identical
+    }
+
+    #[test]
     fn cache_roundtrip_and_current_build() {
         let dir = tempfile::tempdir().unwrap();
         let tables = [rows(&[(1, "Огненный шар")]), rows(&[(10, "Зелье, лечебное")])];

@@ -620,6 +620,50 @@ mod tests {
         assert_eq!(portal(&fl.wtf_dir()).as_deref(), Some("EU"));
     }
 
+    /// A name cache as `macro_names` writes it: `wow-<locale>.zip` with tab-separated `spell` and `item` entries.
+    fn put_names(dir: &Path, locale: &str, spell: &str) {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(fs::File::create(dir.join(format!("wow-{locale}.zip"))).unwrap());
+        for (entry, text) in [("spell", spell), ("item", "")] {
+            zip.start_file(entry, zip::write::SimpleFileOptions::default()).unwrap();
+            zip.write_all(text.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn scan_checks_names_firm_for_character_soft_for_account_and_hints_without_cache() {
+        let (_d, fl) = tree(&[("Tarren Mill", "Aaa"), ("Гордунни", "Bbb")]);
+        let mac = "VER 3 0000000000000001 \"F\" \"1\"\n/cast Fireball\nEND\n";
+        put(&fl, "macros-cache.txt", mac);
+        put(&fl, "Tarren Mill/Aaa/macros-cache.txt", mac);
+        put(&fl, "Гордунни/Bbb/macros-cache.txt", mac);
+        let names = tempfile::tempdir().unwrap();
+        put_names(names.path(), "enUS", "1\tFireball\n");
+        // ruRU not cached: its realm is skipped and the hint names the flavor.
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        assert!(s.findings.is_empty());
+        assert_eq!(s.missing.len(), 1);
+        assert!(report(&s).contains("--update-names"));
+        assert_eq!(s.locales["wow"], BTreeSet::from(["enUS", "ruRU"]));
+        // With ruRU: Bbb's own file is firm, the account's list is soft, Aaa is fine.
+        put_names(names.path(), "ruRU", "1\tОгненный шар\n");
+        let s = scan(std::slice::from_ref(&fl), names.path());
+        assert!(s.missing.is_empty() && !report(&s).contains("--update-names"));
+        let wrong: Vec<(&str, bool)> = s
+            .findings
+            .iter()
+            .filter_map(|f| match &f.kind {
+                Kind::WrongLanguage { firm, fix, .. } if fix == "Огненный шар" => Some((f.scope.as_str(), *firm)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(wrong.len(), 2);
+        assert!(wrong.contains(&("Bbb-Гордунни", true)));
+        assert!(wrong.iter().any(|(scope, firm)| *scope != "Bbb-Гордунни" && !firm));
+        assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
+    }
+
     #[test]
     fn scan_groups_account_and_character_findings() {
         let (_d, fl) = tree(&[("Tarren Mill", "Aaa"), ("Гордунни", "Bbb")]);
