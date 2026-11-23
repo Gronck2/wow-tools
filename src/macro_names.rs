@@ -552,6 +552,26 @@ mod tests {
     }
 
     #[test]
+    fn account_wide_name_fails_differently_per_realm_and_unknown_realm_is_never_bad() {
+        let mut nowhere = Target {
+            loc: None,
+            ..target("C-Nowhere", "enUS")
+        };
+        nowhere.client = vec!["enUS"];
+        let ts = [target("A-Ru", "ruRU"), target("B-En", "enUS"), nowhere];
+        let f = check(&mac(&["/cast Feuerball"]), &ts, false, &names());
+        let by = |h: How| {
+            f.iter()
+                .find_map(|(_, k)| matches!(k, Kind::WrongLanguage { how, .. } if *how == h).then(|| format!("{k:?}")))
+        };
+        // Russian realm: "may not work"; English realm: "works only with a deDE client"; unknown realm: neither list.
+        assert!(by(How::Maybe).is_some_and(|k| k.contains("A-Ru") && !k.contains("B-En") && k.contains("Огненный шар")));
+        assert!(by(How::Client).is_some_and(|k| k.contains("B-En") && !k.contains("A-Ru") && k.contains("Fireball")));
+        assert!(by(How::Realm).is_some_and(|k| k.contains("C-Nowhere")));
+        assert!(by(How::Firm).is_none() && f.len() == 3);
+    }
+
+    #[test]
     fn russian_realm_stays_firm_whatever_the_client_language() {
         let mut ru = target("A-Ru", "ruRU");
         ru.client = vec!["enUS"];
