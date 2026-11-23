@@ -516,8 +516,8 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             Kind::Deprecated {
                 func: "GetSpellInfo",
                 replacement: "C_Spell.GetSpellInfo",
-                patch: "11.0.2",
-                url: "https://warcraft.wiki.gg/wiki/API_C_Spell.GetSpellInfo",
+                patch: "12.0.0",
+                url: "https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes",
             },
         ),
         finding(
@@ -560,7 +560,7 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
     };
     let cached = macro_names::Cached {
         product: "wow".into(),
-        build: "11.2.5.63506".into(),
+        build: "12.0.5.65000".into(),
         locales: ["enUS", "deDE", "ruRU"].map(String::from).to_vec(),
     };
     tray::MacroCheck {

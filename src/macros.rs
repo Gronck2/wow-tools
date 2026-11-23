@@ -463,16 +463,32 @@ impl Scan {
 
 /// Checks the macros of every account and character of `flavors`; names are checked against the cache in `names_dir`.
 pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
+    walk(flavors, Some(names_dir))
+}
+
+/// Per product, the realm languages the macros of `flavors` are judged by, without reading macros or name tables.
+pub fn needs(flavors: &[Flavor]) -> BTreeMap<String, BTreeSet<&'static str>> {
+    walk(flavors, None).locales
+}
+
+/// `names_dir` None: only collect `locales` (no macro is read, no name table loaded).
+fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
     let mut scan = Scan::default();
     for fl in flavors {
         let wtf = fl.wtf_dir();
         let region = portal(&wtf);
         let retail = is_retail(&fl.name);
         let product = fl.product();
-        let names = product.as_deref().map(|p| Names::load(names_dir, p)).unwrap_or_default();
+        let names = match (product.as_deref(), names_dir) {
+            (Some(p), Some(dir)) => Names::load(dir, p),
+            _ => Default::default(),
+        };
         let client = client_locale(&wtf);
         let (checked_before, mut seen) = (scan.checked, BTreeSet::new());
         let mut check_file = |path: &Path, scope: &str, targets: &[Target], firm: bool| {
+            if names_dir.is_none() {
+                return;
+            }
             let Ok(bytes) = fs::read(path) else { return };
             for m in parse(&String::from_utf8_lossy(&bytes)) {
                 scan.checked += 1;
@@ -762,6 +778,7 @@ mod tests {
         let s = scan(std::slice::from_ref(&fl), names.path());
         // Download set: realm + client languages of ACC, plus the Russian realm's own.
         assert_eq!(s.locales["wow"], BTreeSet::from(["enUS", "deDE", "ruRU"]));
+        assert_eq!(needs(std::slice::from_ref(&fl)), s.locales);
         assert!(
             s.findings
                 .iter()

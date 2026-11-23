@@ -348,7 +348,7 @@ pub fn dir() -> PathBuf {
 /// Downloads what the characters of `flavors` need (`update` for the locales their macros are judged by).
 pub fn update_for(flavors: &[crate::wow::Flavor], progress: &mut dyn FnMut(String)) -> Result<()> {
     let dir = dir();
-    let mut needs = crate::macros::scan(flavors, &dir).locales;
+    let mut needs = crate::macros::needs(flavors);
     needs.retain(|_, l| !l.is_empty());
     update(&dir, &needs, progress)
 }
