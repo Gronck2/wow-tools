@@ -424,15 +424,19 @@ einem Addon sein). Der Ordner `WTF` wird nur gelesen.
 Der Reiter **Makros** im Panel macht dasselbe ohne Kommandozeile. **Makros prüfen** liest alle Makros im Hintergrund
 (das geht auch bei laufendem Spiel und ändert nichts); danach zeigt der Reiter, wie viele Probleme es je Art gibt. Die Schaltfläche **Bericht öffnen** zeigt sie in einem eigenen Fenster, das sich vergrößern, minimieren und maximieren lässt (Größe und Platz werden gemerkt): je Fund das Makro und die Zeile, wo es liegt (die gemeinsamen Makros des Accounts oder ein Charakter), was falsch ist und wie man es behebt, alles vollständig umbrochen. Die Funde gehen vom schlimmsten zum harmlosesten: rote funktionieren nicht (entfernte Funktion, zu langes Makro, unausgeglichene Klammern, unbekannter Name, ein Name oder Befehl in der falschen Sprache im eigenen Makro eines Charakters), gelbe funktionieren eventuell nicht, graue sind zur Info (die Sprache des Realms ist unbekannt); die Kopfzeile zählt sie, und **Kopieren** legt den ganzen Bericht in die Zwischenablage. Die letzte Karte
 zeigt die geladenen Zauber- und Gegenstandsnamen (Spielversion und Sprachen); **Laden** holt sie — nur auf Knopfdruck,
-danach läuft die Prüfung neu. Geprüft wird nur auf Knopfdruck, nie von selbst.
+danach bleibt der Bericht, wie er war, bis du erneut prüfst (er weist darauf hin, dass die Namen aktualisiert wurden). $1 Der letzte Bericht wird gespeichert (`data\macro-report.json`) und nach einem Neustart mit der Zeit der Prüfung wieder angezeigt; Text im Berichtsfenster lässt sich mit der Maus markieren und mit Strg+C kopieren.
 
 Wo die Prüfung die Abhilfe kennt, zeigt die erste Karte des Makros zusätzlich das **korrigierte Makro**: den ganzen
 Text, in dem Namen in der falschen Sprache übersetzt sind (über Zauber- und Gegenstands-IDs), ein Slash-Alias einer
 anderen Sprache durch den englischen Befehl ersetzt ist (`/cast` funktioniert in jedem Client) und entfernte Funktionen
 dort ersetzt sind, wo die neue ein direkter Ersatz ist (gleiche Argumente, gleiche Rückgabewerte: `GetItemCount` wird zu
-`C_Item.GetItemCount`, `GetSpellInfo`, das jetzt eine Tabelle liefert, bleibt unberührt). **Kopieren** legt genau diesen
+`C_Item.GetItemCount`). Eine Funktion, die jetzt eine Tabelle liefert (`GetSpellInfo`, `GetSpellCooldown`, `UnitBuff`, ...),
+wird nur ersetzt, wo das Makro bloß ihren ersten Wert nutzt (`print(GetSpellInfo(x))`, `local n = GetSpellInfo(x)`,
+`if GetSpellInfo(x) then`), und wird zu `(C_Spell.GetSpellInfo(x) or {}).name`; `GetSpellTexture` und `IsUsableSpell` werden
+bei einem Argument ersetzt. Ein solcher Text ist mit „Funktion ersetzt: im Spiel prüfen“ markiert, und alles, was die
+Prüfung geändert hat, ist darin hervorgehoben, ebenso wie der fehlerhafte Teil im Problemtext. **Kopieren** legt genau diesen
 Text in die Zwischenablage; ins Spiel fügst du ihn selbst ein, WoW Tools schreibt nie in die Dateien des Spiels. Ein
-Makro für den ganzen Account bekommt einen Text pro Client-Sprache, jeweils mit den Charakteren, für die er gilt. Was
+Makro für den ganzen Account bekommt einen Text pro Client-Sprache, jeweils mit seiner Client-Sprache benannt. Was
 sich nicht korrigieren lässt (ein unbekannter oder mehrdeutiger Name, unausgeglichene Klammern, verborgene Werte), bleibt
 wie es war und wird unter „Noch von Hand zu beheben“ gezählt; ein korrigierter Text über 255 Zeichen wird nicht angeboten,
 nur ein Hinweis. `wow-tools macros` und der kopierte Bericht geben dieselben Texte aus.
@@ -477,7 +481,7 @@ erklärt den Rest in der gewählten Sprache.
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | Protokoll des Infobereichssymbols |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | Update-Verlauf (die letzten 20) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | wann WoW Tools zuletzt nach einer neuen Version gesucht hat |
-| `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | die zuletzt gesehenen Spielversionen, um einen Patch zu erkennen |
+$1| `%LOCALAPPDATA%\WoW Tools\data\macro-report.json` | der letzte Makro-Bericht |
 
 Die portable Version nutzt nichts davon: Solange `portable.txt` neben `wow-tools.exe` liegt, stehen die Einstellungen
 in `config\config.toml` und alles andere in `data\` neben der exe (Sicherungen in `data\backups`). Löschen Sie

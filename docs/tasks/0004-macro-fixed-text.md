@@ -134,3 +134,37 @@ returns `Ambiguous` when the spell and the item answer differ; `retarget` needs 
 text to give the same name; a name followed by `(Rank N)` / `(Subtext)` is left and counted (the bracket would stay in
 the old language); `..` is concatenation, not a field, in `find_word` and `replace_dropin`. The alias table holds ruRU
 aliases only, so the no-tables test uses `/закл`.
+
+## Revision 1 (owner feedback)
+Decisions that override the earlier ones where they conflict.
+1. **Table functions get a fixed text too**, by how the result is used. Only the first value is mapped, so a call is
+   rewritten to `(C_X.F(args) or {}).field` (nil-safe) only when `macro_fix::single_value` says one value is used: an
+   operand of an operator, an `if`/`while`/`until` condition, the single target of an assignment (`local a = X`, `a = X`),
+   a parenthesised call, a non-last element of a list (`f(X, 1)`, `{X, 1}`, `local a, b = X, 1`), the sole argument of
+   `print`/`tostring`. Refused (hint only, counted in "still to fix"): `local a, b = X`, `select(n, X)`, the last
+   element of a list, `return X`, a table constructor, an indexed or chained call, any other call's last argument. The
+   old argument count must match (`GetSpellInfo(index, bookType)` is not rewritten). Such a variant says "Function
+   replaced: check it in game" in the secondary color. `GetSpellTexture` / `IsUsableSpell` are replaced with exactly one
+   argument, also marked. Data: column 5 of `data/deprecated-api.tsv` (`first:<field>:<min>-<max>`, `one-arg`).
+   Verified map (old first value -> field of the new table), sources: warcraft.wiki.gg `API:<old>` pages (return lists),
+   Blizzard's generated API documentation (Spell, SpellShared, Container, UnitAura, ActionBarFrame; wow-ui-source `live`)
+   and the wiki's `Structure AuraData`: `GetSpellInfo` (1 arg) name -> `.name`; `GetSpellCooldown` (1) start ->
+   `.startTime`; `GetSpellCharges` (1) currentCharges -> `.currentCharges`; `GetContainerItemInfo` (2) texture ->
+   `.iconFileID`; `UnitAura`/`UnitBuff`/`UnitDebuff` (2-3) name -> `.name` (`C_UnitAuras.GetAuraDataByIndex` /
+   `GetBuffDataByIndex` / `GetDebuffDataByIndex`); `GetActionCooldown` (1) start -> `C_ActionBar...startTime`;
+   `GetActionCharges` (1) currentCharges -> `.currentCharges`.
+2. **Highlighting.** `Finding::problem_marked` returns the text and the byte ranges of the offending part (name, function,
+   alias); `Variant::marks` holds the replaced byte ranges of the fixed text. Drawn through `gfx::Painter::rich_text`
+   (DirectWrite layout, bold + `SetDrawingEffect` brush). Clipboard and console text stay plain.
+3. **No character or realm lists** in the texts; the caption is "Fixed macro (English)" with the localized language name
+   (`game_lang.*`; `game_lang.in_*` for "in German" sentences). The data fields stay for the level.
+4. **Selection** of all card text with the mouse, Ctrl+C (`Action::CopySelection`) and Ctrl+A; blocks are the unit,
+   hit-testing by DirectWrite (`gfx::hit_index`, `range_rects`). The Copy buttons stay.
+5. **Item names.** wago `ItemSearchName` lacks many consumables (checked on the cached and a freshly fetched CSV: the
+   Hearthstone, Tempered Potion and its flasks are missing, 104k rows against 175k). The item table is now `ItemSparse`
+   (`Display_lang`; 52-58 MB per locale, HTTP cap raised to 128 MB; old caches are downloaded again). Crafted ranks
+   share one name, so they translate like any item. A name with a quality icon (`|A:..|a`) is never "unknown", is not
+   translated and is counted in "still to fix by hand". `item:ID`, `/use 13` and `/use 0 1` are not names.
+6. **The report persists** in `data/macro-report.json` (`macro_store`, version 1, temp file + rename), loaded when the
+   tray starts, shown with the check time. A broken or other-version file is ignored (warn). "Download" no longer
+   re-checks (this changes 0003): `names_stale` shows "names updated: check again" until the next check.

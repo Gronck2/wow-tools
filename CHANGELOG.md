@@ -26,11 +26,21 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
 - The macro report shows a **fixed macro** where the check knows the cure: the whole text with names in the wrong
   language translated (through spell and item ids; an ambiguous name is left), slash aliases of another language
   replaced by the English command, and removed functions replaced where the new one takes the same arguments and
-  returns the same values (for example `GetItemCount` -> `C_Item.GetItemCount`; calls that now return a table stay).
+  returns the same values (for example `GetItemCount` -> `C_Item.GetItemCount`). A function that now returns a table
+  (`GetSpellInfo`, `GetSpellCooldown`, `GetSpellCharges`, `GetContainerItemInfo`, `UnitAura`/`UnitBuff`/`UnitDebuff`,
+  `GetActionCooldown`, `GetActionCharges`) is replaced where the macro uses only its first value, as
+  `(C_Spell.GetSpellInfo(x) or {}).name`; `GetSpellTexture` and `IsUsableSpell` where they have one argument. Such a
+  text says "Function replaced: check it in game". What was replaced is highlighted in the text, the offending part in
+  the problem text.
   **Copy** puts exactly that text on the clipboard, for you to paste into the game; nothing is written to the game's
-  files. A macro shared by the account gets one text per client language, with the characters it is for. "Still to fix
+  files. A macro shared by the account gets one text per client language, each named by its client language; no card lists characters or realms. "Still to fix
   by hand: N" counts what the text does not solve; a fixed text over 255 characters is not offered, only a note.
-  `wow-tools macros` and the copied report print the same texts.
+$1- Text in the macro report window can be selected with the mouse (across lines and cards) and copied with Ctrl+C.
+- The last macro report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check.
+  **Download** no longer re-checks by itself: the report says the names were updated until you check again.
+- Macro item names (potions, flasks, toys, trinkets) are now read from the full `ItemSparse` table, not `ItemSearchName`,
+  which lacks many consumables (for example the Hearthstone and crafted potions): **Download** the names once more.
+  A name that carries a crafted-quality icon (`|A:...|a`) is left for you and counted under "Still to fix by hand".
 
 ## [0.7.1] - 2026-11-16
 

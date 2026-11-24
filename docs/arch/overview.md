@@ -11,9 +11,11 @@ installed addon managers (CurseForge, WowUp, Wago App) plus ElvUI, cleanup, and 
 - `macro_names.rs` — spell/item name cache from wago.tools (`macros --update-names`, on request only) and the name check (wrong language, unknown).
 - `macro_fix.rs` — the fixed text of a macro (pure, no I/O): per client language of the targets it rewrites wrong-language
   names (`Names::retarget`, byte spans from `macro_names::name_spans`), aliases (to the English command) and removed
-  functions marked `drop-in` in `data/deprecated-api.tsv`; `macros::walk` attaches the result to every `Finding` of the
+  functions marked in `data/deprecated-api.tsv` (`drop-in`; `first:<field>:<min>-<max>` table functions where only the first value is used; `one-arg`), recording the replaced byte ranges (`Variant::marks`); `macros::walk` attaches the result to every `Finding` of the
   macro (`Finding::fixed`), `report.rs` shows it on the first card with a Copy button (`Action::CopyFix`) and
-  `macros::report` prints it. Read-only: the owner pastes the text into the game.
+$1- `macro_store.rs` — the last macro check as `data/macro-report.json` (versioned, temp file + rename), loaded when the tray starts;
+  the report window and the Macros tab show it with the check time, a new check overwrites it. `report.rs` draws text through
+  `gfx::rich_text` (bold highlighted ranges) and supports mouse selection (`gfx::hit_index` / `range_rects`) and Ctrl+C.
 - The panel's **Macros** tab (`panel.rs`, `tray::MacroCheck`): the check runs on its own thread on a button
   (`tray::scan_macros`); the name tables are loaded inside `macros::scan` per game version and dropped with it, so the
   tray keeps only the findings. The name download is a worker request (`Request::UpdateNames`, `Work::Names`).
