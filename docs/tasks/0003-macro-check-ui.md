@@ -36,3 +36,15 @@ The tray is how the owner uses the tool; the CLI report is not enough for daily 
 - Merged only after the owner checks it on screen.
 - The name tables are large (~100 MB in memory per locale while a scan runs): the tray loads them only inside the
   background scan and drops them after; nothing stays resident.
+
+## Revision 1 (owner feedback)
+The findings list (rows cut to two lines, full text in a hover tip) was unreadable. Decisions:
+- The report is shown in the window itself: no hover tip for findings, every text wrapped in full, never cut.
+- While the report is open the panel is wider (`W_REPORT` = 640 DIPs); every other tab, and the Macros tab with
+  no report open, stays 360 DIPs and renders byte for byte as before. The header buttons and the divider/footer
+  follow the current width; the tab strip keeps its 360 layout, left aligned.
+- A finding shows: macro and line, where it is (account or character-realm), what is wrong and the fix, each on its
+  own wrapped line(s); rows have the height of their text, the list scrolls by whole findings (wheel, scroll bar).
+- The window grows keeping the taskbar side; if it would leave the screen it grows to the left and returns on
+  close. `data\panel-position.txt` keeps the narrow window's corner.
+- `ui-snapshot macros-list-tip` is removed; `docs/images/macros-<lang>[-dark].png` now come from `macros-list`.

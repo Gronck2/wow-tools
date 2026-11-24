@@ -186,7 +186,7 @@ enum Cmd {
     #[command(hide = true)]
     UiSnapshot {
         out: PathBuf,
-        /// panel, busy, game, error, confirm, empty, macros, macros-list, macros-busy, macros-empty, macros-nodata, macros-names, macros-tip, macros-list-tip, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
+        /// panel, busy, game, error, confirm, empty, macros, macros-list, macros-busy, macros-empty, macros-nodata, macros-names, macros-tip, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
         #[arg(default_value = "panel")]
         view: String,
         #[arg(long)]
@@ -541,7 +541,18 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
                 command: "/cast",
                 locales: "deDE".into(),
                 bad: Vec::new(),
-                soft: vec![format!("{gronckk} (enUS)")],
+                soft: [
+                    gronckk,
+                    "Groncky-Tarren Mill",
+                    "Gronckz-Draenor",
+                    "Gronckw-Stormrage",
+                    "Gronckr-Kazzak",
+                    "Gronckq-Silvermoon",
+                    "Gronckp-Argent Dawn",
+                    "Gronckm-Hyjal",
+                ]
+                .map(|c| format!("{c} (enUS)"))
+                .to_vec(),
                 unknown: Vec::new(),
                 firm: false,
             },
@@ -984,7 +995,6 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         "cleanup-tip" => Some(1),
         "profiles-tip" | "profiles-game" => Some(0),
         "macros-tip" => Some(0),
-        "macros-list-tip" => Some(1),
         _ => None,
     };
     Ok(panel::snapshot(
@@ -1007,7 +1017,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             "cleanup-list" => Some(panel::SheetList::Clean(maintenance::List::Orphans)),
             "profiles-pick" => Some(panel::SheetList::SaveFrom),
             "profiles-apply" | "profiles-search" => Some(panel::SheetList::ApplyTo(0)),
-            "macros-list" | "macros-list-tip" => Some(panel::SheetList::Macros),
+            "macros-list" => Some(panel::SheetList::Macros),
             _ => None,
         }
         .map(|list| panel::Sheet {

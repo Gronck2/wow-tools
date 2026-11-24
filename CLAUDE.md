@@ -79,7 +79,7 @@ Store, which signs MSIX for free, was put off as a big rework).
 
 ## Seeing the UI without a screen
 
-`wow-tools ui-snapshot <out.png> [panel|panel-drag|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|macros|macros-list|macros-busy|macros-empty|macros-nodata|macros-names|macros-tip|macros-list-tip|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|settings-about|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
+`wow-tools ui-snapshot <out.png> [panel|panel-drag|busy|game|error|confirm|empty|pinned|unlocked|lock-tip|pin-tip|folder-tip|settings-tip|busy-addons|addons|addons-busy|addons-tip|addons-empty|addons-skipped|update|update-tip|cleanup|cleanup-tip|cleanup-confirm|cleanup-busy|cleanup-done|cleanup-scanning|cleanup-list|profiles|profiles-pick|profiles-apply|profiles-confirm|profiles-busy|profiles-done|profiles-same|profiles-tip|profiles-empty|profiles-search|profiles-game|macros|macros-list|macros-busy|macros-empty|macros-nodata|macros-names|macros-tip|menu|menu-update|settings|settings-update|settings-backup|settings-exit|settings-days|settings-addons|settings-every|settings-one|settings-wago|settings-screenshots|settings-about|tray-icons] [--dark]` (hidden command; `--lang ru|en|de|fr|es`) renders
 the panel, the menu or the settings window with demo data, at 1.5x. Read the PNG to check layout after any UI change.
 The owner often plays WoW while we work: never screenshot the screen or bring windows to the front to check the UI.
 
@@ -123,7 +123,7 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
   (`Request::SaveProfile`/`ApplyProfile`), spinner and result in the row) and "Макросы" (`tray::MacroCheck` in
   `View::macros`: "check" starts `tray::scan_macros`, a thread that runs `macros::scan` — the name tables load in it per
   flavor and are dropped, only the findings (`Arc<Scan>`) stay; never started by itself; a counts card per kind with a
-  list button opening `SheetList::Macros` (two-line rows, hover = the full text), "copy" puts `macros::report` on
+  list button opening `SheetList::Macros` (`W_REPORT` wide: `fit` widens the window, the header is laid out over `width(sheet)`, other tabs stay `W`; rows of wrapped height by `macro_rows`, scrolled by whole findings, no hover tip; closing returns to `W`, `Panel::shift` undoes a move left), "copy" puts `macros::report` on
   the clipboard (`Action::CopyMacros`), "download" is `Request::UpdateNames` (`Work::Names`, only on that button; a
   check on screen is redone after it) with the cache state from `macro_names::cached`); autostart switch under all.
   The height fits the tallest tab, so switching tabs does not resize it (five tabs: `tabs` shrinks the padding to fit). The tabs are `config::PanelTab` (`panel::Tab`), shown as `View::tabs` = `Config::shown_tabs`

@@ -406,7 +406,7 @@ Les raccourcis clavier et les macros peuvent être stockés sur les serveurs de 
 
 ## Vérifier les macros
 
-<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-fr-dark.png"><img src="docs/images/macros-fr.png" width="360" alt="Panneau, onglet Macros"></picture></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-fr-dark.png"><img src="docs/images/macros-fr.png" width="640" alt="Panneau, onglet Macros : le rapport des problèmes"></picture></p>
 
 WoW Tools lit les macros de tous les comptes et personnages et indique ce qui est cassé, sans lancer le jeu :
 `wow-tools macros`. Il vérifie les lignes `/run` et `/script` (fonctions retirées du jeu, avec leur remplaçante), les
@@ -424,8 +424,8 @@ d'addon). Le dossier `WTF` est seulement lu.
 L'onglet **Macros** du panneau fait la même chose sans ligne de commande. **Vérifier les macros** lit toutes les
 macros en arrière-plan (cela marche aussi pendant le jeu et ne change rien) ; l'onglet montre ensuite combien de
 problèmes de chaque type ont été trouvés. Le bouton de liste les ouvre tous par-dessus l'onglet : la macro, où elle se
-trouve (macros communes du compte ou un personnage), la ligne, ce qui ne va pas et comment le corriger ; survoler une
-ligne affiche le texte complet, la molette fait défiler, on ferme avec ✕ ou Échap. **Copier** met tout le rapport
+trouve (macros communes du compte ou un personnage), la ligne, ce qui ne va pas et comment le corriger ; la fenêtre est plus large tant que la liste est ouverte et chaque texte est affiché en entier, à la ligne ;
+la molette fait défiler, on ferme avec ✕ ou Échap. **Copier** met tout le rapport
 dans le presse-papiers. La dernière carte montre les noms de sorts et d'objets téléchargés (version du jeu et
 langues) ; **Télécharger** les récupère — seulement quand vous appuyez dessus, puis la vérification repart. La
 vérification n'a lieu que sur ce bouton, jamais d'elle-même.

@@ -368,7 +368,7 @@ in which case the server copy can override the copied files on login.
 
 ## Checking macros
 
-<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-en-dark.png"><img src="docs/images/macros-en.png" width="360" alt="Panel, Macros tab"></picture></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-en-dark.png"><img src="docs/images/macros-en.png" width="640" alt="Panel, Macros tab: the report of problems"></picture></p>
 
 WoW Tools can read the macros of every account and character and list what is broken, without starting the game:
 `wow-tools macros`. It checks `/run` and `/script` lines for functions removed from the game (and says what replaces
@@ -386,7 +386,7 @@ a name in the wrong language is reported with the name the realm's language uses
 The **Macros** tab of the panel does the same without the command line. **Check macros** reads every macro in the
 background (it works while the game runs and changes nothing), then the tab shows how many problems of each kind were
 found. The list button opens them all over the tab: the macro, where it is (the account's shared macros or a
-character), the line, what is wrong and how to fix it; hover a row for the full text, scroll with the wheel, close
+character), the line, what is wrong and how to fix it. The window gets wider while the list is open and every text is wrapped in full; scroll with the wheel, close
 with ✕ or Esc. **Copy** puts the whole report on the clipboard. The last card shows the downloaded spell and item names
 (game build and languages) and **Download** fetches them — only when you press it; the check runs again afterwards.
 The check is done only when you press the button, never by itself.
