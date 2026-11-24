@@ -799,6 +799,30 @@ mod tests {
     }
 
     #[test]
+    fn single_value_edge_cases_and_unchanged_text_is_not_marked() {
+        let name = "(C_Spell.GetSpellInfo(1) or {}).name";
+        for (code, fixed) in [
+            ("x = GetSpellInfo(1) .. \"a\"", format!("x = {name} .. \"a\"")),
+            ("if not GetSpellInfo(1) then y() end", format!("if not {name} then y() end")),
+            ("f(GetSpellInfo(1), 2)", format!("f({name}, 2)")),
+        ] {
+            assert_eq!(run(code), Some(fixed), "{code}");
+        }
+        // nested: the outer call is print's only argument, the inner one passes all its values on and stays
+        assert_eq!(
+            run("print(GetSpellInfo(GetSpellInfo(1)))").as_deref(),
+            Some("print((C_Spell.GetSpellInfo(GetSpellInfo(1)) or {}).name)")
+        );
+        assert_eq!(run("x = a:GetSpellInfo(1)"), None);
+        // a German text for German characters has nothing replaced, so nothing is marked
+        let de = [target("A-De", "deDE")];
+        let fix = build(&mac(&["/cast Feuerball", "/run print(GetItemCount(5))"]), true, &de, true, &names()).unwrap();
+        let v = &fix.variants[0];
+        let pieces: Vec<&str> = v.marks.iter().map(|m| &v.text[m.clone()]).collect();
+        assert_eq!(pieces, ["C_Item.GetItemCount"]);
+    }
+
+    #[test]
     fn marks_stay_on_character_boundaries_after_several_replacements() {
         let ru = [target("A-Ru", "ruRU")];
         let body = [
