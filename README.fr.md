@@ -123,6 +123,7 @@ Le **clic gauche** ouvre le panneau (style Windows 11, suit le thème clair/somb
   chaque élément — voir [Nettoyage](#nettoyage).
 - Onglet **Profils** : les profils d'interface enregistrés et **Enregistrer un profil** — voir
   [Profils d'interface](#profils-dinterface).
+- Onglet **Macros** : **Vérifier les macros** et ce qui a été trouvé — voir [Vérifier les macros](#vérifier-les-macros).
 - Un onglet se fait glisser à une autre place dans la rangée ; **Paramètres → Général → Onglets du panneau** masque
   les onglets inutiles.
 - En haut : le cadenas, le trombone, le dossier des sauvegardes et les paramètres (survolez-les pour voir ce qu'ils
@@ -405,6 +406,8 @@ Les raccourcis clavier et les macros peuvent être stockés sur les serveurs de 
 
 ## Vérifier les macros
 
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-fr-dark.png"><img src="docs/images/macros-fr.png" width="360" alt="Panneau, onglet Macros"></picture></p>
+
 WoW Tools lit les macros de tous les comptes et personnages et indique ce qui est cassé, sans lancer le jeu :
 `wow-tools macros`. Il vérifie les lignes `/run` et `/script` (fonctions retirées du jeu, avec leur remplaçante), les
 macros de plus de 255 caractères, les `[ ]` déséquilibrés et les commandes d'une autre langue (`/закл`) selon la langue
@@ -417,6 +420,14 @@ du jeu), il vérifie aussi les noms dans `/cast`, `/use`, `/castsequence`, `/cas
 et `#show` : un nom dans la mauvaise langue est signalé avec le nom de la langue du royaume, un nom introuvable comme
 « inconnu » (faute de frappe ou supprimé ; ce peut aussi être un ensemble d'équipement, une mascotte ou un élément
 d'addon). Le dossier `WTF` est seulement lu.
+
+L'onglet **Macros** du panneau fait la même chose sans ligne de commande. **Vérifier les macros** lit toutes les
+macros en arrière-plan (cela marche aussi pendant le jeu et ne change rien) ; l'onglet montre ensuite combien de
+problèmes de chaque type ont été trouvés. Le bouton **Ouvrir le rapport** les montre dans une fenêtre à part, que l'on peut redimensionner, réduire et agrandir (sa taille et sa place sont retenues) : pour chaque problème, la macro et la ligne, où elle se trouve (macros communes du compte ou un personnage), ce qui ne va pas et comment le corriger, le tout affiché en entier, à la ligne. Les problèmes vont du plus grave au plus bénin : les rouges ne marchent pas (fonction retirée, macro trop longue, crochets déséquilibrés, nom inconnu, nom ou commande dans la mauvaise langue dans la macro propre d'un personnage), les jaunes peuvent ne pas marcher, les gris sont à titre d'information (la langue du royaume est inconnue) ; l'en-tête les compte, et **Copier** met tout le rapport dans le presse-papiers. La dernière carte montre les noms de sorts et d'objets téléchargés (version du jeu et
+langues) ; **Télécharger** les récupère — seulement quand vous appuyez dessus, puis la vérification repart. La
+vérification n'a lieu que sur ce bouton, jamais d'elle-même.
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-fr-dark.png"><img src="docs/images/macro-report-fr.png" width="720" alt="La fenêtre du rapport des macros"></picture></p>
 
 ## Ligne de commande
 

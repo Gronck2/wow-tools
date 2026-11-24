@@ -216,7 +216,7 @@ pub enum How {
     Realm,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Kind {
     Deprecated {
         func: &'static str,
@@ -253,6 +253,39 @@ pub enum Kind {
     UnknownName {
         name: String,
     },
+}
+
+/// How bad a finding is: it does not work, it may not work, or it is only for information.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Level {
+    Broken,
+    Warn,
+    Info,
+}
+
+impl Level {
+    pub fn label(self) -> &'static str {
+        match self {
+            Level::Broken => tr!("macros.level_broken"),
+            Level::Warn => tr!("macros.level_warn"),
+            Level::Info => tr!("macros.level_info"),
+        }
+    }
+}
+
+impl Kind {
+    /// The short name of the kind, for the counts of the panel.
+    pub fn title(&self) -> &'static str {
+        match self {
+            Kind::Deprecated { .. } => tr!("macros.kind_deprecated"),
+            Kind::TooLong { .. } => tr!("macros.kind_too_long"),
+            Kind::Brackets => tr!("macros.kind_brackets"),
+            Kind::Alias { .. } => tr!("macros.kind_alias"),
+            Kind::Secret { .. } => tr!("macros.kind_secret"),
+            Kind::WrongLanguage { .. } => tr!("macros.kind_wrong"),
+            Kind::UnknownName { .. } => tr!("macros.kind_unknown"),
+        }
+    }
 }
 
 /// Whole-word match: not part of a longer name and not a field (`C_Spell.GetSpellInfo`, `x:GetSpellInfo`).
@@ -344,18 +377,20 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
     out
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Finding {
     pub flavor: String,
     /// "Account X" or "Name-Realm".
     pub scope: String,
+    /// From the account's own macros (listed before its characters').
+    pub account: bool,
     pub name: String,
     pub line: usize,
     pub kind: Kind,
 }
 
 impl Finding {
-    fn problem(&self) -> String {
+    pub fn problem(&self) -> String {
         match &self.kind {
             Kind::Deprecated { func, patch, .. } => tr!("macros.deprecated", func = func, patch = patch),
             Kind::TooLong { chars } => tr!("macros.too_long", n = chars, max = MAX_LEN),
@@ -407,7 +442,27 @@ impl Finding {
         }
     }
 
-    fn fix(&self) -> Option<String> {
+    /// Broken: fails for sure (removed API, too long, unbalanced brackets, a name nobody knows, or a name/command the
+    /// Russian realm of the character's own macro cannot read). Warn: may fail (an account-wide macro on a Russian realm,
+    /// works only with a client in another language, values hidden in combat). Info: the realm's language is unknown.
+    pub fn level(&self) -> Level {
+        match &self.kind {
+            Kind::Deprecated { .. } | Kind::TooLong { .. } | Kind::Brackets | Kind::UnknownName { .. } => Level::Broken,
+            Kind::Secret { .. } => Level::Warn,
+            Kind::WrongLanguage { how, .. } => match how {
+                How::Firm => Level::Broken,
+                How::Maybe | How::Client => Level::Warn,
+                How::Realm => Level::Info,
+            },
+            Kind::Alias { bad, soft, firm, .. } => match (bad.is_empty(), soft.is_empty()) {
+                (false, _) if *firm => Level::Broken,
+                (true, true) => Level::Info,
+                _ => Level::Warn,
+            },
+        }
+    }
+
+    pub fn fix(&self) -> Option<String> {
         match &self.kind {
             Kind::Deprecated { replacement, url, .. } => Some(tr!("macros.fix_deprecated", replacement = replacement, url = url)),
             Kind::TooLong { chars } => Some(tr!("macros.fix_too_long", over = chars - MAX_LEN)),
@@ -419,7 +474,7 @@ impl Finding {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Scan {
     pub findings: Vec<Finding>,
     /// Macros read.
@@ -430,18 +485,59 @@ pub struct Scan {
     pub missing: Vec<String>,
 }
 
+impl Scan {
+    /// How many findings there are of each level that occurs, worst first.
+    pub fn levels(&self) -> Vec<(Level, usize)> {
+        [Level::Broken, Level::Warn, Level::Info]
+            .into_iter()
+            .map(|l| (l, self.findings.iter().filter(|f| f.level() == l).count()))
+            .filter(|&(_, n)| n > 0)
+            .collect()
+    }
+
+    /// How many findings there are of each kind, the most first.
+    pub fn counts(&self) -> Vec<(&'static str, usize)> {
+        let mut out: Vec<(&'static str, usize)> = Vec::new();
+        for f in &self.findings {
+            let title = f.kind.title();
+            match out.iter_mut().find(|(t, _)| *t == title) {
+                Some((_, n)) => *n += 1,
+                None => out.push((title, 1)),
+            }
+        }
+        out.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
+        out
+    }
+}
+
 /// Checks the macros of every account and character of `flavors`; names are checked against the cache in `names_dir`.
 pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
+    walk(flavors, Some(names_dir))
+}
+
+/// Per product, the realm languages the macros of `flavors` are judged by, without reading macros or name tables.
+pub fn needs(flavors: &[Flavor]) -> BTreeMap<String, BTreeSet<&'static str>> {
+    walk(flavors, None).locales
+}
+
+/// `names_dir` None: only collect `locales` (no macro is read, no name table loaded).
+fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
     let mut scan = Scan::default();
     for fl in flavors {
         let wtf = fl.wtf_dir();
         let region = portal(&wtf);
         let retail = is_retail(&fl.name);
         let product = fl.product();
-        let names = product.as_deref().map(|p| Names::load(names_dir, p)).unwrap_or_default();
+        let names = match (product.as_deref(), names_dir) {
+            (Some(p), Some(dir)) => Names::load(dir, p),
+            _ => Default::default(),
+        };
         let client = client_locale(&wtf);
         let (checked_before, mut seen) = (scan.checked, BTreeSet::new());
         let mut check_file = |path: &Path, scope: &str, targets: &[Target], firm: bool| {
+            if names_dir.is_none() {
+                return;
+            }
             let Ok(bytes) = fs::read(path) else { return };
             for m in parse(&String::from_utf8_lossy(&bytes)) {
                 scan.checked += 1;
@@ -452,6 +548,7 @@ pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
                     scan.findings.push(Finding {
                         flavor: fl.title(),
                         scope: scope.to_string(),
+                        account: !firm,
                         name: m.name.clone(),
                         line,
                         kind,
@@ -503,19 +600,26 @@ pub fn scan(flavors: &[Flavor], names_dir: &Path) -> Scan {
             }
         }
     }
+    // Worst first, then by macro, so the panel report, the clipboard and the console list the same way.
+    sort_findings(&mut scan.findings);
     scan
+}
+
+pub fn sort_findings(findings: &mut [Finding]) {
+    let key = |f: &Finding| (f.level(), f.flavor.clone(), !f.account, f.scope.clone(), f.name.clone(), f.line);
+    findings.sort_by_key(key);
 }
 
 pub fn report(scan: &Scan) -> String {
     let mut out = String::new();
-    let mut head: Option<(&str, &str)> = None;
+    let mut head: Option<(Level, &str, &str)> = None;
     for f in &scan.findings {
-        if head != Some((&f.flavor, &f.scope)) {
+        if head != Some((f.level(), &f.flavor, &f.scope)) {
             if !out.is_empty() {
                 out.push('\n');
             }
-            out.push_str(&format!("{} / {}\n", f.flavor, f.scope));
-            head = Some((&f.flavor, &f.scope));
+            out.push_str(&format!("[{}] {} / {}\n", f.level().label(), f.flavor, f.scope));
+            head = Some((f.level(), &f.flavor, &f.scope));
         }
         out.push_str(&if f.line == 0 {
             tr!("macros.item", name = f.name, problem = f.problem())
@@ -731,6 +835,7 @@ mod tests {
         let s = scan(std::slice::from_ref(&fl), names.path());
         // Download set: realm + client languages of ACC, plus the Russian realm's own.
         assert_eq!(s.locales["wow"], BTreeSet::from(["enUS", "deDE", "ruRU"]));
+        assert_eq!(needs(std::slice::from_ref(&fl)), s.locales);
         assert!(
             s.findings
                 .iter()
@@ -884,5 +989,155 @@ mod tests {
         };
         assert_eq!(unknown, &["Bbb-Nowhere"]);
         assert!(bad[0].starts_with("Aaa-Нигде (deDE, ") && bad[0] != "Aaa-Нигде (deDE)");
+    }
+
+    fn finding(kind: Kind) -> Finding {
+        Finding {
+            flavor: "Retail".into(),
+            scope: "s".into(),
+            account: false,
+            name: "n".into(),
+            line: 1,
+            kind,
+        }
+    }
+
+    fn alias(bad: &[&str], soft: &[&str], unknown: &[&str], firm: bool) -> Kind {
+        let v = |l: &[&str]| l.iter().map(|s| s.to_string()).collect();
+        Kind::Alias {
+            alias: "/a".into(),
+            command: "/cast",
+            locales: "deDE".into(),
+            bad: v(bad),
+            soft: v(soft),
+            unknown: v(unknown),
+            firm,
+        }
+    }
+
+    fn wrong(how: How) -> Kind {
+        Kind::WrongLanguage {
+            name: "a".into(),
+            lang: "deDE".into(),
+            fix: "b".into(),
+            bad: vec!["X-Y".into()],
+            how,
+        }
+    }
+
+    #[test]
+    fn level_of_every_kind() {
+        let deprecated = Kind::Deprecated {
+            func: "f",
+            replacement: "g",
+            patch: "1",
+            url: "u",
+        };
+        let level = |k| finding(k).level();
+        assert_eq!(level(deprecated), Level::Broken);
+        assert_eq!(level(Kind::TooLong { chars: 300 }), Level::Broken);
+        assert_eq!(level(Kind::Brackets), Level::Broken);
+        assert_eq!(level(Kind::UnknownName { name: "x".into() }), Level::Broken);
+        assert_eq!(level(Kind::Secret { func: "f" }), Level::Warn);
+        assert_eq!(level(wrong(How::Firm)), Level::Broken);
+        assert_eq!(level(wrong(How::Maybe)), Level::Warn);
+        assert_eq!(level(wrong(How::Client)), Level::Warn);
+        assert_eq!(level(wrong(How::Realm)), Level::Info);
+        assert_eq!(level(alias(&["a"], &[], &[], true)), Level::Broken);
+        assert_eq!(level(alias(&["a"], &["b"], &["c"], true)), Level::Broken);
+        assert_eq!(level(alias(&["a"], &[], &[], false)), Level::Warn);
+        assert_eq!(level(alias(&[], &["b"], &["c"], false)), Level::Warn);
+        assert_eq!(level(alias(&[], &[], &["c"], false)), Level::Info);
+    }
+
+    #[test]
+    fn findings_sort_by_level_then_macro_and_the_report_marks_levels() {
+        let at = |level_kind: Kind, name: &str, line: usize| Finding {
+            name: name.into(),
+            line,
+            ..finding(level_kind)
+        };
+        let mut scan = Scan {
+            findings: vec![
+                at(wrong(How::Realm), "B", 1),
+                at(Kind::Brackets, "B", 5),
+                at(Kind::Secret { func: "f" }, "A", 1),
+                at(Kind::Brackets, "B", 2),
+                at(Kind::Brackets, "A", 9),
+            ],
+            ..Default::default()
+        };
+        sort_findings(&mut scan.findings);
+        let order: Vec<_> = scan.findings.iter().map(|f| (f.level(), f.name.as_str(), f.line)).collect();
+        assert_eq!(
+            order,
+            [
+                (Level::Broken, "A", 9),
+                (Level::Broken, "B", 2),
+                (Level::Broken, "B", 5),
+                (Level::Warn, "A", 1),
+                (Level::Info, "B", 1)
+            ]
+        );
+        assert_eq!(scan.levels(), [(Level::Broken, 3), (Level::Warn, 1), (Level::Info, 1)]);
+        scan.findings.retain(|f| f.level() != Level::Warn);
+        assert_eq!(scan.levels(), [(Level::Broken, 3), (Level::Info, 1)]);
+        let report = report(&scan);
+        assert!(report.find(Level::Broken.label()).unwrap() < report.find(Level::Info.label()).unwrap());
+        assert!(!report.contains(Level::Warn.label()));
+    }
+
+    #[test]
+    fn report_groups_by_level_then_flavor_and_scope() {
+        let at = |kind: Kind, flavor: &str, scope: &str| Finding {
+            flavor: flavor.into(),
+            scope: scope.into(),
+            ..finding(kind)
+        };
+        let mut scan = Scan {
+            findings: vec![
+                at(Kind::Secret { func: "f" }, "Era", "s"),
+                at(Kind::Brackets, "Retail", "b"),
+                at(Kind::Brackets, "Era", "s"),
+                at(Kind::Brackets, "Retail", "a"),
+                Finding {
+                    account: true,
+                    ..at(Kind::Brackets, "Retail", "z")
+                },
+            ],
+            ..Default::default()
+        };
+        sort_findings(&mut scan.findings);
+        let heads: Vec<_> = report(&scan).lines().filter(|l| l.starts_with('[')).map(String::from).collect();
+        let (broken, warn) = (Level::Broken.label(), Level::Warn.label());
+        assert_eq!(
+            heads,
+            [
+                format!("[{broken}] Era / s"),
+                format!("[{broken}] Retail / z"),
+                format!("[{broken}] Retail / a"),
+                format!("[{broken}] Retail / b"),
+                format!("[{warn}] Era / s")
+            ]
+        );
+    }
+
+    #[test]
+    fn counts_group_findings_by_kind_most_first() {
+        let f = |kind| Finding {
+            flavor: "Retail".into(),
+            scope: "s".into(),
+            account: false,
+            name: "n".into(),
+            line: 1,
+            kind,
+        };
+        let name = |n: &str| Kind::UnknownName { name: n.into() };
+        let scan = Scan {
+            findings: vec![f(Kind::Brackets), f(name("a")), f(name("b"))],
+            ..Default::default()
+        };
+        assert_eq!(scan.counts(), [(tr!("macros.kind_unknown"), 2), (tr!("macros.kind_brackets"), 1)]);
+        assert!(Scan::default().counts().is_empty());
     }
 }

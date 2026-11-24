@@ -182,6 +182,40 @@ fn cache_path(dir: &Path, product: &str, locale: &str, ext: &str) -> PathBuf {
     dir.join(format!("{product}-{locale}.{ext}"))
 }
 
+/// The name data of one product in the cache.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cached {
+    pub product: String,
+    /// The build of the enUS data (any locale's when there is none).
+    pub build: String,
+    pub locales: Vec<String>,
+}
+
+/// What `dir` holds, per product, from the small `.meta` files (no zip is opened).
+pub fn cached(dir: &Path) -> Vec<Cached> {
+    let mut out: BTreeMap<String, Cached> = BTreeMap::new();
+    for e in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let file = e.file_name().to_string_lossy().into_owned();
+        let Some((product, locale)) = file.strip_suffix(".meta").and_then(|f| f.split_once('-')) else {
+            continue;
+        };
+        if !cache_path(dir, product, locale, "zip").exists() {
+            continue;
+        }
+        let build = fs::read_to_string(e.path()).unwrap_or_default().trim().to_string();
+        let entry = out.entry(product.to_string()).or_insert_with(|| Cached {
+            product: product.to_string(),
+            build: build.clone(),
+            locales: Vec::new(),
+        });
+        if locale == ENUS {
+            entry.build = build;
+        }
+        entry.locales.push(locale.to_string());
+    }
+    out.into_values().collect()
+}
+
 fn read_cache(dir: &Path, product: &str, locale: &str) -> Result<[Rows; 2]> {
     let mut zip = ZipArchive::new(fs::File::open(cache_path(dir, product, locale, "zip"))?)?;
     let mut read = |entry: &str| -> Result<Rows> {
@@ -304,6 +338,19 @@ pub fn update(dir: &Path, needs: &BTreeMap<String, BTreeSet<&str>>, progress: &m
         bail!(tr!("macros.names_failed", n = failed));
     }
     Ok(())
+}
+
+/// Where the name data is cached.
+pub fn dir() -> PathBuf {
+    crate::config::data_dir().join("names")
+}
+
+/// Downloads what the characters of `flavors` need (`update` for the locales their macros are judged by).
+pub fn update_for(flavors: &[crate::wow::Flavor], progress: &mut dyn FnMut(String)) -> Result<()> {
+    let dir = dir();
+    let mut needs = crate::macros::needs(flavors);
+    needs.retain(|_, l| !l.is_empty());
+    update(&dir, &needs, progress)
 }
 
 /// The spell and item names a macro line asks for: `/cast [@focus] !Name(Rank 1); Other`, castsequence lists,
@@ -696,5 +743,25 @@ mod tests {
         let mut again = Vec::new();
         update(dir.path(), &needs, &mut |l| again.push(l)).unwrap();
         assert_eq!(again.len(), 2);
+    }
+
+    #[test]
+    fn cached_lists_products_with_build_and_locales_from_the_meta_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |name: &str, text: &str| fs::write(dir.path().join(name), text).unwrap();
+        put("wow-ruRU.zip", "");
+        put("wow-ruRU.meta", "1.2.4");
+        put("wow-enUS.zip", "");
+        put("wow-enUS.meta", "1.2.5\n");
+        // A meta without its zip (a cut write) is not data.
+        put("wow-deDE.meta", "1.2.5");
+        put("wow_classic_era-enUS.zip", "");
+        put("wow_classic_era-enUS.meta", "1.15.1");
+        assert!(cached(&dir.path().join("none")).is_empty());
+        let got = cached(dir.path());
+        assert_eq!(got.len(), 2);
+        let wow = got.iter().find(|c| c.product == "wow").unwrap();
+        assert_eq!((wow.build.as_str(), wow.locales.len()), ("1.2.5", 2));
+        assert_eq!(got.iter().find(|c| c.product == "wow_classic_era").unwrap().build, "1.15.1");
     }
 }

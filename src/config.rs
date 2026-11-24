@@ -57,10 +57,11 @@ pub enum PanelTab {
     Addons,
     Cleanup,
     Profiles,
+    Macros,
 }
 
 impl PanelTab {
-    pub const ALL: [PanelTab; 4] = [PanelTab::Backup, PanelTab::Addons, PanelTab::Cleanup, PanelTab::Profiles];
+    pub const ALL: [PanelTab; 5] = [PanelTab::Backup, PanelTab::Addons, PanelTab::Cleanup, PanelTab::Profiles, PanelTab::Macros];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -68,6 +69,7 @@ impl PanelTab {
             PanelTab::Addons => tr!("panel.tab_addons"),
             PanelTab::Cleanup => tr!("cleanup.tab"),
             PanelTab::Profiles => tr!("profiles.tab"),
+            PanelTab::Macros => tr!("macros.tab"),
         }
     }
 }
@@ -623,19 +625,23 @@ mod tests {
         use PanelTab::*;
         // Unknown names are skipped, missing tabs follow in the default order.
         let mut cfg: Config = toml::from_str("panel_tabs = ['profiles', 'mail', 'backup']\nhidden_tabs = ['cleanup', 'x']\n").unwrap();
-        assert_eq!(cfg.tab_order(), [Profiles, Backup, Addons, Cleanup]);
-        assert_eq!(cfg.shown_tabs(), [Profiles, Backup, Addons]);
+        assert_eq!(cfg.tab_order(), [Profiles, Backup, Addons, Cleanup, Macros]);
+        assert_eq!(cfg.shown_tabs(), [Profiles, Backup, Addons, Macros]);
+
+        // The saved name of the new tab, and an old four-tab list that gets it appended.
+        let old: Config = toml::from_str("panel_tabs = ['backup', 'addons', 'cleanup', 'profiles']\nhidden_tabs = ['macros']\n").unwrap();
+        assert_eq!((old.tab_order()[4], old.shown_tabs().len()), (Macros, 4));
 
         // Rearranged in the panel: the hidden tab keeps its place.
         cfg.hidden_tabs = vec![Backup];
-        cfg.set_shown_order(&[Cleanup, Profiles, Addons]);
-        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons]);
+        cfg.set_shown_order(&[Cleanup, Profiles, Addons, Macros]);
+        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons, Macros]);
         // Not a rearrangement of the shown tabs (a stale list): ignored.
-        cfg.set_shown_order(&[Backup, Cleanup, Profiles, Addons]);
-        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons]);
+        cfg.set_shown_order(&[Backup, Cleanup, Profiles, Addons, Macros]);
+        assert_eq!(cfg.tab_order(), [Cleanup, Backup, Profiles, Addons, Macros]);
 
         // The last shown tab cannot be hidden.
-        assert!(cfg.toggle_tab(Cleanup) && cfg.toggle_tab(Addons));
+        assert!(cfg.toggle_tab(Cleanup) && cfg.toggle_tab(Addons) && cfg.toggle_tab(Macros));
         assert!(!cfg.toggle_tab(Profiles));
         assert_eq!(cfg.shown_tabs(), [Profiles]);
         assert!(cfg.toggle_tab(Backup));

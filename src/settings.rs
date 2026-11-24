@@ -772,7 +772,7 @@ fn formats() -> gfx::Result<Formats> {
         section: gfx::text_format(&dw, gfx::UI_FONT, 14.0, true, Align::Left)?,
         title: gfx::text_format(&dw, gfx::UI_FONT, 14.0, false, Align::Left)?,
         sub: gfx::text_format(&dw, gfx::UI_FONT, 12.0, false, Align::Left)?,
-        wrap: gfx::wrap_format(&dw, 12.0)?,
+        wrap: gfx::wrap_format(&dw, 12.0, false)?,
         path: gfx::path_format(&dw, 12.0)?,
         button: gfx::text_format(&dw, gfx::UI_FONT, 13.0, false, Align::Center)?,
         value: gfx::text_format(&dw, gfx::UI_FONT, 14.0, false, Align::Center)?,
@@ -1406,7 +1406,7 @@ fn open() -> gfx::Result<()> {
     let title = tr!("settings.title", app = APP_NAME);
     let (model, fmt) = (Model::load(&path), formats()?);
     let height = content_height(&model, &fmt, Tab::default());
-    let (hwnd, scale) = gfx::create_window("WowToolsSettings", &title, Some(wndproc), (W, height), &theme);
+    let (hwnd, scale) = gfx::create_window("WowToolsSettings", &title, Some(wndproc), (W, height), &theme, false);
     let icon = tray::app_icon();
     let window = Window {
         surface: Surface::new(hwnd, scale)?,

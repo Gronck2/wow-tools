@@ -9,6 +9,11 @@ installed addon managers (CurseForge, WowUp, Wago App) plus ElvUI, cleanup, and 
   Direct2D/DirectWrite through `gfx.rs`. Tests are inline `#[cfg(test)]` modules.
 - `macros.rs` — the macro check (`wow-tools macros`): parser of `macros-cache.txt`, offline checks; tables in `data/*.tsv`.
 - `macro_names.rs` — spell/item name cache from wago.tools (`macros --update-names`, on request only) and the name check (wrong language, unknown).
+- The panel's **Macros** tab (`panel.rs`, `tray::MacroCheck`): the check runs on its own thread on a button
+  (`tray::scan_macros`); the name tables are loaded inside `macros::scan` per game version and dropped with it, so the
+  tray keeps only the findings. The name download is a worker request (`Request::UpdateNames`, `Work::Names`).
+  The panel never widens: "Open report" opens `report.rs`, a regular resizable window with every finding in full,
+  sorted by `macros::Level` (red, yellow, grey), its size and place remembered.
 - `locales/` — interface strings in five languages (ru, en, de, fr, es), embedded by `i18n.rs`.
 - `packaging/` — the Inno Setup installer, the portable marker and the winget manifests.
 - `site/` — the landing page (`site/build.py` renders it per language), published by GitHub Pages.

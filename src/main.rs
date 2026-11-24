@@ -18,6 +18,8 @@ mod menu;
 #[cfg(windows)]
 mod panel;
 mod profiles;
+#[cfg(windows)]
+mod report;
 mod schedule;
 mod selfupdate;
 #[cfg(windows)]
@@ -186,7 +188,7 @@ enum Cmd {
     #[command(hide = true)]
     UiSnapshot {
         out: PathBuf,
-        /// panel, busy, game, error, confirm, empty, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
+        /// panel, busy, game, error, confirm, empty, macros, macro-report, macros-busy, macros-empty, macros-nodata, macros-names, macros-tip, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
         #[arg(default_value = "panel")]
         view: String,
         #[arg(long)]
@@ -426,15 +428,13 @@ fn cmd_clean(ctx: &Ctx, items: &[String]) -> Result<()> {
 
 fn cmd_macros(ctx: &Ctx, flavor: Option<&str>, update_names: bool) -> Result<()> {
     let flavors = ctx.flavors(flavor)?;
-    let dir = config::data_dir().join("names");
-    let mut downloaded = Ok(());
-    if update_names {
-        let mut needs = macros::scan(&flavors, &dir).locales;
-        needs.retain(|_, l| !l.is_empty());
-        downloaded = macro_names::update(&dir, &needs, &mut |line| println!("{line}"));
-    }
+    let downloaded = if update_names {
+        macro_names::update_for(&flavors, &mut |line| println!("{line}"))
+    } else {
+        Ok(())
+    };
     // The report comes even when a download failed (the cached names still check), then the error.
-    println!("{}", macros::report(&macros::scan(&flavors, &dir)));
+    println!("{}", macros::report(&macros::scan(&flavors, &macro_names::dir())));
     downloaded
 }
 
@@ -497,6 +497,135 @@ fn cmd_tray(_: Ctx) -> Result<()> {
     bail!(tr!("out.tray_windows_only"))
 }
 
+/// The macro check of the demo views: findings of every kind, 212 macros read.
+#[cfg(windows)]
+fn demo_macros(view: &str) -> tray::MacroCheck {
+    use macros::{Finding, How, Kind};
+    let account = tr!("macros.account", account = "132678446#1");
+    let finding = |scope: &str, name: &str, line: usize, kind: Kind| Finding {
+        flavor: "Retail".into(),
+        scope: scope.into(),
+        account: scope == account,
+        name: name.into(),
+        line,
+        kind,
+    };
+    let gronckk = "Gronckk-Tarren Mill";
+    let findings = vec![
+        finding(
+            &account,
+            "Heal",
+            2,
+            Kind::Deprecated {
+                func: "GetSpellInfo",
+                replacement: "C_Spell.GetSpellInfo",
+                patch: "12.0.0",
+                url: "https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes",
+            },
+        ),
+        finding(
+            &account,
+            "Fire",
+            1,
+            Kind::WrongLanguage {
+                name: "Feuerball".into(),
+                lang: "deDE".into(),
+                fix: "Fireball".into(),
+                bad: vec![format!("{gronckk} (enUS)"), "Groncky-Tarren Mill (enUS)".into()],
+                how: How::Client,
+            },
+        ),
+        finding(
+            gronckk,
+            "Interrupt",
+            3,
+            Kind::Alias {
+                alias: "/zauber".into(),
+                command: "/cast",
+                locales: "deDE".into(),
+                bad: [
+                    gronckk,
+                    "Groncky-Tarren Mill",
+                    "Gronckz-Draenor",
+                    "Gronckw-Stormrage",
+                    "Gronckr-Kazzak",
+                    "Gronckq-Silvermoon",
+                    "Gronckp-Argent Dawn",
+                    "Gronckm-Hyjal",
+                ]
+                .map(|c| format!("{c} (ruRU)"))
+                .to_vec(),
+                soft: Vec::new(),
+                unknown: Vec::new(),
+                firm: true,
+            },
+        ),
+        finding(gronckk, "Burst", 4, Kind::UnknownName { name: "Heroik Strike".into() }),
+        finding(gronckk, "Burst", 0, Kind::TooLong { chars: 271 }),
+        finding(gronckk, "Focus", 2, Kind::Brackets),
+        finding(gronckk, "Health", 1, Kind::Secret { func: "UnitHealth" }),
+        finding("Groncky-Tarren Mill", "Pull", 5, Kind::UnknownName { name: "Pull timer".into() }),
+        finding(
+            "Groncky-Tarren Mill",
+            "Heal",
+            1,
+            Kind::WrongLanguage {
+                name: "Heilendes Licht".into(),
+                lang: "deDE".into(),
+                fix: "Holy Light".into(),
+                bad: vec!["Gronckx-Nowhere".into()],
+                how: How::Realm,
+            },
+        ),
+        finding(
+            "Groncky-Tarren Mill",
+            "Cooldowns",
+            2,
+            Kind::Alias {
+                alias: "/benutzen".into(),
+                command: "/use",
+                locales: "deDE".into(),
+                bad: Vec::new(),
+                soft: Vec::new(),
+                unknown: vec!["Gronckx-Nowhere".into()],
+                firm: false,
+            },
+        ),
+        finding(
+            &account,
+            "Bag",
+            1,
+            Kind::Deprecated {
+                func: "GetContainerItemInfo",
+                replacement: "C_Container.GetContainerItemInfo",
+                patch: "11.0.2",
+                url: "https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes",
+            },
+        ),
+    ];
+    let mut scan = macros::Scan {
+        missing: if view == "macros-nodata" { vec!["Retail".into()] } else { Vec::new() },
+        findings: if view == "macros-empty" { Vec::new() } else { findings },
+        checked: 212,
+        ..Default::default()
+    };
+    macros::sort_findings(&mut scan.findings);
+    let cached = macro_names::Cached {
+        product: "wow".into(),
+        build: "12.0.5.65000".into(),
+        locales: ["enUS", "deDE", "ruRU"].map(String::from).to_vec(),
+    };
+    tray::MacroCheck {
+        scan: (view != "macros-busy").then(|| std::sync::Arc::new(scan)),
+        scanning: view == "macros-busy",
+        downloading: view == "macros-names",
+        names_done: None,
+        copied: (view == "macro-report").then(|| (tr!("macros.copied").to_string(), tray::Tone::Ok)),
+        cached: if view == "macros-nodata" { Vec::new() } else { vec![cached] },
+        ..Default::default()
+    }
+}
+
 /// Removed addons of the cleanup demo, biggest first.
 #[cfg(windows)]
 const ORPHANS: [(&str, u64); 18] = [
@@ -535,6 +664,9 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         checked: Some(Local::now().naive_local()),
         ..Default::default()
     };
+    if view == "macro-report" {
+        return Ok(report::snapshot(&path, dark, &demo_macros(view))?);
+    }
     if view == "tray-icons" {
         // Each state at the tray sizes of 100-200 % scaling, over a light and a dark taskbar.
         let sizes = [16, 20, 24, 32];
@@ -734,6 +866,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         shots_dir: maintenance::screenshots_dir(&Config::default()),
         running: if view == "profiles-game" { vec!["_retail_".into()] } else { Vec::new() },
         tabs: config::PanelTab::ALL.to_vec(),
+        macros: demo_macros(view),
         profiles: if view == "profiles-empty" {
             Vec::new()
         } else {
@@ -837,6 +970,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         v if v.starts_with("addons") => panel::Tab::Addons,
         v if v.starts_with("cleanup") => panel::Tab::Cleanup,
         v if v.starts_with("profiles") => panel::Tab::Profiles,
+        v if v.starts_with("macros") => panel::Tab::Macros,
         _ => panel::Tab::Backup,
     };
     match view {
@@ -857,6 +991,10 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         "profiles-busy" => {
             demo.status.phase = Phase::Busy;
             demo.status.work = watch::Work::Profile;
+        }
+        "macros-names" => {
+            demo.status.phase = Phase::Busy;
+            demo.status.work = watch::Work::Names;
         }
         "addons-busy" | "busy-addons" => {
             demo.status.phase = Phase::Busy;
@@ -901,6 +1039,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         "addons-tip" => Some(2),
         "cleanup-tip" => Some(1),
         "profiles-tip" | "profiles-game" => Some(0),
+        "macros-tip" => Some(0),
         _ => None,
     };
     Ok(panel::snapshot(
@@ -908,7 +1047,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         dark,
         &demo,
         tab,
-        view == "panel" || view == "addons" || view == "cleanup" || view == "profiles",
+        view == "panel" || view == "addons" || view == "cleanup" || view == "profiles" || view == "macros",
         confirm,
         tip,
         match view {
