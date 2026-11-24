@@ -15,6 +15,8 @@ A small Windows tray app for World of Warcraft that keeps your settings and addo
   from its official site.
 - **Game patches**: when Battle.net updates the game, settings and addons are saved before its first start on the
   new version, and you see which addons are not made for it yet.
+- **Macro check**: finds broken macros — removed functions, names and commands in the wrong language, typos, macros
+  over 255 characters — ranked by colour, with a ready fixed text to copy. It only reads.
 - **Cleanup**: settings of removed addons, WoW's `.bak` copies, old combat logs, screenshots and the cache — with
   sizes, in one click.
 - **UI profiles**: save a character's interface (Edit Mode layouts, chat, addons and their profiles) and put it
@@ -377,7 +379,7 @@ language of the realm the character is on. A macro shared by the whole account i
 characters where it would fail; a realm whose language is not known is said so, never guessed. A Russian realm accepts only Russian; any other realm accepts its own
 language and the languages of the game client you use (`textLocale` in `Config.wtf`, plus Russian when the account has
 characters on a Russian realm); anything else is reported as working only with a client in that language. After
-`wow-tools macros --update-names` (it downloads the names of spells and items from wago.tools, once per game build)
+`wow-tools macros --update-names` (it downloads the names of spells and items from wago.tools, once per game build; up to about 55 MB per language)
 it also checks the names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show`:
 a name in the wrong language is reported with the name the realm's language uses, a name found nowhere as "unknown"
 (a typo, or removed; it may also be an equipment set, a pet or something an addon adds). Otherwise it only reads the
@@ -385,7 +387,7 @@ a name in the wrong language is reported with the name the realm's language uses
 
 The **Macros** tab of the panel does the same without the command line. **Check macros** reads every macro in the
 background (it works while the game runs and changes nothing), then the tab shows how many problems of each kind were
-found. The **Open report** button shows them in a window of its own that you can resize, minimize and maximize (its size and place are remembered): for each finding the macro and line, where it is (the account's shared macros or a character), what is wrong and how to fix it, all wrapped in full. Findings go from the worst to the mildest: red ones do not work (a removed function, a too long macro, unbalanced brackets, an unknown name, a name or command in the wrong language in a character's own macro), yellow ones may not work, grey ones are for information (the realm's language is unknown); the header counts them, and **Copy** puts the whole report on the clipboard. The last card shows the downloaded spell and item names
+found. The **Open report** button shows them in a window of its own that you can resize, minimize and maximize (its size and place are remembered): for each finding the macro and line, where it is (the account's shared macros or a character), what is wrong and how to fix it, all wrapped in full. Findings go from the worst to the mildest: red ones do not work (a removed function, a too long macro, unbalanced brackets, an unknown name, a name or command in the wrong language in a character's own macro), yellow ones may not work (or work only with a client in another language), grey ones are for information (the realm's language is unknown); the header counts them, and **Copy** puts the whole report on the clipboard. The last card shows the downloaded spell and item names
 (game build and languages) and **Download** fetches them — only when you press it; the report stays as it was until you check again (it then says the names were updated).
  The last report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check; text in the report window can be selected with the mouse and copied with Ctrl+C.
 The check is done only when you press the button, never by itself.
@@ -427,7 +429,7 @@ offered, only a note. `wow-tools macros` and the copied report print the same te
 | `schedule interval [--every MIN]` | a Task Scheduler task running `backup` every N minutes (a day by default) |
 | `schedule status` / `schedule remove` | show / remove autostart and the task |
 | `outdated` | addons not made for the installed game version |
-| `macros [--flavor F]` | find broken macros (removed API, too long, bad brackets, slash aliases of another language) |
+| `macros [--flavor F] [--update-names]` | find broken macros (removed API, too long, bad brackets, names and slash aliases of another language, typos); `--update-names` downloads spell and item names from wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | show what can be tidied up; with items, tidy them up |
 | `self-update [--check]` | check GitHub for a new version of WoW Tools and install it |
 
@@ -458,12 +460,13 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
 
 ## Privacy and safety
 
-- WoW Tools connects to two places itself. **GitHub**, to look for a new version of WoW Tools (see
-  [Updating WoW Tools](#updating-wow-tools)) — once a day, and it can be switched off. And **tukui.org**, during an
+- WoW Tools connects to three places itself. **GitHub**, to look for a new version of WoW Tools (see
+  [Updating WoW Tools](#updating-wow-tools)) — once a day, and it can be switched off. **tukui.org**, during an
   addon update run when ElvUI is installed and its switch is on, for [ElvUI](#elvui). Both are plain requests for the
   latest version, like opening the download page in a browser; nothing about you, your game or your addons is sent.
-- Only when you ask for it (`wow-tools macros --update-names`), WoW Tools also downloads spell and item names from
-  **wago.tools** (about 15–30 MB per language, kept in `%LOCALAPPDATA%\WoW Tools\data\names` and downloaded again only
+  And **wago.tools**, only when you ask for it (see below).
+- Only when you ask for it (**Download** in the Macros tab or `wow-tools macros --update-names`), WoW Tools downloads spell and item names from
+  **wago.tools** (up to about 55 MB per language — the item names are the big part —, kept in `%LOCALAPPDATA%\WoW Tools\data\names` and downloaded again only
   after a new game build) for [checking macros](#checking-macros). The requests carry only the game version and the
   language, nothing about you.
 - Addons are downloaded only by the addon program you chose — except ElvUI, which WoW Tools takes from its official site.

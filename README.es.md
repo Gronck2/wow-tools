@@ -16,6 +16,8 @@ Una pequeña aplicación de bandeja de Windows para World of Warcraft que mantie
   de forma programada y nunca mientras juegas. ElvUI, que ninguno de ellos ofrece, directamente desde su web oficial.
 - **Parches del juego**: cuando Battle.net actualiza el juego, la configuración y los addons se guardan antes del primer
   inicio con la nueva versión, y ves qué addons aún no están hechos para ella.
+- **Revisión de macros**: encuentra macros rotas —funciones eliminadas, nombres y comandos en otro idioma, erratas,
+  macros de más de 255 caracteres—, ordenadas por color, con un texto corregido listo para copiar. Solo lee.
 - **Limpieza**: configuración de addons eliminados, copias `.bak` de WoW, registros de combate antiguos, capturas de
   pantalla y la caché, con sus tamaños, en un clic.
 - **Perfiles de interfaz**: guarda la interfaz de un personaje (diseños del modo Edición, chat, addons y sus perfiles)
@@ -402,14 +404,14 @@ el idioma de un reino, se dice, nunca se adivina. Un reino ruso solo acepta ruso
 (`textLocale` en `Config.wtf`, más el ruso si la cuenta tiene personajes en un reino ruso); lo demás se indica como
 que solo funciona con un cliente en ese idioma. Tras
 `wow-tools macros --update-names` (descarga de wago.tools los nombres de hechizos y objetos, una vez por versión del
-juego) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` y
+juego; hasta unos 55 MB por idioma) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` y
 `#show`: un nombre en otro idioma se indica con el nombre del idioma del reino, y uno que no existe en ninguno como
 «desconocido» (errata o eliminado; también puede ser un conjunto de equipo, una mascota o algo de un addon). La
 carpeta `WTF` solo se lee.
 
 La pestaña **Macros** del panel hace lo mismo sin línea de comandos. **Revisar macros** lee todas las macros en segundo
 plano (funciona con el juego abierto y no cambia nada); después la pestaña muestra cuántos problemas hay de cada tipo.
-El botón **Abrir informe** los muestra en una ventana aparte que se puede redimensionar, minimizar y maximizar (se recuerdan su tamaño y su sitio): por cada problema la macro y la línea, dónde está (las macros comunes de la cuenta o un personaje), qué falla y cómo arreglarlo, todo completo, con saltos de línea. Los problemas van del más grave al más leve: los rojos no funcionan (función eliminada, macro demasiado larga, corchetes desparejados, nombre desconocido, nombre o comando en otro idioma en la macro propia de un personaje), los amarillos pueden no funcionar, los grises son informativos (se desconoce el idioma del reino); el encabezado los cuenta, y **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
+El botón **Abrir informe** los muestra en una ventana aparte que se puede redimensionar, minimizar y maximizar (se recuerdan su tamaño y su sitio): por cada problema la macro y la línea, dónde está (las macros comunes de la cuenta o un personaje), qué falla y cómo arreglarlo, todo completo, con saltos de línea. Los problemas van del más grave al más leve: los rojos no funcionan (función eliminada, macro demasiado larga, corchetes desparejados, nombre desconocido, nombre o comando en otro idioma en la macro propia de un personaje), los amarillos pueden no funcionar (o solo con un cliente en otro idioma), los grises son informativos (se desconoce el idioma del reino); el encabezado los cuenta, y **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
 nombres de hechizos y objetos descargados (versión del juego e idiomas); **Descargar** los trae — solo al pulsarlo, y
 después el informe queda como estaba hasta que vuelvas a revisar (avisa de que los nombres se actualizaron). El último informe se guarda (`data\macro-report.json`) y se vuelve a mostrar tras un reinicio, con la hora de la revisión; el texto de la ventana del informe se selecciona con el ratón y se copia con Ctrl+C.
 La revisión solo se hace con este botón, nunca por sí sola.
@@ -451,7 +453,7 @@ nota. `wow-tools macros` y el informe copiado imprimen los mismos textos.
 | `schedule interval [--every MIN]` | una tarea del Programador de tareas que ejecuta `backup` cada N minutos (una vez al día por defecto) |
 | `schedule status` / `schedule remove` | muestra / quita el inicio automático y la tarea |
 | `outdated` | addons no hechos para la versión instalada del juego |
-| `macros [--flavor F]` | busca macros rotas (API eliminada, demasiado largas, corchetes, comandos de otro idioma) |
+| `macros [--flavor F] [--update-names]` | busca macros rotas (API eliminada, demasiado largas, corchetes, nombres y comandos de otro idioma, erratas); `--update-names` descarga los nombres de hechizos y objetos de wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | muestra lo que se puede limpiar; con elementos, los limpia |
 | `self-update [--check]` | busca en GitHub una nueva versión de WoW Tools y la instala |
 
@@ -482,13 +484,13 @@ defecto) y `language` (`ru`, `en`, `de`, `fr`, `es`; si no está = el idioma de 
 
 ## Privacidad y seguridad
 
-- WoW Tools se conecta por sí mismo a dos sitios. A **GitHub**, para buscar una nueva versión de WoW Tools (mira
+- WoW Tools se conecta por sí mismo a tres sitios. A **GitHub**, para buscar una nueva versión de WoW Tools (mira
   [Actualizar WoW Tools](#actualizar-wow-tools)): una vez al día, y se puede desactivar. Y a **tukui.org**, durante
   una actualización de addons cuando ElvUI está instalado y su interruptor está activado, para [ElvUI](#elvui). Las dos
   son simples consultas de la última versión, como abrir la página de descarga en el navegador; no se envía nada sobre
-  ti, tu juego ni tus addons.
-- Solo cuando lo pides (`wow-tools macros --update-names`), WoW Tools también descarga de **wago.tools** los nombres
-  de hechizos y objetos (unos 15–30 MB por idioma, guardados en `%LOCALAPPDATA%\WoW Tools\data\names`, de nuevo solo
+  ti, tu juego ni tus addons. Y a **wago.tools**, solo cuando lo pides (mira abajo).
+- Solo cuando lo pides (**Descargar** en la pestaña «Macros» o `wow-tools macros --update-names`), WoW Tools descarga de **wago.tools** los nombres
+  de hechizos y objetos (hasta unos 55 MB por idioma, sobre todo los de objetos, guardados en `%LOCALAPPDATA%\WoW Tools\data\names`, de nuevo solo
   tras una nueva versión del juego) para [revisar macros](#revisar-macros). Las peticiones solo llevan la versión del
   juego y el idioma, nada sobre ti.
 - Los addons solo los descarga el programa de addons que hayas elegido, salvo ElvUI, que WoW Tools toma de su web

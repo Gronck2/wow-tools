@@ -99,6 +99,10 @@ title = "Copie entre personnages"
 text = "Raccourcis, macros, fenêtres de discussion, disposition des cadres, addons activés et réglages des addons, d'un personnage vers d'autres."
 
 [[features]]
+title = "Vérification des macros"
+text = "Trouve les macros cassées — fonctions retirées, noms dans la mauvaise langue, fautes de frappe, trop longues — classées par couleur, avec un texte corrigé prêt à copier. Lecture seule."
+
+[[features]]
 title = "Nettoyage"
 text = "Réglages d'addons supprimés, copies <code>.bak</code> de WoW, vieux journaux de combat, captures d'écran et cache — avec leur taille, en un clic."
 
@@ -126,13 +130,18 @@ alt = "Onglet Profils avec les profils d'interface enregistrés"
 caption = "Profils : enregistrer et appliquer une interface"
 
 [[shots]]
+view = "macros"
+alt = "Onglet Macros avec le nombre de problèmes de chaque type"
+caption = "Macros : ce qui est cassé, par type"
+
+[[shots]]
 view = "settings"
 alt = "Fenêtre des paramètres, onglet Général"
 caption = "Paramètres : chaque changement s'applique tout de suite"
 
 [[privacy]]
-head = "Deux requêtes réseau, rien sur vous."
-text = "GitHub une fois par jour pour une nouvelle version de WoW Tools (désactivable), et tukui.org pour ElvUI quand il est installé."
+head = "Trois requêtes réseau, rien sur vous."
+text = "GitHub une fois par jour pour une nouvelle version de WoW Tools (désactivable), tukui.org pour ElvUI quand il est installé, et wago.tools pour les noms des sorts et des objets, seulement quand vous appuyez sur « Télécharger » dans la vérification des macros."
 
 [[privacy]]
 head = "Ne touche jamais au jeu."

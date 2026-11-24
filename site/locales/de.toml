@@ -99,6 +99,10 @@ title = "Zwischen Charakteren kopieren"
 text = "Tastenbelegung, Makros, Chatfenster, Fensteranordnung, aktivierte Addons und Addon-Einstellungen von einem Charakter auf andere."
 
 [[features]]
+title = "Makro-Prüfung"
+text = "Findet defekte Makros – entfernte Funktionen, Namen in der falschen Sprache, Tippfehler, zu lange – nach Farben geordnet, mit einem fertig korrigierten Text zum Kopieren. Nur lesend."
+
+[[features]]
 title = "Aufräumen"
 text = "Einstellungen entfernter Addons, die <code>.bak</code>-Kopien von WoW, alte Kampflogs, Screenshots und der Cache – mit Größenangaben, mit einem Klick."
 
@@ -126,13 +130,18 @@ alt = "Reiter „Profile“ mit gespeicherten UI-Profilen"
 caption = "Profile: eine Oberfläche speichern und übertragen"
 
 [[shots]]
+view = "macros"
+alt = "Reiter „Makros“ mit der Zahl der Probleme je Art"
+caption = "Makros: was defekt ist, nach Art"
+
+[[shots]]
 view = "settings"
 alt = "Einstellungsfenster, Reiter „Allgemein“"
 caption = "Einstellungen: jede Änderung gilt sofort"
 
 [[privacy]]
-head = "Zwei Netzwerkabfragen, nichts über Sie."
-text = "GitHub einmal am Tag nach einer neuen Version von WoW Tools (abschaltbar) und tukui.org für ElvUI, wenn es installiert ist."
+head = "Drei Netzwerkabfragen, nichts über Sie."
+text = "GitHub einmal am Tag nach einer neuen Version von WoW Tools (abschaltbar), tukui.org für ElvUI, wenn es installiert ist, und wago.tools für Zauber- und Gegenstandsnamen – nur wenn Sie in der Makro-Prüfung auf „Laden“ drücken."
 
 [[privacy]]
 head = "Das Spiel bleibt unberührt."

@@ -12,10 +12,11 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
   when the account has characters on a Russian realm); otherwise it is reported as working only with a client in that
   language. A realm whose language is unknown is said so.
 - `wow-tools macros --update-names` downloads spell and item names from wago.tools (only when you run it; about
-  15–30 MB per language, cached, downloaded again only after a new game build). With them the macro check also finds
+  55 MB per language at most, cached, downloaded again only after a new game build). With them the macro check also finds
   names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show` that are in the
   wrong language for the realm (with the right name) or unknown (a typo), by the same rule; the names of the client
-  languages you use are downloaded too. The README privacy section says so.
+  languages you use are downloaded too. Privacy: wago.tools is contacted only then (a command or the **Download**
+  button), never by itself, and only the game version and the language are sent; the README and the website say so.
 - The panel has a new **Macros** tab: **Check macros** (in the background, also while the game runs), the number of
   problems of each kind, **Open report** and **Download** for the spell and item names (only on that button), with what
   is downloaded. It is shown by default; **Settings → General → Panel tabs** hides it. With five tabs the strip's
@@ -40,7 +41,8 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
 - The last macro report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check.
   **Download** no longer re-checks by itself: the report says the names were updated until you check again.
 - Macro item names (potions, flasks, toys, trinkets) are now read from the full `ItemSparse` table, not `ItemSearchName`,
-  which lacks many consumables (for example the Hearthstone and crafted potions): **Download** the names once more.
+  which lacks many consumables (for example the Hearthstone and crafted potions): if you downloaded names before,
+  press **Download** once more (a one-time re-download; the item names are the big part of the 55 MB).
   A name that carries a crafted-quality icon (`|A:...|a`) is left for you and counted under "Still to fix by hand".
 
 ## [0.7.1] - 2026-11-16
