@@ -2,7 +2,7 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
-## [Unreleased]
+## [0.8.0] - 2026-11-24
 
 - New command `wow-tools macros [--flavor F]`: reads the macros of every account and character and lists what is
   broken: functions removed from the game in `/run` and `/script` (with the replacement), macros over 255 characters,
