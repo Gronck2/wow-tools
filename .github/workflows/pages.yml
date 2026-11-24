@@ -21,19 +21,26 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Two jobs as in GitHub's Pages starter workflows: in one job deploy-pages sometimes ran before the artifact uploaded
+# a few seconds earlier was visible to the API ("No artifacts named github-pages").
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the site
+        run: python3 site/build.py _site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Build the site
-        run: python3 site/build.py _site
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
