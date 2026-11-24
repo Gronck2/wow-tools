@@ -392,7 +392,7 @@ Los atajos y las macros pueden guardarse en los servidores de Blizzard (CVars `s
 
 ## Revisar macros
 
-<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-es-dark.png"><img src="docs/images/macros-es.png" width="640" alt="Panel, pestaña Macros: el informe de problemas"></picture></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-es-dark.png"><img src="docs/images/macros-es.png" width="360" alt="Panel, pestaña Macros"></picture></p>
 
 WoW Tools lee las macros de todas las cuentas y personajes y muestra lo que está roto, sin abrir el juego:
 `wow-tools macros`. Revisa las líneas `/run` y `/script` (funciones eliminadas del juego, con su sustituta), las macros
@@ -409,11 +409,11 @@ carpeta `WTF` solo se lee.
 
 La pestaña **Macros** del panel hace lo mismo sin línea de comandos. **Revisar macros** lee todas las macros en segundo
 plano (funciona con el juego abierto y no cambia nada); después la pestaña muestra cuántos problemas hay de cada tipo.
-El botón de lista los abre todos sobre la pestaña: la macro, dónde está (las macros comunes de la cuenta o un
-personaje), la línea, qué falla y cómo arreglarlo; mientras la lista está abierta, la ventana es más ancha y cada texto se ve completo, con saltos de línea; la rueda
-desplaza y se cierra con ✕ o Esc. **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
+El botón **Abrir informe** los muestra en una ventana aparte que se puede redimensionar, minimizar y maximizar (se recuerdan su tamaño y su sitio): por cada problema la macro y la línea, dónde está (las macros comunes de la cuenta o un personaje), qué falla y cómo arreglarlo, todo completo, con saltos de línea. Los problemas van del más grave al más leve: los rojos no funcionan (función eliminada, macro demasiado larga, corchetes desparejados, nombre desconocido, nombre o comando en otro idioma en la macro propia de un personaje), los amarillos pueden no funcionar, los grises son informativos (se desconoce el idioma del reino); el encabezado los cuenta, y **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
 nombres de hechizos y objetos descargados (versión del juego e idiomas); **Descargar** los trae — solo al pulsarlo, y
 después la revisión se repite. La revisión solo se hace con este botón, nunca por sí sola.
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-es-dark.png"><img src="docs/images/macro-report-es.png" width="720" alt="La ventana del informe de macros"></picture></p>
 
 ## Línea de comandos
 

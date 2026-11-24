@@ -17,10 +17,12 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
   wrong language for the realm (with the right name) or unknown (a typo), by the same rule; the names of the client
   languages you use are downloaded too. The README privacy section says so.
 - The panel has a new **Macros** tab: **Check macros** (in the background, also while the game runs), the number of
-  problems of each kind, a list of them over the tab (the window gets wider for it; macro, where, line, what is wrong, the fix, all
-  wrapped in full), **Copy** for the
-  report and **Download** for the spell and item names (only on that button), with what is downloaded. It is shown by
-  default; **Settings → General → Panel tabs** hides it. With five tabs the strip's padding is a little tighter.
+  problems of each kind, **Open report** and **Download** for the spell and item names (only on that button), with what
+  is downloaded. It is shown by default; **Settings → General → Panel tabs** hides it. With five tabs the strip's
+  padding is a little tighter. The report opens in a window of its own (resizable, its size and place are remembered):
+  every finding in full (macro, line, where, what is wrong, the fix), the worst first -- red does not work, yellow may
+  not work, grey is for information -- with **Copy** for the whole report. `wow-tools macros` and the copied report list
+  the findings in the same order, with the level before each group.
 
 ## [0.7.1] - 2026-11-16
 

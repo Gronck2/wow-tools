@@ -48,3 +48,28 @@ The findings list (rows cut to two lines, full text in a hover tip) was unreadab
 - The window grows keeping the taskbar side; if it would leave the screen it grows to the left and returns on
   close. `data\panel-position.txt` keeps the narrow window's corner.
 - `ui-snapshot macros-list-tip` is removed; `docs/images/macros-<lang>[-dark].png` now come from `macros-list`.
+
+## Revision 2 (owner feedback)
+Revision 1 (the widening panel, commits 2d0201f / 48d5075 / 5026a22) is superseded: the owner rejected it. Final
+decisions:
+- The panel never widens or moves: always `W` = 360 DIPs. `W_REPORT`, the width-changing `fit`, `Panel::shift` and the
+  wide macro sheet (`SheetList::Macros`, its rows and scroll code) are gone; `panel.rs` is back to 7c2e2d9 plus the
+  new button. The Macros tab keeps "Check macros", the status card, the counts card and the names download card; the
+  list button became a report card with an "Open report" button (only with findings); Copy moved to the report window.
+- The report is `src/report.rs`: a regular titled window ("WoW Tools: macro problems"), resizable, minimize/maximize,
+  900 x 600 DIPs at first on the cursor's monitor, then the remembered `data\macro-report-position.txt` ("x y w h",
+  used only while its title bar is on a monitor). Opening it again restores and raises the open window. A fixed
+  header (found / macros checked, counters per level that occurs, Copy and its result) and cards scrolled by pixels
+  (wheel, keys, draggable bar); each card shows macro and line, where (game version only when several), the problem
+  and the fix, wrapped in full; relayout on resize. A finished re-check refreshes it through `WM_STATE`.
+- Severity (`macros::Level`, `Finding::level`), worst first:
+  - Broken (red): `Deprecated`, `TooLong`, `Brackets`, `UnknownName`; `WrongLanguage` with `How::Firm`; `Alias` with
+    `bad` non-empty and `firm`.
+  - Warn (yellow): `Secret` (the message says values "may be hidden in combat", so not a certain failure);
+    `WrongLanguage` with `How::Maybe` or `How::Client`; `Alias` with `bad` non-empty and not firm, or `soft`
+    non-empty.
+  - Info (grey): `WrongLanguage` with `How::Realm`; `Alias` with only `unknown` realms.
+- `macros::scan` sorts findings by level, flavor, scope, macro name, line, so the panel report, the clipboard and
+  `wow-tools macros` agree; the text report starts each level/flavor/scope group with `[level] flavor / scope`.
+- `ui-snapshot macro-report` (900 x 600 DIPs at 1.5x, `--dark`, 5 languages); `macros-list` is removed.
+  `docs/images/macros-<lang>[-dark].png` are the Macros tab again, `macro-report-<lang>[-dark].png` are new.

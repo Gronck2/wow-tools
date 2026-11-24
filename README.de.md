@@ -406,7 +406,7 @@ Tastenbelegung und Makros können auf den Servern von Blizzard gespeichert sein 
 
 ## Makros prüfen
 
-<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-de-dark.png"><img src="docs/images/macros-de.png" width="640" alt="Bereich, Reiter „Makros“: der Bericht über die Probleme"></picture></p>
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macros-de-dark.png"><img src="docs/images/macros-de.png" width="360" alt="Bereich, Reiter „Makros“"></picture></p>
 
 WoW Tools liest die Makros aller Accounts und Charaktere und zeigt, was daran defekt ist, ohne das Spiel zu starten:
 `wow-tools macros`. Geprüft werden `/run`- und `/script`-Zeilen auf aus dem Spiel entfernte Funktionen (mit Ersatz),
@@ -422,12 +422,11 @@ vorkommt, als „unbekannt“ (Tippfehler oder entfernt; es kann auch ein Ausrü
 einem Addon sein). Der Ordner `WTF` wird nur gelesen.
 
 Der Reiter **Makros** im Panel macht dasselbe ohne Kommandozeile. **Makros prüfen** liest alle Makros im Hintergrund
-(das geht auch bei laufendem Spiel und ändert nichts); danach zeigt der Reiter, wie viele Probleme es je Art gibt. Die
-Listenschaltfläche öffnet sie alle über dem Reiter: das Makro, wo es liegt (die gemeinsamen Makros des Accounts oder ein
-Charakter), die Zeile, was falsch ist und wie man es behebt; solange die Liste offen ist, ist das Fenster breiter und jeder Text vollständig umbrochen; das Mausrad
-scrollt, geschlossen wird mit ✕ oder Esc. **Kopieren** legt den ganzen Bericht in die Zwischenablage. Die letzte Karte
+(das geht auch bei laufendem Spiel und ändert nichts); danach zeigt der Reiter, wie viele Probleme es je Art gibt. Die Schaltfläche **Bericht öffnen** zeigt sie in einem eigenen Fenster, das sich vergrößern, minimieren und maximieren lässt (Größe und Platz werden gemerkt): je Fund das Makro und die Zeile, wo es liegt (die gemeinsamen Makros des Accounts oder ein Charakter), was falsch ist und wie man es behebt, alles vollständig umbrochen. Die Funde gehen vom schlimmsten zum harmlosesten: rote funktionieren nicht (entfernte Funktion, zu langes Makro, unausgeglichene Klammern, unbekannter Name, ein Name oder Befehl in der falschen Sprache im eigenen Makro eines Charakters), gelbe funktionieren eventuell nicht, graue sind zur Info (die Sprache des Realms ist unbekannt); die Kopfzeile zählt sie, und **Kopieren** legt den ganzen Bericht in die Zwischenablage. Die letzte Karte
 zeigt die geladenen Zauber- und Gegenstandsnamen (Spielversion und Sprachen); **Laden** holt sie — nur auf Knopfdruck,
 danach läuft die Prüfung neu. Geprüft wird nur auf Knopfdruck, nie von selbst.
+
+<p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-de-dark.png"><img src="docs/images/macro-report-de.png" width="720" alt="Das Fenster mit dem Makro-Bericht"></picture></p>
 
 ## Befehlszeile
 
