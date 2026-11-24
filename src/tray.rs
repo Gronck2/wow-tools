@@ -48,7 +48,6 @@ const WM_QUIT_APP: u32 = WM_APP + 6;
 const QUIT_EXITING: LRESULT = 1;
 const QUIT_BUSY: LRESULT = 2;
 /// Check the macros again (posted by the worker after a name data download, when a check was done).
-const WM_RESCAN_MACROS: u32 = WM_APP + 7;
 /// Restore points the panel lists.
 const POINTS: usize = 5;
 
@@ -155,6 +154,8 @@ pub enum Action {
     CopyMacros,
     /// The fixed text of a macro, exactly as the report window shows it.
     CopyFix(Arc<str>),
+    /// The text selected in the report window.
+    CopySelection(String),
     /// Download the spell and item names for the macro check.
     UpdateNames,
     SaveProfile(CharEntry),
@@ -232,8 +233,20 @@ pub struct MacroCheck {
     /// How the last download and the last copy of the report went (shown until the panel closes).
     pub names_done: Option<(String, Tone)>,
     pub copied: Option<(String, Tone)>,
+    /// When the last check was made (it may come from the saved report of an earlier run).
+    pub at: Option<chrono::DateTime<chrono::Local>>,
+    /// The name data was downloaded after that check: it is not judged by the new names yet.
+    pub names_stale: bool,
     /// The name data on disk, read for each view.
     pub cached: Vec<macro_names::Cached>,
+}
+
+impl MacroCheck {
+    /// "Checked: 24.11 14:05" (local time, the language's short date); none before the first check.
+    pub fn checked_at(&self) -> Option<String> {
+        let at = self.at?;
+        Some(tr!("macros.checked_at", time = at.format(tr!("macros.checked_fmt"))))
+    }
 }
 
 /// How a job ended, as its row shows it: done (green), nothing done but worth a look (warning), failed (red).
@@ -286,6 +299,8 @@ static STATE: Mutex<State> = Mutex::new(State {
         downloading: false,
         names_done: None,
         copied: None,
+        at: None,
+        names_stale: false,
         cached: Vec::new(),
     },
 });
@@ -389,6 +404,11 @@ pub fn run(ctx: Ctx) -> Result<()> {
             bail!(tr!("tray.no_window"));
         }
         HWND_MAIN.store(hwnd as isize, Ordering::Relaxed);
+        // The report of the last check, from before this start.
+        if let Some((scan, at)) = crate::macro_store::load() {
+            let mut st = STATE.lock().unwrap();
+            (st.macros.scan, st.macros.at) = (Some(Arc::new(scan)), Some(at));
+        }
         // The tooltip and the panel show how far a snapshot is.
         crate::snapshot::on_progress(post_state);
         TASKBAR_CREATED.store(RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()), Ordering::Relaxed);
@@ -639,7 +659,11 @@ pub fn scan_macros() {
             let mut st = STATE.lock().unwrap();
             st.macros.scanning = false;
             match scan {
-                Ok(scan) => st.macros.scan = Some(Arc::new(scan)),
+                Ok(scan) => {
+                    let at = chrono::Local::now();
+                    crate::macro_store::save(&scan, at);
+                    (st.macros.scan, st.macros.at, st.macros.names_stale) = (Some(Arc::new(scan)), Some(at), false);
+                }
                 Err(e) => st.macros.error = Some(format!("{e:#}")),
             }
         }
@@ -730,6 +754,10 @@ pub fn act(action: Action) {
         }
         Action::CopyFix(text) => {
             copy_text(&text, tr!("macros.copied_fix"));
+            Ok(())
+        }
+        Action::CopySelection(text) => {
+            copy_text(&text, tr!("macros.copied_text"));
             Ok(())
         }
         Action::UpdateNames => {
@@ -1000,7 +1028,6 @@ fn restart() {
 
 fn on_event(event: Event) {
     let mut rescan_after = false;
-    let mut rescan_macros_after = false;
     {
         let mut st = STATE.lock().unwrap();
         match event {
@@ -1127,8 +1154,8 @@ fn on_event(event: Event) {
             Event::Names(result) => {
                 st.status.phase = Phase::Idle;
                 st.macros.downloading = false;
-                // A check on screen is judged by the new names.
-                rescan_macros_after = st.macros.scan.is_some();
+                // A check on screen stays as it is until the next one; it is only marked as made with the old names.
+                st.macros.names_stale = result.is_ok() && st.macros.scan.is_some();
                 st.macros.names_done = Some(match &result {
                     Ok(summary) => (summary.clone(), Tone::Ok),
                     Err(e) => (format!("{e:#}"), Tone::Error),
@@ -1176,9 +1203,6 @@ fn on_event(event: Event) {
     if rescan_after {
         post(WM_RESCAN);
     }
-    if rescan_macros_after {
-        post(WM_RESCAN_MACROS);
-    }
     post_state();
 }
 
@@ -1205,10 +1229,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             }
             WM_RESCAN => {
                 rescan();
-                0
-            }
-            WM_RESCAN_MACROS => {
-                scan_macros();
                 0
             }
             WM_QUIT_APP => {

@@ -4,6 +4,7 @@
 
 use std::cell::RefCell;
 use std::mem::{size_of, zeroed};
+use std::ops::Range;
 use std::ptr::{null, null_mut};
 use std::sync::Arc;
 
@@ -13,12 +14,13 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM}
 use windows_sys::Win32::Graphics::Gdi::{BeginPaint, EndPaint, InvalidateRect, PAINTSTRUCT};
 use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    ReleaseCapture, SetCapture, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_NEXT, VK_PRIOR, VK_UP,
+    GetKeyState, ReleaseCapture, SetCapture, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_NEXT, VK_PRIOR,
+    VK_UP,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 use crate::config::APP_NAME;
-use crate::gfx::{self, Align, Painter, R, Surface, Theme};
+use crate::gfx::{self, Align, Mark, Painter, R, Surface, Theme};
 use crate::macro_fix::MacroFix;
 use crate::macros::{Finding, Level, Scan, first_fixes};
 use crate::tray::{self, Action, MacroCheck, Tone};
@@ -74,6 +76,8 @@ struct Texts {
     title: String,
     place: String,
     problem: String,
+    /// The offending parts of `problem`, highlighted.
+    problem_marks: Vec<Range<usize>>,
     fix: Option<String>,
     fixed: Vec<FixedView>,
 }
@@ -82,12 +86,17 @@ struct Texts {
 struct FixedView {
     caption: String,
     text: Option<Arc<str>>,
+    /// The replaced parts of `text`, highlighted.
+    marks: Vec<Range<usize>>,
+    /// "Check in game" for a replaced function.
+    check: Option<String>,
     note: Option<String>,
 }
 
 /// `many`: the findings come from several game versions, so the card names it. `fixed`: the macro's fixed text, for
 /// the first card of the macro only.
 fn texts(f: &Finding, many: bool, fixed: Option<&Arc<MacroFix>>) -> Texts {
+    let (problem, problem_marks) = f.problem_marked();
     Texts {
         title: if f.line == 0 {
             f.name.clone()
@@ -95,12 +104,15 @@ fn texts(f: &Finding, many: bool, fixed: Option<&Arc<MacroFix>>) -> Texts {
             tr!("macros.report_line", name = f.name, line = f.line)
         },
         place: if many { format!("{} · {}", f.flavor, f.scope) } else { f.scope.clone() },
-        problem: f.problem(),
+        problem,
+        problem_marks,
         fix: f.fix().map(|x| format!("→ {x}")),
         fixed: fixed.map_or_else(Vec::new, |x| {
             let view = |v: &crate::macro_fix::Variant| FixedView {
                 caption: v.caption(),
                 text: v.shown().map(Arc::from),
+                marks: v.marks.clone(),
+                check: v.check_note().map(str::to_string),
                 note: v.note(),
             };
             x.variants.iter().map(view).collect()
@@ -108,15 +120,34 @@ fn texts(f: &Finding, many: bool, fixed: Option<&Arc<MacroFix>>) -> Texts {
     }
 }
 
+/// `ranges` as marks for measuring (the color does not matter there).
+fn plain(ranges: &[Range<usize>]) -> Vec<Mark> {
+    ranges
+        .iter()
+        .map(|r| Mark {
+            range: r.clone(),
+            color: gfx::col(0, 0, 0, 1.0),
+        })
+        .collect()
+}
+
 fn card_height(f: &Formats, t: &Texts, text_w: f32) -> f32 {
     let h = |fmt, s| gfx::text_height(fmt, s, text_w);
-    2.0 * INSET_Y + h(&f.title, &t.title) + 2.0 + h(&f.sub, &t.place) + 6.0 + h(&f.body, &t.problem) + t.fix.as_ref().map_or(0.0, |x| 4.0 + h(&f.body, x))
+    2.0 * INSET_Y
+        + h(&f.title, &t.title)
+        + 2.0
+        + h(&f.sub, &t.place)
+        + 6.0
+        + gfx::rich_height(&f.body, &t.problem, text_w, &plain(&t.problem_marks))
+        + t.fix.as_ref().map_or(0.0, |x| 4.0 + h(&f.body, x))
 }
 
 /// A fixed text measured: the `y`s are from the card's top, the button's `x` is a window one; `usize` numbers the buttons.
 struct VBox {
     caption: (String, f32, f32),
     text: Option<(Arc<str>, f32, f32)>,
+    text_marks: Vec<Range<usize>>,
+    check: Option<(String, f32, f32)>,
     note: Option<(String, f32, f32)>,
     btn: Option<(R, usize)>,
 }
@@ -138,14 +169,21 @@ fn fixed_boxes(f: &Formats, views: &[FixedView], mut y: f32, text_w: f32, next: 
         let mut b = VBox {
             caption: (v.caption.clone(), y, cap_h),
             text: None,
+            text_marks: v.marks.clone(),
+            check: None,
             note: None,
             btn: None,
         };
         y += cap_h + 4.0;
         if let Some(text) = &v.text {
-            let h = gfx::text_height(&f.mono, text, text_w - 2.0 * BLOCK_PAD) + 2.0 * BLOCK_PAD;
+            let h = gfx::rich_height(&f.mono, text, text_w - 2.0 * BLOCK_PAD, &plain(&v.marks)) + 2.0 * BLOCK_PAD;
             b.text = Some((text.clone(), y, h));
             y += h + 6.0;
+            if let Some(c) = &v.check {
+                let ch = gfx::text_height(&f.body, c, text_w);
+                b.check = Some((c.clone(), y, ch));
+                y += ch + 4.0;
+            }
             let btn = R {
                 x: PAD + INSET_L + text_w - btn_w,
                 y,
@@ -171,12 +209,92 @@ fn fixed_boxes(f: &Formats, views: &[FixedView], mut y: f32, text_w: f32, next: 
     (out, y)
 }
 
+/// What a selectable text is in a card: decides its font and color.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Role {
+    Title,
+    Place,
+    Problem,
+    Fix,
+    Caption,
+    Fixed,
+    Check,
+    Note,
+}
+
+/// A piece of text a card shows, the unit of mouse selection: where it is (`x` from the text column, `y` from the
+/// card's top) and what to highlight in it.
+#[derive(Clone, Debug)]
+struct Block {
+    text: Arc<str>,
+    role: Role,
+    marks: Vec<Range<usize>>,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+}
+
 struct Card {
-    texts: Texts,
     level: Level,
     top: f32,
     h: f32,
     boxes: Vec<VBox>,
+    blocks: Vec<Block>,
+    /// The number of the card's first block among all blocks of the report.
+    first: usize,
+}
+
+/// The blocks of a card, top to bottom, as `draw` lays them out.
+fn card_blocks(f: &Formats, t: &Texts, boxes: &[VBox], text_w: f32) -> Vec<Block> {
+    let mut out = Vec::new();
+    let mut y = INSET_Y;
+    let mut put = |text: &str, role: Role, marks: &[Range<usize>], x: f32, y: f32, w: f32, h: f32| {
+        out.push(Block {
+            text: Arc::from(text),
+            role,
+            marks: marks.to_vec(),
+            x,
+            y,
+            w,
+            h,
+        });
+    };
+    let h = gfx::text_height(&f.title, &t.title, text_w);
+    put(&t.title, Role::Title, &[], 0.0, y, text_w, h);
+    y += h + 2.0;
+    let h = gfx::text_height(&f.sub, &t.place, text_w);
+    put(&t.place, Role::Place, &[], 0.0, y, text_w, h);
+    y += h + 6.0;
+    let h = gfx::rich_height(&f.body, &t.problem, text_w, &plain(&t.problem_marks));
+    put(&t.problem, Role::Problem, &t.problem_marks, 0.0, y, text_w, h);
+    y += h + 4.0;
+    if let Some(fix) = &t.fix {
+        let h = gfx::text_height(&f.body, fix, text_w);
+        put(fix, Role::Fix, &[], 0.0, y, text_w, h);
+    }
+    for b in boxes {
+        put(&b.caption.0, Role::Caption, &[], 0.0, b.caption.1, text_w, b.caption.2);
+        if let Some((text, ty, th)) = &b.text {
+            put(
+                text,
+                Role::Fixed,
+                &b.text_marks,
+                BLOCK_PAD,
+                ty + BLOCK_PAD,
+                text_w - 2.0 * BLOCK_PAD,
+                th - 2.0 * BLOCK_PAD,
+            );
+        }
+        if let Some((c, cy, ch)) = &b.check {
+            put(c, Role::Check, &[], 0.0, *cy, text_w, *ch);
+        }
+        if let Some((n, ny, nh)) = &b.note {
+            let w = b.btn.as_ref().map_or(text_w, |(br, _)| (br.x - 12.0 - PAD - INSET_L).max(60.0));
+            put(n, Role::Note, &[], 0.0, *ny, w, *nh);
+        }
+    }
+    out
 }
 
 /// The Copy button of a fixed text under the window point (`x`, `y`): its number and the text it copies.
@@ -198,24 +316,35 @@ struct Layout {
     total: f32,
 }
 
+impl Layout {
+    /// Every block of the report in reading order, with its top from the cards' area top.
+    fn blocks(&self) -> Vec<(f32, &Block)> {
+        self.cards.iter().flat_map(|c| c.blocks.iter().map(move |b| (c.top + b.y, b))).collect()
+    }
+}
+
 fn layout(scan: Option<&Scan>, f: &Formats, width: f32) -> Layout {
     let findings = scan.map_or(&[][..], |s| &s.findings[..]);
     let many = findings.iter().any(|x| x.flavor != findings[0].flavor);
     let text_w = (width - PAD - CARDS_R - INSET_L - INSET_R).max(60.0);
-    let (mut y, mut buttons) = (TOP, 0);
+    let (mut y, mut buttons, mut first) = (TOP, 0, 0);
     let mut cards = Vec::new();
     for (x, fix) in findings.iter().zip(first_fixes(findings)) {
         let texts = texts(x, many, fix);
         let base = card_height(f, &texts, text_w);
         let (boxes, end) = fixed_boxes(f, &texts.fixed, base - INSET_Y, text_w, &mut buttons);
         let h = if boxes.is_empty() { base } else { end + INSET_Y };
+        let blocks = card_blocks(f, &texts, &boxes, text_w);
+        let n = blocks.len();
         cards.push(Card {
-            texts,
             level: x.level(),
             top: y,
             h,
             boxes,
+            blocks,
+            first,
         });
+        first += n;
         y += h + GAP;
     }
     Layout {
@@ -290,14 +419,131 @@ fn head_text(scan: Option<&Scan>) -> String {
     }
 }
 
+/// The mouse selection: two places in the report's blocks, (block number, UTF-16 position); `focus` is the end the
+/// mouse moves.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Selection {
+    anchor: (usize, u32),
+    focus: (usize, u32),
+}
+
+impl Selection {
+    /// (start, end) in reading order.
+    fn ordered(&self) -> ((usize, u32), (usize, u32)) {
+        if self.anchor <= self.focus {
+            (self.anchor, self.focus)
+        } else {
+            (self.focus, self.anchor)
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.anchor == self.focus
+    }
+}
+
+impl Role {
+    fn face(self, f: &Formats) -> &IDWriteTextFormat {
+        match self {
+            Role::Title => &f.title,
+            Role::Place | Role::Caption => &f.sub,
+            Role::Fixed => &f.mono,
+            Role::Problem | Role::Fix | Role::Check | Role::Note => &f.body,
+        }
+    }
+
+    /// The text color, and the color of its highlighted parts (a level's color for the problem, the accent for a fix).
+    fn colors(self, t: &Theme, level: Level) -> (D2D1_COLOR_F, D2D1_COLOR_F) {
+        match self {
+            Role::Title | Role::Problem | Role::Fixed => (t.text, if self == Role::Fixed { t.accent } else { level_color(level, t) }),
+            Role::Note => (t.warn, t.warn),
+            Role::Place | Role::Fix | Role::Caption | Role::Check => (t.text2, t.text2),
+        }
+    }
+}
+
+/// The marks of a block in their colors.
+fn marks_in(ranges: &[Range<usize>], color: D2D1_COLOR_F) -> Vec<Mark> {
+    ranges.iter().map(|r| Mark { range: r.clone(), color }).collect()
+}
+
+/// The selected text, blocks joined by line breaks.
+fn selected_text(lay: &Layout, sel: &Selection) -> String {
+    let ((b0, p0), (b1, p1)) = sel.ordered();
+    let blocks = lay.blocks();
+    let mut parts = Vec::new();
+    for (i, (_, block)) in blocks.iter().enumerate().take(b1 + 1).skip(b0) {
+        let text = &block.text;
+        let from = if i == b0 { gfx::byte_at(text, p0) } else { 0 };
+        let to = if i == b1 { gfx::byte_at(text, p1) } else { text.len() };
+        if from < to {
+            parts.push(&text[from..to]);
+        }
+    }
+    parts.join("\n")
+}
+
+/// The block under the window point (`x`, `y`), for a click; `None` between blocks.
+fn block_at(lay: &Layout, scroll: f32, x: f32, y: f32) -> Option<usize> {
+    if y < HEAD_H {
+        return None;
+    }
+    let ay = y - HEAD_H + scroll;
+    lay.blocks().iter().position(|(top, b)| {
+        R {
+            x: PAD + INSET_L + b.x,
+            y: *top,
+            w: b.w,
+            h: b.h,
+        }
+        .contains(x, ay)
+    })
+}
+
+/// The place in the text under the window point: inside a block when `strict`, else in the block nearest above or
+/// below (while dragging, the pointer may leave the text).
+fn place_at(lay: &Layout, f: &Formats, scroll: f32, x: f32, y: f32, strict: bool) -> Option<(usize, u32)> {
+    let ay = y - HEAD_H + scroll;
+    let blocks = lay.blocks();
+    let dist = |top: f32, h: f32| {
+        if ay < top {
+            top - ay
+        } else if ay > top + h {
+            ay - top - h
+        } else {
+            0.0
+        }
+    };
+    let i = if strict {
+        block_at(lay, scroll, x, y)?
+    } else {
+        (0..blocks.len()).min_by(|&a, &b| dist(blocks[a].0, blocks[a].1.h).total_cmp(&dist(blocks[b].0, blocks[b].1.h)))?
+    };
+    let (top, b) = blocks[i];
+    let layout = gfx::make_layout(b.role.face(f), &b.text, b.w, &plain(&b.marks)).ok()?;
+    Some((i, gfx::hit_index(&layout, x - (PAD + INSET_L + b.x), ay - top)))
+}
+
 #[allow(clippy::too_many_arguments)]
-fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, size: (f32, f32), scroll: f32, copy_hover: bool, fix_hover: Option<usize>) {
+fn draw(
+    p: &Painter,
+    t: &Theme,
+    f: &Formats,
+    check: &MacroCheck,
+    lay: &Layout,
+    size: (f32, f32),
+    scroll: f32,
+    copy_hover: bool,
+    fix_hover: Option<usize>,
+    sel: Option<Selection>,
+) {
     let (cw, ch) = size;
     let scan = check.scan.as_deref();
     p.clear(t.bg);
     let view_h = ch - HEAD_H;
     let card_w = cw - PAD - CARDS_R;
     let text_w = (card_w - INSET_L - INSET_R).max(60.0);
+    let highlight = D2D1_COLOR_F { a: 0.35, ..t.accent };
     p.offset(0.0, HEAD_H - scroll);
     for c in lay.cards.iter().filter(|c| c.top + c.h >= scroll && c.top <= scroll + view_h) {
         let r = R {
@@ -319,32 +565,8 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
             level_color(c.level, t),
         );
         let x = r.x + INSET_L;
-        let mut y = r.y + INSET_Y;
-        let mut line = |s: &str, fmt: &IDWriteTextFormat, gap: f32, color: D2D1_COLOR_F| {
-            let h = gfx::text_height(fmt, s, text_w);
-            p.text(s, fmt, R { x, y, w: text_w, h }, color);
-            y += h + gap;
-        };
-        line(&c.texts.title, &f.title, 2.0, t.text);
-        line(&c.texts.place, &f.sub, 6.0, t.text2);
-        line(&c.texts.problem, &f.body, 4.0, t.text);
-        if let Some(fix) = &c.texts.fix {
-            line(fix, &f.body, 0.0, t.text2);
-        }
         for b in &c.boxes {
-            let (caption, cy, ch) = &b.caption;
-            p.text(
-                caption,
-                &f.sub,
-                R {
-                    x,
-                    y: r.y + cy,
-                    w: text_w,
-                    h: *ch,
-                },
-                t.text2,
-            );
-            if let Some((text, ty, th)) = &b.text {
+            if let Some((_, ty, th)) = &b.text {
                 let block = R {
                     x,
                     y: r.y + ty,
@@ -353,17 +575,6 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
                 };
                 p.fill(block, 4.0, t.bg);
                 p.stroke(block, 4.0, t.stroke, 1.0);
-                let inner = R {
-                    x: x + BLOCK_PAD,
-                    y: block.y + BLOCK_PAD,
-                    w: text_w - 2.0 * BLOCK_PAD,
-                    h: th - 2.0 * BLOCK_PAD,
-                };
-                p.text(text, &f.mono, inner, t.text);
-            }
-            if let Some((note, ny, nh)) = &b.note {
-                let w = b.btn.as_ref().map_or(text_w, |(br, _)| (br.x - 12.0 - x).max(60.0));
-                p.text(note, &f.body, R { x, y: r.y + ny, w, h: *nh }, t.warn);
             }
             if let Some((br, i)) = &b.btn {
                 let br = R { y: r.y + br.y, ..*br };
@@ -371,6 +582,30 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
                 p.stroke(br, 4.0, t.stroke, 1.0);
                 p.text(tr!("macros.copy_fix"), &f.button, br, t.text);
             }
+        }
+        for (k, b) in c.blocks.iter().enumerate() {
+            let (color, mark) = b.role.colors(t, c.level);
+            let n = c.first + k;
+            let chosen = sel.and_then(|s| {
+                let ((b0, p0), (b1, p1)) = s.ordered();
+                (b0..=b1).contains(&n).then(|| {
+                    let len = b.text.encode_utf16().count() as u32;
+                    (if n == b0 { p0 } else { 0 }..if n == b1 { p1 } else { len }, highlight)
+                })
+            });
+            p.rich_text(
+                &b.text,
+                b.role.face(f),
+                R {
+                    x: x + b.x,
+                    y: r.y + b.y,
+                    w: b.w,
+                    h: b.h,
+                },
+                color,
+                &marks_in(&b.marks, mark),
+                chosen,
+            );
         }
     }
     p.offset(0.0, 0.0);
@@ -418,17 +653,33 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
         t.stroke,
     );
     let copy = copy_rect(f, cw);
+    // When the check was made: right-aligned by the Copy button, the title takes what is left.
+    let when = check.checked_at();
+    let when_w = when.as_ref().map_or(0.0, |w| gfx::text_width(&f.small, w) + 16.0);
     p.text(
         &head_text(scan),
         &f.head,
         R {
             x: PAD,
             y: 12.0,
-            w: (copy.x - PAD - 12.0).max(10.0),
+            w: (copy.x - PAD - 12.0 - when_w).max(10.0),
             h: 30.0,
         },
         t.text,
     );
+    if let Some(when) = &when {
+        p.text(
+            when,
+            &f.small_right,
+            R {
+                x: copy.x - 12.0 - when_w,
+                y: 12.0,
+                w: when_w,
+                h: 30.0,
+            },
+            t.text2,
+        );
+    }
     let enabled = scan.is_some();
     p.fill(copy, 4.0, if copy_hover && enabled { t.card_hover } else { t.card });
     p.stroke(copy, 4.0, t.stroke, 1.0);
@@ -451,7 +702,8 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
         );
         x += 16.0 + w + 20.0;
     }
-    if let Some((text, tone)) = &check.copied
+    let stale = (check.names_stale && scan.is_some()).then(|| (tr!("macros.names_stale").to_string(), Tone::Notice));
+    if let Some((text, tone)) = check.copied.as_ref().or(stale.as_ref())
         && cw - PAD - x > 60.0
     {
         let text = text.lines().collect::<Vec<_>>().join(" · ");
@@ -516,6 +768,11 @@ struct Window {
     scroll: f32,
     copy_hover: bool,
     fix_hover: Option<usize>,
+    /// The pointer is over text (the I-beam shows).
+    text_hover: bool,
+    sel: Option<Selection>,
+    /// The left button is down on text: moving the mouse extends `sel`.
+    selecting: bool,
     tracking: bool,
     /// The thumb is being dragged: where it was grabbed, from its top.
     grab: Option<f32>,
@@ -599,6 +856,9 @@ fn open() -> gfx::Result<()> {
         scroll: 0.0,
         copy_hover: false,
         fix_hover: None,
+        text_hover: false,
+        sel: None,
+        selecting: false,
         tracking: false,
         grab: None,
     };
@@ -625,6 +885,7 @@ pub fn refresh() {
         };
         w.check = check;
         if !same {
+            w.sel = None;
             w.relayout();
         }
         w.surface.hwnd
@@ -649,8 +910,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 with_window(|w| {
                     let size = w.size();
                     let (theme, fmt, check, lay, scroll) = (&w.theme, &w.fmt, &w.check, &w.lay, w.scroll);
-                    let (hover, fix_hover) = (w.copy_hover, w.fix_hover);
-                    w.surface.paint(|p| draw(p, theme, fmt, check, lay, size, scroll, hover, fix_hover));
+                    let (hover, fix_hover, sel) = (w.copy_hover, w.fix_hover, w.sel);
+                    w.surface.paint(|p| draw(p, theme, fmt, check, lay, size, scroll, hover, fix_hover, sel));
                 });
                 EndPaint(hwnd, &ps);
                 0
@@ -697,8 +958,24 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         }
                         return true;
                     }
+                    if w.selecting {
+                        // Dragging above or below the cards scrolls them.
+                        let size = w.size();
+                        if y < HEAD_H {
+                            w.scroll_to(w.scroll - 24.0);
+                        } else if y > size.1 {
+                            w.scroll_to(w.scroll + 24.0);
+                        }
+                        if let Some(at) = place_at(&w.lay, &w.fmt, w.scroll, x, y, false)
+                            && let Some(s) = w.sel.as_mut()
+                        {
+                            s.focus = at;
+                        }
+                        return true;
+                    }
                     let over = w.check.scan.is_some() && copy_rect(&w.fmt, w.size().0).contains(x, y);
                     let on_fix = fix_at(&w.lay, w.scroll, x, y).map(|h| h.0);
+                    w.text_hover = on_fix.is_none() && !over && block_at(&w.lay, w.scroll, x, y).is_some();
                     let moved = std::mem::replace(&mut w.copy_hover, over) != over;
                     std::mem::replace(&mut w.fix_hover, on_fix) != on_fix || moved
                 });
@@ -726,6 +1003,16 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 let grabbed = with_window(|w| {
                     let (x, y) = mouse(w, lparam);
                     let size = w.size();
+                    if y >= HEAD_H && x < size.0 - 24.0 {
+                        w.sel = None;
+                        if fix_at(&w.lay, w.scroll, x, y).is_none()
+                            && let Some(at) = place_at(&w.lay, &w.fmt, w.scroll, x, y, true)
+                        {
+                            w.sel = Some(Selection { anchor: at, focus: at });
+                            w.selecting = true;
+                            return true;
+                        }
+                    }
                     if y < HEAD_H || x < size.0 - 24.0 {
                         return false;
                     }
@@ -740,7 +1027,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     true
                 });
                 if grabbed == Some(true) {
-                    if with_window(|w| w.grab.is_some()) == Some(true) {
+                    if with_window(|w| w.grab.is_some() || w.selecting) == Some(true) {
                         SetCapture(hwnd);
                     }
                     InvalidateRect(hwnd, null(), 0);
@@ -748,13 +1035,22 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 0
             }
             WM_CAPTURECHANGED => {
-                with_window(|w| w.grab = None);
+                with_window(|w| (w.grab, w.selecting) = (None, false));
                 0
             }
             WM_LBUTTONUP => {
                 let dragged = with_window(|w| w.grab.take().is_some());
-                if dragged == Some(true) {
+                // A drag over text selects; a click without a drag selects nothing and may press a button.
+                let selected = with_window(|w| {
+                    let was = std::mem::take(&mut w.selecting);
+                    if was && w.sel.is_some_and(|s| s.is_empty()) {
+                        w.sel = None;
+                    }
+                    was && w.sel.is_some()
+                });
+                if dragged == Some(true) || selected == Some(true) {
                     ReleaseCapture();
+                    InvalidateRect(hwnd, null(), 0);
                 } else if let Some(Some((_, text))) = with_window(|w| {
                     let (x, y) = mouse(w, lparam);
                     fix_at(&w.lay, w.scroll, x, y)
@@ -770,14 +1066,42 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 0
             }
             WM_SETCURSOR if (lparam & 0xFFFF) as u32 == HTCLIENT => {
-                let hand = with_window(|w| w.copy_hover || w.fix_hover.is_some()).unwrap_or(false);
-                SetCursor(LoadCursorW(null_mut(), if hand { IDC_HAND } else { IDC_ARROW }));
+                let (hand, text) = with_window(|w| (w.copy_hover || w.fix_hover.is_some(), w.text_hover || w.selecting)).unwrap_or_default();
+                SetCursor(LoadCursorW(
+                    null_mut(),
+                    if hand {
+                        IDC_HAND
+                    } else if text {
+                        IDC_IBEAM
+                    } else {
+                        IDC_ARROW
+                    },
+                ));
                 1
             }
             WM_KEYDOWN => {
                 let key = wparam as u16;
                 if key == VK_ESCAPE {
                     DestroyWindow(hwnd);
+                    return 0;
+                }
+                if GetKeyState(VK_CONTROL as i32) < 0 && matches!(key, 0x41 | 0x43) {
+                    // Ctrl+A selects everything, Ctrl+C copies the selection.
+                    let text = with_window(|w| {
+                        let blocks = w.lay.blocks();
+                        if key == 0x41 {
+                            w.sel = blocks.last().map(|(_, b)| Selection {
+                                anchor: (0, 0),
+                                focus: (blocks.len() - 1, b.text.encode_utf16().count() as u32),
+                            });
+                            return None;
+                        }
+                        w.sel.filter(|s| !s.is_empty()).map(|s| selected_text(&w.lay, &s))
+                    });
+                    if let Some(Some(text)) = text {
+                        tray::act(Action::CopySelection(text));
+                    }
+                    InvalidateRect(hwnd, null(), 0);
                     return 0;
                 }
                 with_window(|w| {
@@ -828,18 +1152,21 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 }
 
 /// Renders the window's content into a PNG at the first width, taller than the window so a fixed text shows whole.
-const SNAP_H: f32 = 820.0;
+const SNAP_H: f32 = 1500.0;
 
 /// Renders the window's content into a PNG, for checking the look.
 pub fn snapshot(path: &str, dark: bool, check: &MacroCheck) -> gfx::Result<()> {
     let theme = gfx::theme_for(dark);
     let fmt = formats()?;
     let lay = layout(check.scan.as_deref(), &fmt, W0);
-    gfx::render_png(path, W0, SNAP_H, 1.5, |p| draw(p, &theme, &fmt, check, &lay, (W0, SNAP_H), 0.0, false, None))
+    gfx::render_png(path, W0, SNAP_H, 1.5, |p| {
+        draw(p, &theme, &fmt, check, &lay, (W0, SNAP_H), 0.0, false, None, None)
+    })
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::single_range_in_vec_init)]
     use super::*;
     use crate::macro_fix::Variant;
     use crate::macros::{How, Kind};
@@ -886,11 +1213,12 @@ mod tests {
     fn variant(lang: &str, text: &str, over: bool) -> Variant {
         Variant {
             lang: lang.into(),
-            targets: vec!["A-De".into()],
             text: text.into(),
             chars: text.chars().count(),
             over,
             rest: 1,
+            marks: Vec::new(),
+            check: false,
         }
     }
 
@@ -926,6 +1254,77 @@ mod tests {
     }
 
     #[test]
+    fn text_is_selected_across_blocks_and_copied_in_reading_order() {
+        let f = formats().unwrap();
+        let mut first = finding(1, unknown("Огненный шар"));
+        first.fixed = Some(Arc::new(MacroFix {
+            variants: vec![Variant {
+                marks: vec![0..3],
+                check: true,
+                ..variant("deDE", "/cast A\n/cast B", false)
+            }],
+        }));
+        let lay = layout(Some(&scan(vec![first.clone(), finding(2, Kind::Brackets)])), &f, 900.0);
+        let blocks = lay.blocks();
+        // title, place, problem, caption, text, check note, note of the first card; then the second card's four
+        assert_eq!(blocks.len(), 7 + 4);
+        assert_eq!(lay.cards[1].first, 7);
+        let (title, place, problem) = (&blocks[0].1.text, &blocks[1].1.text, &blocks[2].1.text);
+        assert_eq!(&**title, tr!("macros.report_line", name = "Heal", line = 1));
+        let sel = Selection { anchor: (0, 3), focus: (2, 4) };
+        let want = format!(
+            "{}\n{place}\n{}",
+            &title[title.char_indices().nth(3).unwrap().0..],
+            &problem[..problem.char_indices().nth(4).unwrap().0]
+        );
+        assert_eq!(selected_text(&lay, &sel), want);
+        // dragged backwards, the same text
+        assert_eq!(
+            selected_text(
+                &lay,
+                &Selection {
+                    anchor: sel.focus,
+                    focus: sel.anchor
+                }
+            ),
+            want
+        );
+        assert!(Selection { anchor: (1, 2), focus: (1, 2) }.is_empty());
+        // the fixed text is one block, kept with its line break, and the offending name of the problem is marked
+        assert!(
+            blocks
+                .iter()
+                .any(|(_, b)| &*b.text == "/cast A\n/cast B" && b.role == Role::Fixed && b.marks == [0..3])
+        );
+        assert_eq!(&problem[blocks[2].1.marks[0].clone()], "Огненный шар");
+        assert!(blocks.iter().any(|(_, b)| b.role == Role::Check));
+    }
+
+    #[test]
+    fn a_click_finds_the_block_and_the_place_in_it() {
+        let f = formats().unwrap();
+        let lay = layout(Some(&scan(vec![finding(1, unknown("Heal")), finding(2, Kind::Brackets)])), &f, 900.0);
+        let blocks = lay.blocks();
+        let (top, b) = blocks[2];
+        let (x, y) = (PAD + INSET_L + b.x + 1.0, HEAD_H + top + 1.0);
+        assert_eq!(block_at(&lay, 0.0, x, y), Some(2));
+        assert_eq!(place_at(&lay, &f, 0.0, x, y, true), Some((2, 0)));
+        // scrolled: the same text is under the pointer 10 DIPs higher
+        assert_eq!(place_at(&lay, &f, 10.0, x, y - 10.0, true), Some((2, 0)));
+        // right of the text on its line: its end
+        let end = place_at(&lay, &f, 0.0, PAD + INSET_L + b.x + b.w - 1.0, y, true).unwrap();
+        assert_eq!(end.0, 2);
+        assert!(end.1 > 10);
+        // between blocks or over the header: nothing for a click; dragging takes the nearest block
+        assert_eq!(block_at(&lay, 0.0, 2.0, y), None);
+        assert_eq!(block_at(&lay, 0.0, x, 10.0), None);
+        assert_eq!(place_at(&lay, &f, 0.0, 2.0, HEAD_H + 1.0, true), None);
+        assert_eq!(place_at(&lay, &f, 0.0, 2.0, HEAD_H + 1.0, false).map(|p| p.0), Some(0));
+        let last = blocks.len() - 1;
+        assert_eq!(place_at(&lay, &f, 0.0, 2.0, 100_000.0, false).map(|p| p.0), Some(last));
+    }
+
+    #[test]
     fn a_card_names_the_game_version_only_with_several() {
         let mut other = finding(1, Kind::Brackets);
         other.flavor = "Era".into();
@@ -958,14 +1357,13 @@ mod tests {
         let s = scan(vec![
             finding(1, Kind::Brackets),
             finding(2, Kind::Brackets),
-            finding(3, Kind::Secret { func: "f" }),
+            finding(3, Kind::Secret { func: "f".into() }),
         ]);
         assert_eq!(s.levels(), [(Level::Broken, 2), (Level::Warn, 1)]);
         let realm = Kind::WrongLanguage {
             name: "a".into(),
             lang: "deDE".into(),
             fix: "b".into(),
-            bad: Vec::new(),
             how: How::Realm,
         };
         assert_eq!(scan(vec![finding(1, realm)]).levels(), [(Level::Info, 1)]);

@@ -1,27 +1,30 @@
 # function<TAB>replacement<TAB>removed in patch<TAB>source<TAB>compat
 # compat: `drop-in` = the replacement takes the same arguments and returns the same values in the same order (extra trailing
 # returns allowed), checked against warcraft.wiki.gg and Blizzard's API documentation: the macro report offers a fixed text for it.
-# Empty = not provably the same call (a table instead of values, other arguments): a hint only.
+# `first:<field>:<min>-<max>` = the old function returned several values and the replacement returns a table whose <field> is the
+# old first value; fixed only where just that value is used and the call has min..max arguments (nil table: `(f(x) or {}).field`).
+# `one-arg` = a drop-in only for a call with one argument (the old function also took `(slot, bookType)`).
+# Both are marked "check in game". Empty = not provably the same call: a hint only.
 # Bare global functions removed from the Retail client. Matched as whole words in /run and /script lines,
 # so `C_Spell.GetSpellInfo` or `obj.GetSpellInfo` is not flagged.
-GetContainerItemInfo	C_Container.GetContainerItemInfo	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	
+GetContainerItemInfo	C_Container.GetContainerItemInfo	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	first:iconFileID:2-2
 GetContainerNumSlots	C_Container.GetContainerNumSlots	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	drop-in
 GetContainerItemLink	C_Container.GetContainerItemLink	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	drop-in
 PickupContainerItem	C_Container.PickupContainerItem	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	drop-in
 UseContainerItem	C_Container.UseContainerItem	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	
 SplitContainerItem	C_Container.SplitContainerItem	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	drop-in
 SortBags	C_Container.SortBags	10.0.2	https://warcraft.wiki.gg/wiki/Patch_10.0.2/API_changes	drop-in
-UnitAura	C_UnitAuras.GetAuraDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes	
-UnitBuff	C_UnitAuras.GetBuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes	
-UnitDebuff	C_UnitAuras.GetDebuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes	
+UnitAura	C_UnitAuras.GetAuraDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes	first:name:2-3
+UnitBuff	C_UnitAuras.GetBuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes	first:name:2-3
+UnitDebuff	C_UnitAuras.GetDebuffDataByIndex	11.0.2	https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes	first:name:2-3
 GetMouseFocus	GetMouseFoci()[1]	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes	
-GetSpellInfo	C_Spell.GetSpellInfo	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-GetSpellCooldown	C_Spell.GetSpellCooldown	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-GetSpellCharges	C_Spell.GetSpellCharges	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-GetSpellTexture	C_Spell.GetSpellTexture	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
+GetSpellInfo	C_Spell.GetSpellInfo	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	first:name:1-1
+GetSpellCooldown	C_Spell.GetSpellCooldown	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	first:startTime:1-1
+GetSpellCharges	C_Spell.GetSpellCharges	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	first:currentCharges:1-1
+GetSpellTexture	C_Spell.GetSpellTexture	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	one-arg
 GetSpellDescription	C_Spell.GetSpellDescription	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellCount	C_Spell.GetSpellCastCount	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-IsUsableSpell	C_Spell.IsSpellUsable	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
+IsUsableSpell	C_Spell.IsSpellUsable	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	one-arg
 GetNumSpellTabs	C_SpellBook.GetNumSpellBookSkillLines	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellTabInfo	C_SpellBook.GetSpellBookSkillLineInfo	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellBookItemName	C_SpellBook.GetSpellBookItemName	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
@@ -35,8 +38,8 @@ IsEquippedItem	C_Item.IsEquippedItem	12.1.5	https://warcraft.wiki.gg/wiki/Patch_
 PickupItem	C_Item.PickupItem	12.1.5	https://warcraft.wiki.gg/wiki/Patch_12.1.5/API_changes	drop-in
 UseItemByName	C_Item.UseItemByName	12.1.5	https://warcraft.wiki.gg/wiki/Patch_12.1.5/API_changes	drop-in
 EquipItemByName	C_Item.EquipItemByName	12.1.5	https://warcraft.wiki.gg/wiki/Patch_12.1.5/API_changes	drop-in
-GetActionCooldown	C_ActionBar.GetActionCooldown	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-GetActionCharges	C_ActionBar.GetActionCharges	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
+GetActionCooldown	C_ActionBar.GetActionCooldown	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	first:startTime:1-1
+GetActionCharges	C_ActionBar.GetActionCharges	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	first:currentCharges:1-1
 IsUsableAction	C_ActionBar.IsUsableAction	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 HasAction	C_ActionBar.HasAction	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetAddOnInfo	C_AddOns.GetAddOnInfo	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.0/API_changes	

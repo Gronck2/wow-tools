@@ -2,34 +2,37 @@
 //! per language of the characters it runs for. Pure (no I/O); the owner pastes the text into the game himself.
 //!
 //! Corrected: names in the wrong language (through spell/item ids), slash aliases of another language (-> the English
-//! command, which every client knows) and removed functions that have a drop-in replacement (`macros::drop_in`).
-//! Everything else is left as it is and counted in `Variant::rest`.
+//! command, which every client knows), removed functions that have a drop-in replacement (`macros::drop_in`) and removed
+//! functions that now return a table, where the macro uses only the first value (`macros::first_value`, `single_value`).
+//! Everything else is left as it is and counted in `Variant::rest`. The pieces that were replaced are recorded as byte
+//! ranges of the text (`Variant::marks`) so the window can highlight them.
 
 use crate::macro_names::{self, Names, name_spans};
-use crate::macros::{self, Kind, MAX_LEN, Macro, Target, canonical_command};
+use crate::macros::{self, Kind, MAX_LEN, Macro, Target, canonical_command, lang_name, lang_names};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::ops::Range;
 
 /// The macro as it should read for the characters of one language (or several with the same text).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Variant {
     /// Client language(s) the text is written for, `deDE` or `deDE/ruRU` when the texts came out the same.
     pub lang: String,
-    pub targets: Vec<String>,
     pub text: String,
     pub chars: usize,
     /// Longer than the game takes: the text is not offered, only the mark.
     pub over: bool,
     /// Findings of the macro this text does not solve (too long excluded: `over` says it).
     pub rest: usize,
+    /// Byte ranges of `text` that were replaced (new names, commands, functions).
+    pub marks: Vec<Range<usize>>,
+    /// A function was replaced by one that is not provably the same call: to be tried in the game.
+    pub check: bool,
 }
 
 impl Variant {
     pub fn caption(&self) -> String {
-        tr!(
-            "macros.fixed_caption",
-            lang = self.lang,
-            targets = crate::maintenance::names_text(&self.targets, 6)
-        )
+        tr!("macros.fixed_caption", lang = lang_names(&self.lang, lang_name))
     }
 
     /// The text to show and copy; none when it is over the limit.
@@ -45,9 +48,14 @@ impl Variant {
             (self.rest > 0).then(|| tr!("macros.fixed_rest", n = self.rest))
         }
     }
+
+    /// The hint that a replaced function must be tried in the game (only for a text that is shown).
+    pub fn check_note(&self) -> Option<&'static str> {
+        (self.check && !self.over).then(|| tr!("macros.fixed_check"))
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MacroFix {
     pub variants: Vec<Variant>,
 }
@@ -60,7 +68,7 @@ pub fn render(fix: &MacroFix) -> String {
         for line in v.shown().into_iter().flat_map(|t| t.split('\n')) {
             out.push_str(&if line.is_empty() { "\n".into() } else { format!("        {line}\n") });
         }
-        if let Some(note) = v.note() {
+        for note in v.check_note().map(str::to_string).into_iter().chain(v.note()) {
             out.push_str(&format!("      {note}\n"));
         }
     }
@@ -80,17 +88,128 @@ fn target_lang(t: &Target, firm: bool) -> Option<&'static str> {
     }
 }
 
-/// Replaces removed functions that have a drop-in replacement in Lua `code`: only a call (`Name(`) that is a
-/// whole word outside strings and comments, not a field and not being defined.
+/// Where a call `(...)` that starts `code` ends (the byte after its `)`) and how many arguments it has; none when the
+/// parentheses do not close or a comment cuts the call.
+/// shortcut: strings are `"..."`, `'...'` and `[[...]]` (no `[=[`), as in `rewrite_code`.
+fn call_span(code: &str) -> Option<(usize, usize)> {
+    let (mut depth, mut args, mut empty) = (0usize, 1usize, true);
+    let mut chars = code.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '"' | '\'' => {
+                while let Some((_, d)) = chars.next() {
+                    if d == '\\' {
+                        chars.next();
+                    } else if d == c {
+                        break;
+                    }
+                }
+            }
+            '[' if code[i..].starts_with("[[") => {
+                let end = i + code[i..].find("]]")? + 2;
+                while chars.peek().is_some_and(|(j, _)| *j < end) {
+                    chars.next();
+                }
+            }
+            '-' if code[i..].starts_with("--") => return None,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some((i + 1, if empty { 0 } else { args }));
+                }
+            }
+            ',' if depth == 1 => args += 1,
+            _ => {}
+        }
+        if i > 0 && !c.is_whitespace() {
+            empty = false;
+        }
+    }
+    None
+}
+
+/// The value of a call is used as one value (so the first value of a function is all the code needs), by what stands
+/// before the call and after it. Conservative: an operand of an operator, a condition, the single target of an
+/// assignment, a parenthesised call, a non-last element of a list, and the sole argument of `print`/`tostring`. A call
+/// that is the last element of a list, a `return`, a table constructor, an index or any other call's last argument
+/// passes all its values on and is not one of these.
+fn single_value(before: &str, after: &str) -> bool {
+    const OPS: [&str; 12] = ["..", "+", "-", "*", "/", "%", "^", "==", "~=", "<", ">", "#"];
+    const WORDS: [&str; 7] = ["and", "or", "not", "if", "elseif", "while", "until"];
+    // a `(` after one of these groups an expression, it does not call
+    const KEYWORDS: [&str; 12] = ["and", "or", "not", "if", "elseif", "while", "until", "return", "then", "do", "else", "in"];
+    let (b, a) = (before.trim_end(), after.trim_start());
+    let a = if a.starts_with("--") { "" } else { a };
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let first_word = |s: &str| s.chars().take_while(|c| ident(*c)).collect::<String>();
+    let last_word = |s: &str| {
+        let w: String = s.chars().rev().take_while(|c| ident(*c)).collect();
+        w.chars().rev().collect::<String>()
+    };
+    // indexed, called, a string or a table right after
+    if a.starts_with(['.', ':', '[', '(', '{', '"', '\'']) && !a.starts_with("..") {
+        return false;
+    }
+    if a.starts_with(',') || OPS.iter().any(|o| a.starts_with(o)) || ["and", "or", "then", "do"].contains(&first_word(a).as_str()) {
+        return true;
+    }
+    if OPS.iter().any(|o| b.ends_with(o)) || WORDS.contains(&last_word(b).as_str()) {
+        return true;
+    }
+    if let Some(pre) = b.strip_suffix('(') {
+        let pre = pre.trim_end();
+        let word = last_word(pre);
+        let call = pre.ends_with([')', ']', '}', '"', '\'']) || (!word.is_empty() && !KEYWORDS.contains(&word.as_str()));
+        // a call takes the value on as its argument; only `print` and `tostring` are known to use one
+        return a.starts_with(')') && (!call || ["print", "tostring"].contains(&word.as_str()));
+    }
+    if let Some(lhs) = b.strip_suffix('=') {
+        let run: String = lhs
+            .chars()
+            .rev()
+            .take_while(|c| ident(*c) || c.is_whitespace() || matches!(c, '.' | ',' | '[' | ']' | '"' | '\''))
+            .collect();
+        return !run.trim().is_empty() && !run.contains(',');
+    }
+    false
+}
+
+/// What a rewritten Lua line is: the new code, the byte ranges that changed and whether a replacement needs a try in game.
+struct Rewritten {
+    code: String,
+    marks: Vec<Range<usize>>,
+    check: bool,
+}
+
+/// Replaces removed functions that can be replaced in Lua `code`: only a call (`Name(`) that is a whole word outside
+/// strings and comments, not a field and not being defined. Drop-ins as they are; a function that now returns a table
+/// as `(New(args) or {}).field` when the call has the old argument count and only its first value is used; the
+/// one-argument functions only with one argument.
 /// shortcut: strings are `"..."`, `'...'` and `[[...]]` (no `[=[`), no Lua parser; upgrade if a real macro needs more.
-fn replace_dropin(code: &str) -> String {
-    let (mut out, mut i, mut prev) = (String::new(), 0, String::new());
+fn rewrite_code(code: &str) -> Rewritten {
+    let mut r = Rewritten {
+        code: String::new(),
+        marks: Vec::new(),
+        check: false,
+    };
+    let (mut i, mut prev) = (0, String::new());
+    // (byte of `code` the closing parenthesis ends at, what follows it), innermost last
+    let mut closers: Vec<(usize, String)> = Vec::new();
+    let flush = |r: &mut Rewritten, closers: &mut Vec<(usize, String)>, at: usize| {
+        while closers.last().is_some_and(|c| c.0 == at) {
+            let suffix = closers.pop().map(|c| c.1).unwrap_or_default();
+            r.marks.push(r.code.len()..r.code.len() + suffix.len());
+            r.code.push_str(&suffix);
+        }
+    };
     while i < code.len() {
+        flush(&mut r, &mut closers, i);
         let rest = &code[i..];
         let c = rest.chars().next().unwrap_or_default();
         if rest.starts_with("--") {
-            out.push_str(rest);
-            break;
+            r.code.push_str(rest);
+            return r;
         }
         let end = if c == '"' || c == '\'' {
             let mut chars = rest.char_indices().skip(1);
@@ -110,54 +229,102 @@ fn replace_dropin(code: &str) -> String {
             None
         };
         if let Some(end) = end {
-            out.push_str(&rest[..end]);
+            r.code.push_str(&rest[..end]);
             i += end;
             prev.clear();
         } else if c.is_alphabetic() || c == '_' {
             let end = rest.find(|d: char| !(d.is_alphanumeric() || d == '_')).unwrap_or(rest.len());
             let word = &rest[..end];
-            let call = rest[end..].trim_start().starts_with('(');
+            let after_word = rest[end..].trim_start();
             let before = code[..i].trim_end();
             let field = before.ends_with(':') || (before.ends_with('.') && !before.ends_with(".."));
-            match macros::drop_in(word) {
-                Some(new) if call && !field && prev != "function" && prev != "local" => out.push_str(new),
-                _ => out.push_str(word),
+            let mut replaced = false;
+            if after_word.starts_with('(') && !field && prev != "function" && prev != "local" {
+                let call = call_span(after_word).map(|(len, args)| (code.len() - after_word.len() + len, args));
+                let put = |r: &mut Rewritten, text: &str| {
+                    r.marks.push(r.code.len()..r.code.len() + text.len());
+                    r.code.push_str(text);
+                };
+                if let Some(new) = macros::drop_in(word) {
+                    put(&mut r, new);
+                    replaced = true;
+                } else if let Some(new) = macros::one_arg(word)
+                    && call.is_some_and(|(_, args)| args == 1)
+                {
+                    put(&mut r, new);
+                    (replaced, r.check) = (true, true);
+                } else if let Some((new, member, args)) = macros::first_value(word)
+                    && let Some((close, n)) = call
+                    && args.contains(&n)
+                    && single_value(&code[..i], &code[close..])
+                {
+                    put(&mut r, &format!("({new}"));
+                    closers.push((close, format!(" or {{}}).{member}")));
+                    (replaced, r.check) = (true, true);
+                }
+            }
+            if !replaced {
+                r.code.push_str(word);
             }
             prev = word.to_string();
             i += end;
         } else {
-            out.push(c);
+            r.code.push(c);
             if !c.is_whitespace() {
                 prev.clear();
             }
             i += c.len_utf8();
         }
     }
-    out
+    flush(&mut r, &mut closers, code.len());
+    r
+}
+
+/// A body line after the fix: its text, what changed in it and whether a replaced function must be tried.
+struct Line {
+    text: String,
+    marks: Vec<Range<usize>>,
+    check: bool,
+}
+
+/// Replaces `at` of `line` with `new` and moves the marks that lie after it.
+fn splice(line: &mut Line, at: Range<usize>, new: &str) {
+    let delta = new.len() as isize - (at.end - at.start) as isize;
+    line.text.replace_range(at.clone(), new);
+    for m in line.marks.iter_mut().filter(|m| m.start >= at.end) {
+        *m = m.start.wrapping_add_signed(delta)..m.end.wrapping_add_signed(delta);
+    }
+    line.marks.push(at.start..at.start + new.len());
 }
 
 /// One body line for the targets `group`, who read the macro in `lang`.
-fn fix_line(line: &str, lang: &str, group: &[&Target], retail: bool, names: &Names) -> String {
+fn fix_line(line: &str, lang: &str, group: &[&Target], retail: bool, names: &Names) -> Line {
+    let mut out = Line {
+        text: line.to_string(),
+        marks: Vec::new(),
+        check: false,
+    };
     let t = line.trim();
     if !t.starts_with(['/', '#']) {
-        return line.to_string();
+        return out;
     }
     let lead = line.len() - line.trim_start().len();
     let end = lead + t.find(|c: char| c.is_whitespace() || c == '[').unwrap_or(t.len());
     let cmd = line[lead..end].to_lowercase();
     if matches!(cmd.as_str(), "/run" | "/script") {
-        return if retail {
-            format!("{}{}", &line[..end], replace_dropin(&line[end..]))
-        } else {
-            line.to_string()
-        };
+        if retail {
+            let r = rewrite_code(&line[end..]);
+            out.text = format!("{}{}", &line[..end], r.code);
+            out.marks = r.marks.into_iter().map(|m| m.start + end..m.end + end).collect();
+            out.check = r.check;
+        }
+        return out;
     }
     // A line with unbalanced brackets is left as it is: where its names are cannot be told.
     if !macros::balanced(t) {
-        return line.to_string();
+        return out;
     }
     let valid: Vec<Vec<&str>> = group.iter().map(|t| t.valid()).collect();
-    let mut out = line.to_string();
     for span in name_spans(line).iter().rev() {
         // A `(Rank N)` / `(Subtext)` stays in the old language and would still fail: the name is left (and counted).
         if line[span.end..].trim_start().starts_with('(') {
@@ -166,12 +333,12 @@ fn fix_line(line: &str, lang: &str, group: &[&Target], retail: bool, names: &Nam
         if let Some((len, new)) = names.retarget(&span.name, lang, &valid)
             && len == span.name.len()
         {
-            out.replace_range(span.start..span.start + len, &new);
+            splice(&mut out, span.start..span.start + len, &new);
         }
     }
     let known = macros::alias_locales(&cmd);
     if !known.is_empty() && valid.iter().any(|v| !v.iter().any(|c| known.contains(c))) {
-        out.replace_range(lead..end, &canonical_command(&cmd));
+        splice(&mut out, lead..end, &canonical_command(&cmd));
     }
     out
 }
@@ -188,13 +355,17 @@ pub fn build(m: &Macro, retail: bool, targets: &[Target], firm: bool, names: &Na
     }
     let original = m.body.join("\n");
     // (languages, targets, body lines); the same text for several languages is one variant
-    let mut found: Vec<(Vec<&str>, Vec<&Target>, Vec<String>)> = Vec::new();
+    let mut found: Vec<(Vec<&str>, Vec<&Target>, Vec<Line>)> = Vec::new();
     for (lang, group) in groups {
-        let body: Vec<String> = m.body.iter().map(|l| fix_line(l, lang, &group, retail, names)).collect();
-        if body.join("\n") == original {
+        let body: Vec<Line> = m.body.iter().map(|l| fix_line(l, lang, &group, retail, names)).collect();
+        let text = body.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
+        if text == original {
             continue;
         }
-        match found.iter_mut().find(|f| f.2 == body) {
+        match found
+            .iter_mut()
+            .find(|f| f.2.iter().map(|l| l.text.as_str()).eq(body.iter().map(|l| l.text.as_str())))
+        {
             Some(f) => {
                 f.0.push(lang);
                 f.1.extend(group);
@@ -205,26 +376,34 @@ pub fn build(m: &Macro, retail: bool, targets: &[Target], firm: bool, names: &Na
     let variants: Vec<Variant> = found
         .into_iter()
         .map(|(langs, group, body)| {
-            let text = body.join("\n");
+            let text = body.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
+            let (mut marks, mut at) = (Vec::new(), 0);
+            for l in &body {
+                marks.extend(l.marks.iter().map(|m| m.start + at..m.end + at));
+                at += l.text.len() + 1;
+            }
+            marks.sort_by_key(|m| m.start);
             let chars = text.chars().count();
             let own: Vec<Target> = group.iter().map(|t| (*t).clone()).collect();
             let fixed = Macro {
                 name: String::new(),
                 icon: String::new(),
-                body,
+                body: body.iter().map(|l| l.text.clone()).collect(),
             };
             let rest = macros::check(&fixed, retail, &own, firm)
                 .into_iter()
                 .chain(macro_names::check(&fixed, &own, firm, names))
                 .filter(|(_, k)| !matches!(k, Kind::TooLong { .. }))
-                .count();
+                .count()
+                + macro_names::marked(&fixed);
             Variant {
                 lang: langs.join("/"),
-                targets: group.iter().map(|t| t.label.clone()).collect(),
                 text,
                 chars,
                 over: chars > MAX_LEN,
                 rest,
+                marks,
+                check: body.iter().any(|l| l.check),
             }
         })
         .collect();
@@ -326,11 +505,6 @@ mod tests {
                 ("deDE".to_string(), "/cast Feuerball".to_string()),
                 ("ruRU".to_string(), "/cast Огненный шар".to_string())
             ]
-        );
-        let fix = build(&mac(&["/cast Fireball"]), true, &[ru, de], false, &names()).unwrap();
-        assert_eq!(
-            (fix.variants[0].targets.clone(), fix.variants[1].targets.clone()),
-            (vec!["B-De".to_string()], vec!["A-Ru".to_string()])
         );
         // the same text for two languages is one variant for both
         let both = texts(&["/закл Foo"], true, &[target("A-De", "deDE"), target("B-En", "enUS")], false);
@@ -452,7 +626,6 @@ mod tests {
         );
         // a table instead of values, a string, a comment, a field, a definition, a mention without a call
         for line in [
-            "/run local n = GetSpellInfo(1)",
             "/run print(\"GetItemCount(1)\")",
             "/run x = 'GetItemCount(1)' -- GetItemCount(2)",
             "/run print(C_Item.GetItemCount(1), obj:GetItemCount(1))",
@@ -467,14 +640,215 @@ mod tests {
             fixed("/run print(\"n: \"..GetItemCount(5))").as_deref(),
             Some("/run print(\"n: \"..C_Item.GetItemCount(5))")
         );
-        // GetSpellTexture / IsUsableSpell took (slot, bookType) too: not a drop-in
-        assert_eq!(fixed("/run x = IsUsableSpell(1)"), None);
+        // GetSpellTexture / IsUsableSpell took (slot, bookType) too: replaced only with one argument
+        assert_eq!(fixed("/run x = IsUsableSpell(1)").as_deref(), Some("/run x = C_Spell.IsSpellUsable(1)"));
+        assert_eq!(
+            fixed("/run x = GetSpellTexture(\"Fireball\")").as_deref(),
+            Some("/run x = C_Spell.GetSpellTexture(\"Fireball\")")
+        );
+        assert_eq!(fixed("/run x = IsUsableSpell(1, \"spell\")"), None);
+        assert_eq!(fixed("/run x = GetSpellTexture()"), None);
         // only Retail has removed functions
         assert!(texts(&["/run print(GetItemCount(5))"], false, &en, true).is_empty());
         // partly fixed: the table-returning call stays and is counted
         let fix = build(&mac(&["/run print(GetItemCount(5), GetSpellInfo(1))"]), true, &en, true, &names()).unwrap();
         assert_eq!(fix.variants[0].text, "/run print(C_Item.GetItemCount(5), GetSpellInfo(1))");
         assert_eq!(fix.variants[0].rest, 1);
+    }
+
+    /// The fixed `/run` line of `code` for a Retail character, or none.
+    fn run(code: &str) -> Option<String> {
+        let en = [target("A-En", "enUS")];
+        texts(&[&format!("/run {code}")], true, &en, true)
+            .into_iter()
+            .next()
+            .map(|t| t.1.trim_start_matches("/run ").to_string())
+    }
+
+    #[test]
+    fn a_table_function_gets_its_first_field_where_one_value_is_used() {
+        let name = "(C_Spell.GetSpellInfo(x) or {}).name";
+        for (code, fixed) in [
+            ("print(GetSpellInfo(x))", format!("print({name})")),
+            ("tostring(GetSpellInfo(x))", format!("tostring({name})")),
+            ("if GetSpellInfo(x) then y() end", format!("if {name} then y() end")),
+            ("while GetSpellInfo(x) do end", format!("while {name} do end")),
+            ("local a = GetSpellInfo(x)", format!("local a = {name}")),
+            ("a = GetSpellInfo(x) print(a)", format!("a = {name} print(a)")),
+            ("t.n = GetSpellInfo(x)", format!("t.n = {name}")),
+            ("print(GetSpellInfo(x) == \"A\")", format!("print({name} == \"A\")")),
+            ("print(\"n: \"..GetSpellInfo(x))", format!("print(\"n: \"..{name})")),
+            ("print(not GetSpellInfo(x))", format!("print(not {name})")),
+            ("y = (GetSpellInfo(x))", format!("y = ({name})")),
+            ("y = GetSpellInfo(x) or \"?\"", format!("y = {name} or \"?\"")),
+            ("f(GetSpellInfo(x), 1)", format!("f({name}, 1)")),
+            ("local n, m = GetSpellInfo(x), 2", format!("local n, m = {name}, 2")),
+            ("return GetSpellInfo(x), 1", format!("return {name}, 1")),
+            ("y = GetSpellInfo (x) -- why", "y = (C_Spell.GetSpellInfo (x) or {}).name -- why".to_string()),
+            ("y = GetSpellInfo(f(1, 2))", "y = (C_Spell.GetSpellInfo(f(1, 2)) or {}).name".into()),
+            ("y = GetSpellInfo(\"A, B\")", "y = (C_Spell.GetSpellInfo(\"A, B\") or {}).name".into()),
+        ] {
+            assert_eq!(run(code), Some(fixed), "{code}");
+        }
+        // the other functions: their own field and argument counts
+        let cases = [
+            ("print(GetSpellCooldown(5))", "print((C_Spell.GetSpellCooldown(5) or {}).startTime)"),
+            ("print(GetSpellCharges(5))", "print((C_Spell.GetSpellCharges(5) or {}).currentCharges)"),
+            (
+                "print(GetContainerItemInfo(0, 1))",
+                "print((C_Container.GetContainerItemInfo(0, 1) or {}).iconFileID)",
+            ),
+            (
+                "print(UnitBuff(\"player\", 1))",
+                "print((C_UnitAuras.GetBuffDataByIndex(\"player\", 1) or {}).name)",
+            ),
+            (
+                "print(UnitDebuff(\"player\", 1, \"HARMFUL\"))",
+                "print((C_UnitAuras.GetDebuffDataByIndex(\"player\", 1, \"HARMFUL\") or {}).name)",
+            ),
+            (
+                "print(UnitAura(\"player\", 1))",
+                "print((C_UnitAuras.GetAuraDataByIndex(\"player\", 1) or {}).name)",
+            ),
+            ("print(GetActionCooldown(1))", "print((C_ActionBar.GetActionCooldown(1) or {}).startTime)"),
+            ("print(GetActionCharges(1))", "print((C_ActionBar.GetActionCharges(1) or {}).currentCharges)"),
+        ];
+        for (code, fixed) in cases {
+            assert_eq!(run(code).as_deref(), Some(fixed), "{code}");
+        }
+        // not the old call: the (index, bookType) form, a missing or an extra argument
+        for code in [
+            "print(GetSpellInfo(1, \"spell\"))",
+            "print(GetSpellInfo())",
+            "print(GetContainerItemInfo(0))",
+            "print(UnitBuff(\"player\"))",
+        ] {
+            assert_eq!(run(code), None, "{code}");
+        }
+    }
+
+    #[test]
+    fn several_values_used_means_no_fix() {
+        for code in [
+            "local n, r, i = GetSpellInfo(x)",
+            "n, r = GetSpellInfo(x)",
+            "print(1, GetSpellInfo(x))",
+            "print(select(3, GetSpellInfo(x)))",
+            "local i = select(n, GetSpellInfo(x))",
+            "return GetSpellInfo(x)",
+            "local t = {GetSpellInfo(x)}",
+            "f(GetSpellInfo(x))",
+            "f(1, GetSpellInfo(x))",
+            "y = GetSpellInfo(x).foo",
+            "y = GetSpellInfo(x)[1]",
+            "y = t[GetSpellInfo(x)]",
+            "y = \"GetSpellInfo(x)\"",
+            "y = C_Spell.GetSpellInfo(x)",
+            "y = obj:GetSpellInfo(x)",
+            "function GetSpellInfo(x) end",
+            "y = GetSpellInfo",
+        ] {
+            assert_eq!(run(code), None, "{code}");
+        }
+        // left alone and still counted
+        let en = [target("A-En", "enUS")];
+        let fix = build(
+            &mac(&["/run print(GetSpellInfo(1)) local a, b = GetSpellCooldown(1)"]),
+            true,
+            &en,
+            true,
+            &names(),
+        )
+        .unwrap();
+        assert_eq!(
+            fix.variants[0].text,
+            "/run print((C_Spell.GetSpellInfo(1) or {}).name) local a, b = GetSpellCooldown(1)"
+        );
+        assert_eq!(fix.variants[0].rest, 1);
+    }
+
+    #[test]
+    fn replaced_pieces_are_recorded_and_a_replaced_function_must_be_tried() {
+        let en = [target("A-En", "enUS")];
+        let body = [
+            "/cast Feuerball",
+            "/run print(GetItemCount(5)) print(GetSpellInfo(1))",
+            "/run y = GetSpellInfo(7) z = IsUsableSpell(2)",
+            "-- Feuerball",
+        ];
+        let fix = build(&mac(&body), true, &en, true, &names()).unwrap();
+        let v = &fix.variants[0];
+        let pieces: Vec<&str> = v.marks.iter().map(|m| &v.text[m.clone()]).collect();
+        assert_eq!(
+            pieces,
+            [
+                "Fireball",
+                "C_Item.GetItemCount",
+                "(C_Spell.GetSpellInfo",
+                " or {}).name",
+                "(C_Spell.GetSpellInfo",
+                " or {}).name",
+                "C_Spell.IsSpellUsable"
+            ]
+        );
+        assert!(v.check && v.check_note() == Some(tr!("macros.fixed_check")));
+        assert!(render(&fix).contains(&format!("      {}\n", tr!("macros.fixed_check"))));
+        // plain drop-ins and names need no try
+        let fix = build(&mac(&["/cast Feuerball", "/run print(GetItemCount(5))"]), true, &en, true, &names()).unwrap();
+        assert!(!fix.variants[0].check && fix.variants[0].check_note().is_none());
+    }
+
+    #[test]
+    fn marks_stay_on_character_boundaries_after_several_replacements() {
+        let ru = [target("A-Ru", "ruRU")];
+        let body = [
+            "/cast [@focus] Fireball; Death and Decay",
+            "/закл Огненный шар",
+            "/run print(\"Огонь\", GetItemCount(5))",
+        ];
+        let fix = build(&mac(&body), true, &ru, true, &names()).unwrap();
+        let v = &fix.variants[0];
+        assert!(v.marks.windows(2).all(|w| w[0].end <= w[1].start));
+        // every mark cuts the text on character boundaries (indexing would panic otherwise)
+        let pieces: Vec<&str> = v.marks.iter().map(|m| &v.text[m.clone()]).collect();
+        assert_eq!(pieces, ["Огненный шар", "Смерть и разложение", "C_Item.GetItemCount"]);
+    }
+
+    #[test]
+    fn the_caption_names_the_language_and_no_character() {
+        let ru = [target("Secret-Char", "ruRU")];
+        let fix = build(&mac(&["/cast Fireball"]), true, &ru, true, &names()).unwrap();
+        assert_eq!(fix.variants[0].caption(), tr!("macros.fixed_caption", lang = tr!("game_lang.ruRU")));
+        assert!(!fix.variants[0].caption().contains("Secret"));
+        let fix = build(&mac(&["/закл Foo"]), true, &[target("A", "deDE"), target("B", "enUS")], false, &names()).unwrap();
+        assert_eq!(fix.variants[0].lang, "deDE/enUS");
+        assert!(
+            fix.variants[0]
+                .caption()
+                .contains(&format!("{} / {}", tr!("game_lang.deDE"), tr!("game_lang.enUS")))
+        );
+    }
+
+    #[test]
+    fn a_crafted_quality_name_is_left_and_counted_not_unknown() {
+        let n = Names::fake(&[
+            ("enUS", &[], &[(5, "Potion"), (6, "Potion"), (7, "Potion"), (8, "Toy Boat")]),
+            ("ruRU", &[], &[(5, "Зелье"), (6, "Зелье"), (7, "Зелье"), (8, "Лодка")]),
+        ]);
+        let ru = [target("A-Ru", "ruRU")];
+        let go = |body: &[&str]| build(&mac(body), true, &ru, true, &n);
+        // a potion with three crafted ranks and a toy: one name for all ids, translated
+        let fixed = go(&["/use Potion", "/use [mod] Toy Boat", "/castsequence Potion, Toy Boat"]).unwrap();
+        assert_eq!(fixed.variants[0].text, "/use Зелье\n/use [mod] Лодка\n/castsequence Зелье, Лодка");
+        // ids, equipment slots and bag slots are no names
+        assert!(go(&["/use item:5", "/use 13", "/use 14", "/use 0 1"]).is_none());
+        // the quality icon sits in the name: not matched, never unknown, counted for the hand next to a real fix
+        let marked = "/use Potion |A:Professions-ChatIcon-Quality-Tier2:17:23|a";
+        assert!(macro_names::check(&mac(&[marked]), &ru, true, &n).is_empty());
+        let fix = go(&["/use Potion", marked]).unwrap();
+        assert_eq!(fix.variants[0].text, format!("/use Зелье\n{marked}"));
+        assert_eq!(fix.variants[0].rest, 1);
+        assert!(go(&[marked]).is_none());
     }
 
     #[test]

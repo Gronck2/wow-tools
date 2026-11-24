@@ -12,6 +12,7 @@ mod gfx;
 mod lua;
 mod macro_fix;
 mod macro_names;
+mod macro_store;
 mod macros;
 mod maintenance;
 #[cfg(windows)]
@@ -519,10 +520,10 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             "Heal",
             2,
             Kind::Deprecated {
-                func: "GetSpellInfo",
-                replacement: "C_Spell.GetSpellInfo",
-                patch: "12.0.0",
-                url: "https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes",
+                func: "GetSpellInfo".into(),
+                replacement: "C_Spell.GetSpellInfo".into(),
+                patch: "12.0.0".into(),
+                url: "https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes".into(),
             },
         ),
         finding(
@@ -533,7 +534,6 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
                 name: "Feuerball".into(),
                 lang: "deDE".into(),
                 fix: "Fireball".into(),
-                bad: vec![format!("{gronckk} (enUS)"), "Groncky-Tarren Mill (enUS)".into()],
                 how: How::Client,
             },
         ),
@@ -543,7 +543,7 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             3,
             Kind::Alias {
                 alias: "/zauber".into(),
-                command: "/cast",
+                command: "/cast".into(),
                 locales: "deDE".into(),
                 bad: [
                     gronckk,
@@ -558,14 +558,13 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
                 .map(|c| format!("{c} (ruRU)"))
                 .to_vec(),
                 soft: Vec::new(),
-                unknown: Vec::new(),
                 firm: true,
             },
         ),
         finding(gronckk, "Burst", 4, Kind::UnknownName { name: "Heroik Strike".into() }),
         finding(gronckk, "Burst", 0, Kind::TooLong { chars: 271 }),
         finding(gronckk, "Focus", 2, Kind::Brackets),
-        finding(gronckk, "Health", 1, Kind::Secret { func: "UnitHealth" }),
+        finding(gronckk, "Health", 1, Kind::Secret { func: "UnitHealth".into() }),
         finding("Groncky-Tarren Mill", "Pull", 5, Kind::UnknownName { name: "Pull timer".into() }),
         finding(
             "Groncky-Tarren Mill",
@@ -575,7 +574,6 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
                 name: "Heilendes Licht".into(),
                 lang: "deDE".into(),
                 fix: "Holy Light".into(),
-                bad: vec!["Gronckx-Nowhere".into()],
                 how: How::Realm,
             },
         ),
@@ -585,11 +583,10 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             2,
             Kind::Alias {
                 alias: "/benutzen".into(),
-                command: "/use",
+                command: "/use".into(),
                 locales: "deDE".into(),
                 bad: Vec::new(),
                 soft: Vec::new(),
-                unknown: vec!["Gronckx-Nowhere".into()],
                 firm: false,
             },
         ),
@@ -598,10 +595,10 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             "Fire",
             3,
             Kind::Deprecated {
-                func: "GetItemCount",
-                replacement: "C_Item.GetItemCount",
-                patch: "12.1.5",
-                url: "https://warcraft.wiki.gg/wiki/Patch_12.1.5/API_changes",
+                func: "GetItemCount".into(),
+                replacement: "C_Item.GetItemCount".into(),
+                patch: "12.1.5".into(),
+                url: "https://warcraft.wiki.gg/wiki/Patch_12.1.5/API_changes".into(),
             },
         ),
         finding(
@@ -609,38 +606,54 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             "Bag",
             1,
             Kind::Deprecated {
-                func: "GetContainerItemInfo",
-                replacement: "C_Container.GetContainerItemInfo",
-                patch: "11.0.2",
-                url: "https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes",
+                func: "GetContainerItemInfo".into(),
+                replacement: "C_Container.GetContainerItemInfo".into(),
+                patch: "11.0.2".into(),
+                url: "https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes".into(),
             },
         ),
     ];
     // The fixed texts: an account macro for clients in two languages, and one whose fix is over the limit.
-    let variant = |lang: &str, targets: &[&str], text: String, rest| {
+    // `marks`: the pieces highlighted as replaced, every occurrence.
+    let variant = |lang: &str, text: String, rest, check, marks: &[&str]| {
         let chars = text.chars().count();
+        let marks = marks
+            .iter()
+            .flat_map(|m| text.match_indices(m).map(|(i, m)| i..i + m.len()).collect::<Vec<_>>())
+            .collect();
         macro_fix::Variant {
             lang: lang.into(),
-            targets: targets.iter().map(|s| s.to_string()).collect(),
             chars,
             over: chars > 255,
             text,
             rest,
+            marks,
+            check,
         }
     };
     let fire_text = |name: &str| format!("#showtooltip {name}\n/cast [@focus,harm] {name}\n/run print(C_Item.GetItemCount(6948))");
     let fire = std::sync::Arc::new(macro_fix::MacroFix {
         variants: vec![
-            variant("enUS", &[gronckk, "Groncky-Tarren Mill"], fire_text("Fireball"), 0),
-            variant("deDE", &["Gronckw-Blackrock"], fire_text("Feuerball"), 1),
+            variant("enUS", fire_text("Fireball"), 0, false, &["Fireball", "C_Item.GetItemCount"]),
+            variant("deDE", fire_text("Feuerball"), 1, false, &["Feuerball", "C_Item.GetItemCount"]),
         ],
     });
+    let heal = std::sync::Arc::new(macro_fix::MacroFix {
+        variants: vec![variant(
+            "enUS",
+            "#showtooltip\n/cast [@mouseover,help] Heal\n/run print((C_Spell.GetSpellInfo(2061) or {}).name)".into(),
+            0,
+            true,
+            &["(C_Spell.GetSpellInfo", " or {}).name"],
+        )],
+    });
     let bag = std::sync::Arc::new(macro_fix::MacroFix {
-        variants: vec![variant("ruRU", &["Gronckq-Gordunni"], vec!["/cast Heroic Strike"; 14].join("\n"), 1)],
+        variants: vec![variant("ruRU", vec!["/cast Heroic Strike"; 14].join("\n"), 1, false, &["Heroic Strike"])],
     });
     for f in &mut findings {
         match f.name.as_str() {
             "Fire" => f.fixed = Some(fire.clone()),
+            "Heal" if f.account => f.fixed = Some(heal.clone()),
             "Bag" => f.fixed = Some(bag.clone()),
             _ => {}
         }
@@ -662,7 +675,9 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
         scanning: view == "macros-busy",
         downloading: view == "macros-names",
         names_done: None,
-        copied: (view == "macro-report").then(|| (tr!("macros.copied").to_string(), tray::Tone::Ok)),
+        at: chrono::TimeZone::with_ymd_and_hms(&chrono::Local, 2026, 11, 24, 14, 5, 0).single(),
+        // the names were downloaded after this check: the report says so
+        names_stale: view == "macro-report",
         cached: if view == "macros-nodata" { Vec::new() } else { vec![cached] },
         ..Default::default()
     }

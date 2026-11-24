@@ -362,7 +362,7 @@ pub(crate) mod http {
         Ok(())
     }
 
-    const MAX_BODY: usize = 64 << 20;
+    const MAX_BODY: usize = 128 << 20;
 
     /// A GET over HTTPS (redirects followed); returns the status and the body.
     pub fn get(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {

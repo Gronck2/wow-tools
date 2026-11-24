@@ -2019,6 +2019,15 @@ fn macro_hits(v: &View, f: &Formats, out: &mut Vec<(R, Hit)>) {
 }
 
 /// The text of the counts card: how many findings of each kind.
+/// "Checked macros: N · Checked: 24.11 14:05" for the line under a finished check's title.
+fn checked_line(m: &tray::MacroCheck, n: usize) -> String {
+    let count = tr!("macros.checked", n = n);
+    match m.checked_at() {
+        Some(at) => format!("{count} · {at}"),
+        None => count,
+    }
+}
+
 fn macro_counts_text(v: &View) -> String {
     match v.macros.scan.as_deref() {
         None => tr!("macros.counts_hint").to_string(),
@@ -2036,6 +2045,9 @@ fn names_lines(v: &View, t: &Theme) -> Vec<(String, D2D1_COLOR_F)> {
         out.push((busy_text(Work::Names).to_string(), t.text2));
     } else if let Some((text, tone)) = &m.names_done {
         out.push(result_line(t, text, *tone));
+    }
+    if m.names_stale && !m.downloading {
+        out.push((tr!("macros.names_stale").to_string(), t.warn));
     }
     if let Some(s) = m.scan.as_deref().filter(|s| !s.missing.is_empty()) {
         out.push((tr!("macros.names_missing", flavors = s.missing.join(", ")), t.warn));
@@ -2073,15 +2085,11 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
             tr!("macros.not_checked").to_string(),
             (tr!("macros.not_checked_sub").to_string(), t.text2),
         ),
-        (Some(s), None) if s.findings.is_empty() => (
-            ("\u{E930}", t.ok),
-            tr!("macros.clean").to_string(),
-            (tr!("macros.checked", n = s.checked), t.text2),
-        ),
+        (Some(s), None) if s.findings.is_empty() => (("\u{E930}", t.ok), tr!("macros.clean").to_string(), (checked_line(m, s.checked), t.text2)),
         (Some(s), None) => (
             ("\u{E7BA}", t.warn),
             tr!("macros.found", n = s.findings.len()),
-            (tr!("macros.checked", n = s.checked), t.text2),
+            (checked_line(m, s.checked), t.text2),
         ),
     };
     draw_status(p, t, f, (icon, icon_color), &line1, (&line2, line2_color));

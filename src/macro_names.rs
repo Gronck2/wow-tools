@@ -19,7 +19,7 @@ const ENUS: &str = "enUS";
 /// keeps English for rows it never translated, so the limit is high, not "most rows".
 const SAME_MAX_PERCENT: usize = 98;
 /// (wago.tools table, entry name in the cache).
-const TABLES: [(&str, &str); 2] = [("SpellName", "spell"), ("ItemSearchName", "item")];
+const TABLES: [(&str, &str); 2] = [("SpellName", "spell"), ("ItemSparse", "item-sparse")];
 const NAME_COMMANDS: &[&str] = &["/cast", "/use", "/castsequence", "/castrandom", "/userandom", "#showtooltip", "#show"];
 
 type Rows = Vec<(u32, String)>;
@@ -46,7 +46,7 @@ fn split_fields(rec: &str) -> Vec<String> {
     out
 }
 
-/// A wago.tools export: the `ID` column and the first `*_lang` column are found by header name. A quoted field
+/// A wago.tools export: the `ID` column and the name column (`Display_lang` of ItemSparse, else the first `*_lang`) are found by header name. A quoted field
 /// may span lines; a record that grows past `RECORD_MAX` (a stray quote) is dropped and the next line starts fresh.
 /// Rows without a number and a name are dropped.
 fn parse_csv(text: &str) -> Result<Rows> {
@@ -54,7 +54,10 @@ fn parse_csv(text: &str) -> Result<Rows> {
     let header = split_fields(lines.next().unwrap_or_default());
     let (Some(id_col), Some(name_col)) = (
         header.iter().position(|h| h.trim() == "ID"),
-        header.iter().position(|h| h.trim().ends_with("_lang")),
+        header
+            .iter()
+            .position(|h| h.trim() == "Display_lang")
+            .or_else(|| header.iter().position(|h| h.trim().ends_with("_lang"))),
     ) else {
         bail!(tr!("macros.names_columns"));
     };
@@ -385,7 +388,12 @@ fn latest_build(product: &str) -> Result<String> {
 /// Downloads the names of `locale` unless the cache holds `build`. Returns whether it downloaded.
 fn update_locale(dir: &Path, product: &str, locale: &str, build: &str, progress: &mut dyn FnMut(String)) -> Result<bool> {
     let meta = fs::read_to_string(cache_path(dir, product, locale, "meta")).unwrap_or_default();
-    if meta.trim() == build && cache_path(dir, product, locale, "zip").exists() {
+    // A cache written before the item table was ItemSparse (ItemSearchName lacks many consumables) is not current.
+    let tables_ok = fs::File::open(cache_path(dir, product, locale, "zip"))
+        .ok()
+        .and_then(|f| ZipArchive::new(f).ok())
+        .is_some_and(|mut z| TABLES.iter().all(|(_, entry)| z.by_name(entry).is_ok()));
+    if meta.trim() == build && tables_ok {
         return Ok(false);
     }
     // enUS is done first in `update`; its cache is what a translation is compared with.
@@ -528,6 +536,11 @@ fn command_names(line: &str) -> Vec<String> {
     name_spans(line).into_iter().map(|s| s.name).collect()
 }
 
+/// How many names of `m` carry an inline icon or quality markup: they cannot be matched, so they are left for the hand.
+pub fn marked(m: &Macro) -> usize {
+    m.body.iter().map(|l| command_names(l).iter().filter(|n| n.contains('|')).count()).sum()
+}
+
 /// Wrong-language and unknown names of one macro, as (body line from 1, kind). Targets whose realm language
 /// is not cached are skipped (the caller says so).
 pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(usize, Kind)> {
@@ -542,12 +555,13 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
         return out;
     }
     for (i, line) in m.body.iter().enumerate() {
-        for name in command_names(line) {
+        // A crafted item's quality icon (`|A:..|a`, `|T..|t`) sits in the name: not matched here, see `marked`.
+        for name in command_names(line).into_iter().filter(|n| !n.contains('|')) {
             let name = names.base(&name).to_string();
             let lc = name.to_lowercase();
             let mut unknown = false;
-            // (language of the name, name in the realm's language, how sure) -> targets
-            let mut wrong: BTreeMap<(String, String, How), Vec<String>> = BTreeMap::new();
+            // (language of the name, name in the realm's language, how sure)
+            let mut wrong: BTreeSet<(String, String, How)> = BTreeSet::new();
             for (t, valid) in &ready {
                 if valid.iter().any(|c| names.locales[*c].has(&lc)) {
                     continue;
@@ -565,21 +579,22 @@ pub fn check(m: &Macro, targets: &[Target], firm: bool, names: &Names) -> Vec<(u
                 match fix {
                     // the same text in both languages (an untranslated row of this id): nothing to fix
                     Some((_, fix, _)) if fix.trim().to_lowercase() == lc => {}
-                    Some(key) => wrong.entry(key).or_default().push(t.label.clone()),
+                    Some(key) => {
+                        wrong.insert(key);
+                    }
                     None => unknown = true,
                 }
             }
             if unknown {
                 out.push((i + 1, Kind::UnknownName { name: name.clone() }));
             }
-            for ((lang, fix, how), bad) in wrong {
+            for (lang, fix, how) in wrong {
                 out.push((
                     i + 1,
                     Kind::WrongLanguage {
                         name: name.clone(),
                         lang,
                         fix,
-                        bad,
                         how,
                     },
                 ));
@@ -652,6 +667,13 @@ mod tests {
             parse_csv(text).unwrap(),
             rows(&[(1, "Fireball"), (2, "Hand of Gul'dan, the \"Big\""), (3, "two lines"), (6, "Last")])
         );
+    }
+
+    #[test]
+    fn the_item_names_are_the_display_column_of_item_sparse() {
+        // ItemSparse has several `*_lang` columns before `Display_lang`; the empty first one must not be taken
+        let csv = "ID,Description_lang,Display3_lang,Display2_lang,Display1_lang,Display_lang,ExpansionID\n6948,,,,,Hearthstone,0\n212263,,,,,\"Tempered Potion\",10\n";
+        assert_eq!(parse_csv(csv).unwrap(), rows(&[(6948, "Hearthstone"), (212263, "Tempered Potion")]));
     }
 
     #[test]
@@ -742,8 +764,9 @@ mod tests {
         assert_eq!(f.len(), 2);
         assert!(f.iter().all(|(_, k)| k.contains("WrongLanguage")));
         // the Russian realm only "may not work" (never the client clause), the German one has the client clause
-        assert!(f.iter().any(|(_, k)| k.contains("how: Maybe") && k.contains("A-Ru")));
-        assert!(f.iter().any(|(_, k)| k.contains("how: Client") && k.contains("B-De")));
+        assert!(f.iter().any(|(_, k)| k.contains("how: Maybe")));
+        assert!(f.iter().any(|(_, k)| k.contains("how: Client")));
+        assert!(f.iter().all(|(_, k)| !k.contains("A-Ru") && !k.contains("B-De")));
         // German has no Death and Decay: unknown there, wrong language on the ruRU realm
         let f = found(&["/cast Death and Decay"], &both, false);
         assert!(f.iter().any(|(_, k)| k.contains("UnknownName")) && f.iter().any(|(_, k)| k.contains("WrongLanguage")));
@@ -774,9 +797,9 @@ mod tests {
         // No Russian client: soft even for the character's own macro, with the fix in the realm's language.
         let f = verdict(&["/cast Огненный шар"], std::slice::from_ref(&en), true);
         assert!(matches!(&f[..], [Kind::WrongLanguage { lang, fix, how: How::Client, .. }] if lang == "ruRU" && fix == "Fireball"));
-        // Account list: only the character without the Russian client is named.
+        // Account list: one finding for the character without the Russian client; the one with it is fine.
         let f = verdict(&["/cast Огненный шар"], &[en.clone(), en_ru], false);
-        assert!(matches!(&f[..], [Kind::WrongLanguage { bad, how: How::Client, .. }] if bad == &["A-En"]));
+        assert!(matches!(&f[..], [Kind::WrongLanguage { how: How::Client, .. }]));
         // An unknown realm is judged by the client languages alone.
         let mut nowhere = Target { loc: None, ..en };
         assert!(verdict(&["/cast Огненный шар"], std::slice::from_ref(&nowhere), true).is_empty());
@@ -798,10 +821,11 @@ mod tests {
             f.iter()
                 .find_map(|(_, k)| matches!(k, Kind::WrongLanguage { how, .. } if *how == h).then(|| format!("{k:?}")))
         };
-        // Russian realm: "may not work"; English realm: "works only with a deDE client"; unknown realm: neither list.
-        assert!(by(How::Maybe).is_some_and(|k| k.contains("A-Ru") && !k.contains("B-En") && k.contains("Огненный шар")));
-        assert!(by(How::Client).is_some_and(|k| k.contains("B-En") && !k.contains("A-Ru") && k.contains("Fireball")));
-        assert!(by(How::Realm).is_some_and(|k| k.contains("C-Nowhere")));
+        // One finding per way it fails: Russian realm "may not work", English realm "works only with a deDE client",
+        // unknown realm: only for information. No character is named in any of them.
+        assert!(by(How::Maybe).is_some_and(|k| k.contains("Огненный шар") && !k.contains("A-Ru")));
+        assert!(by(How::Client).is_some_and(|k| k.contains("Fireball") && !k.contains("B-En")));
+        assert!(by(How::Realm).is_some_and(|k| !k.contains("C-Nowhere")));
         assert!(by(How::Firm).is_none() && f.len() == 3);
     }
 
