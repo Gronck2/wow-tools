@@ -2805,9 +2805,7 @@ fn saved_pos() -> Option<POINT> {
 fn save_pos(hwnd: HWND) {
     let mut rc: RECT = unsafe { zeroed() };
     unsafe { GetWindowRect(hwnd, &mut rc) };
-    // The narrow window's corner: a wide report moved it left (`fit`).
-    let shift = with_panel(|p| p.shift).unwrap_or(0);
-    if let Err(e) = std::fs::write(pos_file(), format!("{} {}", rc.left + shift, rc.top)) {
+    if let Err(e) = std::fs::write(pos_file(), format!("{} {}", rc.left, rc.top)) {
         log::warn!("{}: {e}", pos_file().display());
     }
 }
@@ -3321,6 +3319,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             // No maximize on a double click, no window menu on a right click of that header.
             WM_NCLBUTTONDBLCLK | WM_NCRBUTTONDOWN | WM_NCRBUTTONUP if wparam == HTCAPTION as WPARAM => 0,
             WM_EXITSIZEMOVE => {
+                // A drag makes the user's corner the reference: `fit` keeps this left edge when a wide report closes.
+                with_panel(|p| p.shift = 0);
                 save_pos(hwnd);
                 0
             }
