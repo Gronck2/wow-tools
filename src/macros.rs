@@ -6,6 +6,7 @@
 //! start with neither `/` nor `#` are addon data (HealBot `hbCrashProt_*`, `!dosmarkers`) and ignored.
 
 use crate::chars::{Character, subdirs};
+use crate::macro_fix::{self, MacroFix};
 use crate::macro_names::{self, Names};
 use crate::profiles::{Roster, last_played, realm_key};
 use crate::wow::Flavor;
@@ -13,14 +14,14 @@ use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 const REALMS: &str = include_str!("../data/realms.tsv");
 const DEPRECATED: &str = include_str!("../data/deprecated-api.tsv");
 const ALIASES: &str = include_str!("../data/slash-aliases.tsv");
 
 /// The game's limit of a macro's text.
-const MAX_LEN: usize = 255;
+pub const MAX_LEN: usize = 255;
 
 /// Midnight (12.0) hides some combat values from addon code; a macro reading them may stop working.
 const SECRET: &[&str] = &[
@@ -101,10 +102,25 @@ fn realms() -> &'static [Realm] {
     })
 }
 
-/// (function, replacement, removed in patch, source).
-fn deprecated() -> &'static [[&'static str; 4]] {
-    static T: OnceLock<Vec<[&'static str; 4]>> = OnceLock::new();
-    T.get_or_init(|| rows(DEPRECATED).filter_map(|r| r[..].try_into().ok()).collect())
+/// (function, replacement, removed in patch, source, `drop-in` or empty).
+fn deprecated() -> &'static [[&'static str; 5]] {
+    static T: OnceLock<Vec<[&'static str; 5]>> = OnceLock::new();
+    T.get_or_init(|| {
+        rows(DEPRECATED)
+            .filter(|r| r.len() >= 4)
+            .map(|r| [r[0], r[1], r[2], r[3], r.get(4).copied().unwrap_or_default()])
+            .collect()
+    })
+}
+
+/// What a removed function is called now, when the new one takes the same arguments and returns the same values.
+pub fn drop_in(func: &str) -> Option<&'static str> {
+    deprecated().iter().find(|r| r[0] == func && r[4] == "drop-in").map(|r| r[1])
+}
+
+/// The client languages that know the slash alias `cmd` (empty: not an alias).
+pub fn alias_locales(cmd: &str) -> Vec<&'static str> {
+    aliases().iter().filter(|a| a[2] == cmd).map(|a| a[1]).collect()
 }
 
 /// (command, locale, alias).
@@ -184,6 +200,8 @@ fn realm_locale(acc_dir: &Path, folder: &str, region: Option<&str>, roster: &Onc
 pub struct Target {
     pub label: String,
     pub loc: Option<Loc>,
+    /// The text language of the player's own client (`Config.wtf`), as it is, not widened by `client`.
+    pub client_main: Option<&'static str>,
     /// Client languages the player really uses (see `scan`); a Russian realm ignores them.
     pub client: Vec<&'static str>,
 }
@@ -298,6 +316,15 @@ fn find_word(line: &str, word: &str) -> bool {
     })
 }
 
+/// Every `[` of the line is closed and no `]` comes first.
+pub fn balanced(line: &str) -> bool {
+    let mut depth = 0i32;
+    line.chars().all(|c| {
+        depth += i32::from(c == '[') - i32::from(c == ']');
+        depth >= 0
+    }) && depth == 0
+}
+
 fn is_retail(flavor: &str) -> bool {
     matches!(flavor, "_retail_" | "_ptr_" | "_xptr_" | "_beta_" | "_alpha_")
 }
@@ -321,7 +348,7 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
         if matches!(cmd.as_str(), "/run" | "/script") {
             if retail {
                 let code = &line[end..];
-                for [func, replacement, patch, url] in deprecated().iter().copied() {
+                for [func, replacement, patch, url, _] in deprecated().iter().copied() {
                     if find_word(code, func) {
                         out.push((i, Kind::Deprecated { func, replacement, patch, url }));
                     }
@@ -332,12 +359,7 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
             }
             continue;
         }
-        let mut depth = 0i32;
-        let balanced = line.chars().all(|c| {
-            depth += i32::from(c == '[') - i32::from(c == ']');
-            depth >= 0
-        }) && depth == 0;
-        if !balanced {
+        if !balanced(line) {
             out.push((i, Kind::Brackets));
         }
         let found: Vec<&[&str; 3]> = aliases().iter().filter(|a| a[2] == cmd).collect();
@@ -387,6 +409,24 @@ pub struct Finding {
     pub name: String,
     pub line: usize,
     pub kind: Kind,
+    /// The whole macro corrected, the same for all findings of one macro (shown with the first, see `first_fixes`).
+    pub fixed: Option<Arc<MacroFix>>,
+}
+
+/// Per finding, the fixed text of its macro when it is the first finding of that macro (so a text is shown once).
+pub fn first_fixes(findings: &[Finding]) -> Vec<Option<&Arc<MacroFix>>> {
+    let mut seen: Vec<&Arc<MacroFix>> = Vec::new();
+    findings
+        .iter()
+        .map(|f| {
+            let fix = f.fixed.as_ref()?;
+            if seen.iter().any(|s| Arc::ptr_eq(s, fix)) {
+                return None;
+            }
+            seen.push(fix);
+            Some(fix)
+        })
+        .collect()
 }
 
 impl Finding {
@@ -544,6 +584,11 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                 let mut found = check(&m, retail, targets, firm);
                 found.extend(macro_names::check(&m, targets, firm, &names));
                 found.sort_by_key(|(line, _)| *line);
+                let fixed = if found.is_empty() {
+                    None
+                } else {
+                    macro_fix::build(&m, retail, targets, firm, &names).map(Arc::new)
+                };
                 for (line, kind) in found {
                     scan.findings.push(Finding {
                         flavor: fl.title(),
@@ -552,6 +597,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                         name: m.name.clone(),
                         line,
                         kind,
+                        fixed: fixed.clone(),
                     });
                 }
             }
@@ -576,6 +622,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                         Target {
                             label: format!("{name}-{realm}"),
                             loc,
+                            client_main: client,
                             client: client.into_iter().collect(),
                         },
                         dir,
@@ -613,7 +660,7 @@ pub fn sort_findings(findings: &mut [Finding]) {
 pub fn report(scan: &Scan) -> String {
     let mut out = String::new();
     let mut head: Option<(Level, &str, &str)> = None;
-    for f in &scan.findings {
+    for (f, fix) in scan.findings.iter().zip(first_fixes(&scan.findings)) {
         if head != Some((f.level(), &f.flavor, &f.scope)) {
             if !out.is_empty() {
                 out.push('\n');
@@ -629,6 +676,9 @@ pub fn report(scan: &Scan) -> String {
         out.push('\n');
         if let Some(fix) = f.fix() {
             out.push_str(&format!("      -> {fix}\n"));
+        }
+        if let Some(fix) = fix {
+            out.push_str(&macro_fix::render(fix));
         }
     }
     if !out.is_empty() {
@@ -662,6 +712,7 @@ mod tests {
         Target {
             label: label.into(),
             loc: code.map(|code| Loc { code, guessed: false }),
+            client_main: None,
             client: Vec::new(),
         }
     }
@@ -890,6 +941,13 @@ mod tests {
         // The Russian realm in the account list "may not work", it never gets the client clause.
         assert!(wrong.iter().any(|(scope, how)| *scope != "Bbb-Гордунни" && *how == How::Maybe));
         assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
+        // The fixed text: the character's own macro in its realm's language; the account's only for the Russian realm.
+        let own = s.findings.iter().find(|f| f.scope == "Bbb-Гордунни").and_then(|f| f.fixed.as_ref()).unwrap();
+        assert_eq!((own.variants[0].lang.as_str(), own.variants[0].text.as_str()), ("ruRU", "/cast Огненный шар"));
+        let account = s.findings.iter().find(|f| f.account).and_then(|f| f.fixed.as_ref()).unwrap();
+        assert_eq!(account.variants.len(), 1);
+        assert_eq!(account.variants[0].targets, ["Bbb-Гордунни"]);
+        assert!(report(&s).contains("        /cast Огненный шар\n"));
     }
 
     #[test]
@@ -975,6 +1033,7 @@ mod tests {
         let guessed = Target {
             label: "Aaa-Нигде".into(),
             loc: Some(Loc { code: "deDE", guessed: true }),
+            client_main: None,
             client: Vec::new(),
         };
         let found = check(&m(&["/закл Heal"]), true, &[guessed, target("Bbb-Nowhere", None)], false);
@@ -999,6 +1058,7 @@ mod tests {
             name: "n".into(),
             line: 1,
             kind,
+            fixed: None,
         }
     }
 
@@ -1123,6 +1183,40 @@ mod tests {
     }
 
     #[test]
+    fn the_removed_functions_table_has_five_columns_and_a_verified_drop_in_set() {
+        assert!(deprecated().iter().all(|r| r[3].starts_with("https://") && matches!(r[4], "" | "drop-in")));
+        assert_eq!(drop_in("GetItemCount"), Some("C_Item.GetItemCount"));
+        assert_eq!(drop_in("GetItemIcon"), Some("C_Item.GetItemIconByID"));
+        // tables, other arguments or unverified: never replaced
+        for f in [
+            "GetSpellInfo",
+            "GetContainerItemInfo",
+            "UnitAura",
+            "UseContainerItem",
+            "GetMouseFocus",
+            "GetAddOnInfo",
+            "NoSuchFunction",
+        ] {
+            assert_eq!(drop_in(f), None, "{f}");
+        }
+        assert_eq!(deprecated().iter().filter(|r| r[4] == "drop-in").count(), 16);
+    }
+
+    #[test]
+    fn a_macro_shows_its_fixed_text_once() {
+        let fix = Arc::new(MacroFix { variants: Vec::new() });
+        let mut a = finding(Kind::Brackets);
+        a.fixed = Some(fix.clone());
+        let mut b = finding(Kind::Brackets);
+        b.fixed = Some(fix);
+        let mut other = finding(Kind::Brackets);
+        other.fixed = Some(Arc::new(MacroFix { variants: Vec::new() }));
+        let all = [a, finding(Kind::Brackets), b, other];
+        let shown = first_fixes(&all);
+        assert_eq!(shown.iter().map(Option::is_some).collect::<Vec<_>>(), [true, false, false, true]);
+    }
+
+    #[test]
     fn counts_group_findings_by_kind_most_first() {
         let f = |kind| Finding {
             flavor: "Retail".into(),
@@ -1131,6 +1225,7 @@ mod tests {
             name: "n".into(),
             line: 1,
             kind,
+            fixed: None,
         };
         let name = |n: &str| Kind::UnknownName { name: n.into() };
         let scan = Scan {

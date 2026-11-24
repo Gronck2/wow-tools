@@ -10,6 +10,7 @@ mod elvui;
 #[cfg(windows)]
 mod gfx;
 mod lua;
+mod macro_fix;
 mod macro_names;
 mod macros;
 mod maintenance;
@@ -509,9 +510,10 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
         name: name.into(),
         line,
         kind,
+        fixed: None,
     };
     let gronckk = "Gronckk-Tarren Mill";
-    let findings = vec![
+    let mut findings = vec![
         finding(
             &account,
             "Heal",
@@ -593,6 +595,17 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
         ),
         finding(
             &account,
+            "Fire",
+            3,
+            Kind::Deprecated {
+                func: "GetItemCount",
+                replacement: "C_Item.GetItemCount",
+                patch: "12.1.5",
+                url: "https://warcraft.wiki.gg/wiki/Patch_12.1.5/API_changes",
+            },
+        ),
+        finding(
+            &account,
             "Bag",
             1,
             Kind::Deprecated {
@@ -603,6 +616,35 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
             },
         ),
     ];
+    // The fixed texts: an account macro for clients in two languages, and one whose fix is over the limit.
+    let variant = |lang: &str, targets: &[&str], text: String, rest| {
+        let chars = text.chars().count();
+        macro_fix::Variant {
+            lang: lang.into(),
+            targets: targets.iter().map(|s| s.to_string()).collect(),
+            chars,
+            over: chars > 255,
+            text,
+            rest,
+        }
+    };
+    let fire_text = |name: &str| format!("#showtooltip {name}\n/cast [@focus,harm] {name}\n/run print(C_Item.GetItemCount(6948))");
+    let fire = std::sync::Arc::new(macro_fix::MacroFix {
+        variants: vec![
+            variant("enUS", &[gronckk, "Groncky-Tarren Mill"], fire_text("Fireball"), 0),
+            variant("deDE", &["Gronckw-Blackrock"], fire_text("Feuerball"), 1),
+        ],
+    });
+    let bag = std::sync::Arc::new(macro_fix::MacroFix {
+        variants: vec![variant("ruRU", &["Gronckq-Gordunni"], vec!["/cast Heroic Strike"; 14].join("\n"), 1)],
+    });
+    for f in &mut findings {
+        match f.name.as_str() {
+            "Fire" => f.fixed = Some(fire.clone()),
+            "Bag" => f.fixed = Some(bag.clone()),
+            _ => {}
+        }
+    }
     let mut scan = macros::Scan {
         missing: if view == "macros-nodata" { vec!["Retail".into()] } else { Vec::new() },
         findings: if view == "macros-empty" { Vec::new() } else { findings },

@@ -153,6 +153,8 @@ pub enum Action {
     OpenMacroReport,
     /// The report of the last macro check to the clipboard.
     CopyMacros,
+    /// The fixed text of a macro, exactly as the report window shows it.
+    CopyFix(Arc<str>),
     /// Download the spell and item names for the macro check.
     UpdateNames,
     SaveProfile(CharEntry),
@@ -721,7 +723,13 @@ pub fn act(action: Action) {
             Ok(())
         }
         Action::CopyMacros => {
-            copy_macro_report();
+            if let Some(scan) = STATE.lock().unwrap().macros.scan.clone() {
+                copy_text(&macros::report(&scan), tr!("macros.copied"));
+            }
+            Ok(())
+        }
+        Action::CopyFix(text) => {
+            copy_text(&text, tr!("macros.copied_fix"));
             Ok(())
         }
         Action::UpdateNames => {
@@ -778,13 +786,11 @@ pub fn act(action: Action) {
     }
 }
 
-/// Puts the report of the last macro check on the clipboard; the panel shows how it went.
-fn copy_macro_report() {
-    let scan = STATE.lock().unwrap().macros.scan.clone();
-    let Some(scan) = scan else { return };
-    let result = crate::diag::copy_to_clipboard(HWND_MAIN.load(Ordering::Relaxed) as HWND, &macros::report(&scan));
+/// Puts `text` on the clipboard; the panel and the report window show how it went (`done` on success).
+fn copy_text(text: &str, done: &str) {
+    let result = crate::diag::copy_to_clipboard(HWND_MAIN.load(Ordering::Relaxed) as HWND, text);
     STATE.lock().unwrap().macros.copied = Some(match result {
-        Ok(()) => (tr!("macros.copied").to_string(), Tone::Ok),
+        Ok(()) => (done.to_string(), Tone::Ok),
         Err(e) => (tr!("macros.copy_failed", error = format!("{e:#}")), Tone::Error),
     });
     post_state();

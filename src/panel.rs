@@ -3204,6 +3204,7 @@ mod tests {
             name: "Heal".into(),
             line,
             kind,
+            fixed: None,
         }
     }
 

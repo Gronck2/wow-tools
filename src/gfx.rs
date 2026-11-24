@@ -224,6 +224,16 @@ pub fn wrap_format(dw: &IDWriteFactory, size: f32, bold: bool) -> Result<IDWrite
     Ok(f)
 }
 
+/// Like `wrap_format`, in a fixed-width font (macro text).
+pub fn mono_format(dw: &IDWriteFactory, size: f32) -> Result<IDWriteTextFormat> {
+    let f = text_format(dw, "Consolas", size, false, Align::Left)?;
+    unsafe {
+        f.SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP)?;
+        f.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR)?;
+    }
+    Ok(f)
+}
+
 /// The height `s` takes in `fmt` wrapped at `width`.
 pub fn text_height(fmt: &IDWriteTextFormat, s: &str, width: f32) -> f32 {
     let measure = || -> Result<f32> {

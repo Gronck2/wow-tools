@@ -19,7 +19,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 use crate::config::APP_NAME;
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
-use crate::macros::{Finding, Level, Scan};
+use crate::macro_fix::MacroFix;
+use crate::macros::{Finding, Level, Scan, first_fixes};
 use crate::tray::{self, Action, MacroCheck, Tone};
 
 /// The first size, in DIPs of client area.
@@ -48,6 +49,7 @@ struct Formats {
     body: IDWriteTextFormat,
     small: IDWriteTextFormat,
     small_right: IDWriteTextFormat,
+    mono: IDWriteTextFormat,
     button: IDWriteTextFormat,
 }
 
@@ -60,6 +62,7 @@ fn formats() -> gfx::Result<Formats> {
         body: gfx::wrap_format(&dw, 13.0, false)?,
         small: gfx::text_format(&dw, gfx::UI_FONT, 12.0, false, Align::Left)?,
         small_right: gfx::text_format(&dw, gfx::UI_FONT, 12.0, false, Align::Right)?,
+        mono: gfx::mono_format(&dw, 12.0)?,
         button: gfx::text_format(&dw, gfx::UI_FONT, 13.0, false, Align::Center)?,
     })
 }
@@ -72,10 +75,19 @@ struct Texts {
     place: String,
     problem: String,
     fix: Option<String>,
+    fixed: Vec<FixedView>,
 }
 
-/// `many`: the findings come from several game versions, so the card names it.
-fn texts(f: &Finding, many: bool) -> Texts {
+/// One variant of a macro's fixed text: `text` is none when it is over the limit.
+struct FixedView {
+    caption: String,
+    text: Option<Arc<str>>,
+    note: Option<String>,
+}
+
+/// `many`: the findings come from several game versions, so the card names it. `fixed`: the macro's fixed text, for
+/// the first card of the macro only.
+fn texts(f: &Finding, many: bool, fixed: Option<&Arc<MacroFix>>) -> Texts {
     Texts {
         title: if f.line == 0 {
             f.name.clone()
@@ -85,6 +97,14 @@ fn texts(f: &Finding, many: bool) -> Texts {
         place: if many { format!("{} · {}", f.flavor, f.scope) } else { f.scope.clone() },
         problem: f.problem(),
         fix: f.fix().map(|x| format!("→ {x}")),
+        fixed: fixed.map_or_else(Vec::new, |x| {
+            let view = |v: &crate::macro_fix::Variant| FixedView {
+                caption: v.caption(),
+                text: v.shown().map(Arc::from),
+                note: v.note(),
+            };
+            x.variants.iter().map(view).collect()
+        }),
     }
 }
 
@@ -93,11 +113,83 @@ fn card_height(f: &Formats, t: &Texts, text_w: f32) -> f32 {
     2.0 * INSET_Y + h(&f.title, &t.title) + 2.0 + h(&f.sub, &t.place) + 6.0 + h(&f.body, &t.problem) + t.fix.as_ref().map_or(0.0, |x| 4.0 + h(&f.body, x))
 }
 
+/// A fixed text measured: the `y`s are from the card's top, the button's `x` is a window one; `usize` numbers the buttons.
+struct VBox {
+    caption: (String, f32, f32),
+    text: Option<(Arc<str>, f32, f32)>,
+    note: Option<(String, f32, f32)>,
+    btn: Option<(R, usize)>,
+}
+
+const BLOCK_PAD: f32 = 8.0;
+const BTN_H: f32 = 26.0;
+
+fn copy_fix_w(f: &Formats) -> f32 {
+    (gfx::text_width(&f.button, tr!("macros.copy_fix")) + 28.0).max(84.0)
+}
+
+/// Measures the variants from `y` down; returns them and where they end.
+fn fixed_boxes(f: &Formats, views: &[FixedView], mut y: f32, text_w: f32, next: &mut usize) -> (Vec<VBox>, f32) {
+    let btn_w = copy_fix_w(f);
+    let mut out = Vec::new();
+    for v in views {
+        y += GAP;
+        let cap_h = gfx::text_height(&f.sub, &v.caption, text_w);
+        let mut b = VBox {
+            caption: (v.caption.clone(), y, cap_h),
+            text: None,
+            note: None,
+            btn: None,
+        };
+        y += cap_h + 4.0;
+        if let Some(text) = &v.text {
+            let h = gfx::text_height(&f.mono, text, text_w - 2.0 * BLOCK_PAD) + 2.0 * BLOCK_PAD;
+            b.text = Some((text.clone(), y, h));
+            y += h + 6.0;
+            let btn = R {
+                x: PAD + INSET_L + text_w - btn_w,
+                y,
+                w: btn_w,
+                h: BTN_H,
+            };
+            b.btn = Some((btn, *next));
+            *next += 1;
+            let note_h = v
+                .note
+                .as_ref()
+                .map(|n| (n.clone(), gfx::text_height(&f.body, n, (btn.x - 12.0 - PAD - INSET_L).max(60.0))));
+            let row = note_h.as_ref().map_or(BTN_H, |n| n.1.max(BTN_H));
+            b.note = note_h.map(|(n, h)| (n, y, h));
+            y += row;
+        } else if let Some(n) = &v.note {
+            let h = gfx::text_height(&f.body, n, text_w);
+            b.note = Some((n.clone(), y, h));
+            y += h;
+        }
+        out.push(b);
+    }
+    (out, y)
+}
+
 struct Card {
     texts: Texts,
     level: Level,
     top: f32,
     h: f32,
+    boxes: Vec<VBox>,
+}
+
+/// The Copy button of a fixed text under the window point (`x`, `y`): its number and the text it copies.
+fn fix_at(lay: &Layout, scroll: f32, x: f32, y: f32) -> Option<(usize, Arc<str>)> {
+    if y < HEAD_H {
+        return None;
+    }
+    let y = y - HEAD_H + scroll;
+    lay.cards.iter().flat_map(|c| c.boxes.iter().map(move |b| (c.top, b))).find_map(|(top, b)| {
+        let (r, i) = b.btn.as_ref()?;
+        R { y: top + r.y, ..*r }.contains(x, y).then_some(())?;
+        Some((*i, b.text.as_ref()?.0.clone()))
+    })
 }
 
 /// The cards for a window `width` DIPs wide; `total` is the height of everything, tops relative to the cards' area.
@@ -110,22 +202,22 @@ fn layout(scan: Option<&Scan>, f: &Formats, width: f32) -> Layout {
     let findings = scan.map_or(&[][..], |s| &s.findings[..]);
     let many = findings.iter().any(|x| x.flavor != findings[0].flavor);
     let text_w = (width - PAD - CARDS_R - INSET_L - INSET_R).max(60.0);
-    let mut y = TOP;
-    let cards = findings
-        .iter()
-        .map(|x| {
-            let texts = texts(x, many);
-            let h = card_height(f, &texts, text_w);
-            let card = Card {
-                texts,
-                level: x.level(),
-                top: y,
-                h,
-            };
-            y += h + GAP;
-            card
-        })
-        .collect();
+    let (mut y, mut buttons) = (TOP, 0);
+    let mut cards = Vec::new();
+    for (x, fix) in findings.iter().zip(first_fixes(findings)) {
+        let texts = texts(x, many, fix);
+        let base = card_height(f, &texts, text_w);
+        let (boxes, end) = fixed_boxes(f, &texts.fixed, base - INSET_Y, text_w, &mut buttons);
+        let h = if boxes.is_empty() { base } else { end + INSET_Y };
+        cards.push(Card {
+            texts,
+            level: x.level(),
+            top: y,
+            h,
+            boxes,
+        });
+        y += h + GAP;
+    }
     Layout {
         cards,
         total: if findings.is_empty() { 0.0 } else { y - GAP + TOP },
@@ -199,7 +291,7 @@ fn head_text(scan: Option<&Scan>) -> String {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, size: (f32, f32), scroll: f32, copy_hover: bool) {
+fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, size: (f32, f32), scroll: f32, copy_hover: bool, fix_hover: Option<usize>) {
     let (cw, ch) = size;
     let scan = check.scan.as_deref();
     p.clear(t.bg);
@@ -238,6 +330,47 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
         line(&c.texts.problem, &f.body, 4.0, t.text);
         if let Some(fix) = &c.texts.fix {
             line(fix, &f.body, 0.0, t.text2);
+        }
+        for b in &c.boxes {
+            let (caption, cy, ch) = &b.caption;
+            p.text(
+                caption,
+                &f.sub,
+                R {
+                    x,
+                    y: r.y + cy,
+                    w: text_w,
+                    h: *ch,
+                },
+                t.text2,
+            );
+            if let Some((text, ty, th)) = &b.text {
+                let block = R {
+                    x,
+                    y: r.y + ty,
+                    w: text_w,
+                    h: *th,
+                };
+                p.fill(block, 4.0, t.bg);
+                p.stroke(block, 4.0, t.stroke, 1.0);
+                let inner = R {
+                    x: x + BLOCK_PAD,
+                    y: block.y + BLOCK_PAD,
+                    w: text_w - 2.0 * BLOCK_PAD,
+                    h: th - 2.0 * BLOCK_PAD,
+                };
+                p.text(text, &f.mono, inner, t.text);
+            }
+            if let Some((note, ny, nh)) = &b.note {
+                let w = b.btn.as_ref().map_or(text_w, |(br, _)| (br.x - 12.0 - x).max(60.0));
+                p.text(note, &f.body, R { x, y: r.y + ny, w, h: *nh }, t.warn);
+            }
+            if let Some((br, i)) = &b.btn {
+                let br = R { y: r.y + br.y, ..*br };
+                p.fill(br, 4.0, if fix_hover == Some(*i) { t.card_hover } else { t.bg });
+                p.stroke(br, 4.0, t.stroke, 1.0);
+                p.text(tr!("macros.copy_fix"), &f.button, br, t.text);
+            }
         }
     }
     p.offset(0.0, 0.0);
@@ -382,6 +515,7 @@ struct Window {
     lay: Layout,
     scroll: f32,
     copy_hover: bool,
+    fix_hover: Option<usize>,
     tracking: bool,
     /// The thumb is being dragged: where it was grabbed, from its top.
     grab: Option<f32>,
@@ -464,6 +598,7 @@ fn open() -> gfx::Result<()> {
         check,
         scroll: 0.0,
         copy_hover: false,
+        fix_hover: None,
         tracking: false,
         grab: None,
     };
@@ -513,8 +648,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 BeginPaint(hwnd, &mut ps);
                 with_window(|w| {
                     let size = w.size();
-                    let (theme, fmt, check, lay, scroll, hover) = (&w.theme, &w.fmt, &w.check, &w.lay, w.scroll, w.copy_hover);
-                    w.surface.paint(|p| draw(p, theme, fmt, check, lay, size, scroll, hover));
+                    let (theme, fmt, check, lay, scroll) = (&w.theme, &w.fmt, &w.check, &w.lay, w.scroll);
+                    let (hover, fix_hover) = (w.copy_hover, w.fix_hover);
+                    w.surface.paint(|p| draw(p, theme, fmt, check, lay, size, scroll, hover, fix_hover));
                 });
                 EndPaint(hwnd, &ps);
                 0
@@ -562,7 +698,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         return true;
                     }
                     let over = w.check.scan.is_some() && copy_rect(&w.fmt, w.size().0).contains(x, y);
-                    std::mem::replace(&mut w.copy_hover, over) != over
+                    let on_fix = fix_at(&w.lay, w.scroll, x, y).map(|h| h.0);
+                    let moved = std::mem::replace(&mut w.copy_hover, over) != over;
+                    std::mem::replace(&mut w.fix_hover, on_fix) != on_fix || moved
                 });
                 if changed == Some(true) {
                     InvalidateRect(hwnd, null(), 0);
@@ -573,6 +711,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 with_window(|w| {
                     w.tracking = false;
                     w.copy_hover = false;
+                    w.fix_hover = None;
                 });
                 InvalidateRect(hwnd, null(), 0);
                 0
@@ -616,6 +755,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 let dragged = with_window(|w| w.grab.take().is_some());
                 if dragged == Some(true) {
                     ReleaseCapture();
+                } else if let Some(Some((_, text))) = with_window(|w| {
+                    let (x, y) = mouse(w, lparam);
+                    fix_at(&w.lay, w.scroll, x, y)
+                }) {
+                    tray::act(Action::CopyFix(text));
                 } else if with_window(|w| {
                     let (x, y) = mouse(w, lparam);
                     w.check.scan.is_some() && copy_rect(&w.fmt, w.size().0).contains(x, y)
@@ -626,7 +770,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 0
             }
             WM_SETCURSOR if (lparam & 0xFFFF) as u32 == HTCLIENT => {
-                let hand = with_window(|w| w.copy_hover).unwrap_or(false);
+                let hand = with_window(|w| w.copy_hover || w.fix_hover.is_some()).unwrap_or(false);
                 SetCursor(LoadCursorW(null_mut(), if hand { IDC_HAND } else { IDC_ARROW }));
                 1
             }
@@ -683,17 +827,21 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
     }
 }
 
-/// Renders the window's content into a PNG at the first size, for checking the look.
+/// Renders the window's content into a PNG at the first width, taller than the window so a fixed text shows whole.
+const SNAP_H: f32 = 820.0;
+
+/// Renders the window's content into a PNG, for checking the look.
 pub fn snapshot(path: &str, dark: bool, check: &MacroCheck) -> gfx::Result<()> {
     let theme = gfx::theme_for(dark);
     let fmt = formats()?;
     let lay = layout(check.scan.as_deref(), &fmt, W0);
-    gfx::render_png(path, W0, H0, 1.5, |p| draw(p, &theme, &fmt, check, &lay, (W0, H0), 0.0, false))
+    gfx::render_png(path, W0, SNAP_H, 1.5, |p| draw(p, &theme, &fmt, check, &lay, (W0, SNAP_H), 0.0, false, None))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::macro_fix::Variant;
     use crate::macros::{How, Kind};
 
     fn finding(line: usize, kind: Kind) -> Finding {
@@ -704,6 +852,7 @@ mod tests {
             name: "Heal".into(),
             line,
             kind,
+            fixed: None,
         }
     }
 
@@ -734,17 +883,59 @@ mod tests {
         assert_eq!(layout(None, &f, 900.0).total, 0.0);
     }
 
+    fn variant(lang: &str, text: &str, over: bool) -> Variant {
+        Variant {
+            lang: lang.into(),
+            targets: vec!["A-De".into()],
+            text: text.into(),
+            chars: text.chars().count(),
+            over,
+            rest: 1,
+        }
+    }
+
+    #[test]
+    fn a_fixed_text_has_a_block_a_copy_button_and_the_shown_text_to_copy() {
+        let f = formats().unwrap();
+        let (text, long) = ("/cast A\n/cast B", "x".repeat(300));
+        let fix = Arc::new(MacroFix {
+            variants: vec![variant("deDE", text, false), variant("ruRU", &long, true)],
+        });
+        let (mut first, mut second) = (finding(1, Kind::Brackets), finding(2, Kind::Brackets));
+        (first.fixed, second.fixed) = (Some(fix.clone()), Some(fix));
+        let with = layout(Some(&scan(vec![first.clone(), second])), &f, 900.0);
+        let without = layout(Some(&scan(vec![finding(1, Kind::Brackets), finding(2, Kind::Brackets)])), &f, 900.0);
+        // the first card of the macro carries the text, the second does not repeat it
+        assert!(with.cards[0].h > without.cards[0].h && with.cards[1].h == without.cards[1].h && with.cards[1].boxes.is_empty());
+        let b = &with.cards[0].boxes;
+        assert_eq!(b.len(), 2);
+        // the over-limit variant has the mark and no text and no button
+        assert!(b[1].btn.is_none() && b[1].text.is_none() && b[1].note.as_ref().is_some_and(|n| n.0.contains("300")));
+        assert_eq!(&*b[0].text.as_ref().unwrap().0, text);
+        // the click lands on the button (window coordinates, also scrolled) and copies exactly the shown text
+        let (r, _) = b[0].btn.unwrap();
+        let y = HEAD_H + with.cards[0].top + r.y + 2.0;
+        let hit = fix_at(&with, 0.0, r.x + 2.0, y).unwrap();
+        assert_eq!((hit.0, &*hit.1), (0, text));
+        assert_eq!(fix_at(&with, 100.0, r.x + 2.0, y - 100.0).map(|h| h.0), Some(0));
+        assert!(fix_at(&with, 0.0, r.x - 10.0, y).is_none() && fix_at(&with, 0.0, r.x + 2.0, 10.0).is_none());
+        // the clipboard report shows the same lines
+        let shown = texts(&first, false, first.fixed.as_ref()).fixed[0].text.clone().unwrap();
+        let report = crate::macros::report(&scan(vec![first]));
+        assert!(shown.lines().all(|l| report.contains(&format!("        {l}\n"))) && !report.contains(&long));
+    }
+
     #[test]
     fn a_card_names_the_game_version_only_with_several() {
         let mut other = finding(1, Kind::Brackets);
         other.flavor = "Era".into();
         let same = [finding(1, Kind::Brackets), finding(0, Kind::Brackets)];
-        assert_eq!(texts(&same[0], false).place, "Acc");
-        assert_eq!(texts(&other, true).place, "Era · Acc");
-        assert_eq!(texts(&same[0], false).title, tr!("macros.report_line", name = "Heal", line = 1));
-        assert_eq!(texts(&same[1], false).title, "Heal");
-        assert!(texts(&same[0], false).fix.unwrap().starts_with("→ "));
-        assert!(texts(&finding(1, unknown("x")), false).fix.is_none());
+        assert_eq!(texts(&same[0], false, None).place, "Acc");
+        assert_eq!(texts(&other, true, None).place, "Era · Acc");
+        assert_eq!(texts(&same[0], false, None).title, tr!("macros.report_line", name = "Heal", line = 1));
+        assert_eq!(texts(&same[1], false, None).title, "Heal");
+        assert!(texts(&same[0], false, None).fix.unwrap().starts_with("→ "));
+        assert!(texts(&finding(1, unknown("x")), false, None).fix.is_none());
     }
 
     #[test]
