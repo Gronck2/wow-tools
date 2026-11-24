@@ -413,6 +413,17 @@ El botón **Abrir informe** los muestra en una ventana aparte que se puede redim
 nombres de hechizos y objetos descargados (versión del juego e idiomas); **Descargar** los trae — solo al pulsarlo, y
 después la revisión se repite. La revisión solo se hace con este botón, nunca por sí sola.
 
+Donde la comprobación conoce el remedio, la primera tarjeta de la macro muestra además la **macro corregida**: el texto
+entero, con los nombres en el idioma equivocado traducidos (mediante los identificadores de hechizos y objetos), un alias
+de comando de otro idioma sustituido por el comando en inglés (`/cast` funciona en todos los clientes) y las funciones
+eliminadas sustituidas donde la nueva es un reemplazo directo (mismos argumentos y mismos valores devueltos:
+`GetItemCount` pasa a `C_Item.GetItemCount`, pero `GetSpellInfo`, que ahora devuelve una tabla, no se toca). **Copiar**
+pone exactamente ese texto en el portapapeles y lo pegas tú mismo en el juego: WoW Tools nunca escribe en los archivos
+del juego. Una macro común a toda la cuenta recibe un texto por idioma de cliente, cada uno con los personajes a los que
+sirve. Lo que no se puede corregir (un nombre desconocido o ambiguo, corchetes sin cerrar, valores ocultos) queda como
+estaba y se cuenta en «Queda por corregir a mano»; un texto corregido de más de 255 caracteres no se ofrece, solo una
+nota. `wow-tools macros` y el informe copiado imprimen los mismos textos.
+
 <p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-es-dark.png"><img src="docs/images/macro-report-es.png" width="720" alt="La ventana del informe de macros"></picture></p>
 
 ## Línea de comandos

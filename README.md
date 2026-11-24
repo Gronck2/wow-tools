@@ -389,6 +389,16 @@ found. The **Open report** button shows them in a window of its own that you can
 (game build and languages) and **Download** fetches them — only when you press it; the check runs again afterwards.
 The check is done only when you press the button, never by itself.
 
+Where the check knows the cure, the first card of the macro also shows the **fixed macro**: the whole text with
+names in the wrong language translated (through spell and item ids), a slash alias of another language replaced by the
+English command (`/cast` works on every client) and removed functions replaced where the new one is a drop-in (the
+same arguments and the same return values: `GetItemCount` becomes `C_Item.GetItemCount`, but `GetSpellInfo`, which now
+returns a table, is left alone). **Copy** puts exactly that text on the clipboard and you paste it into the game
+yourself: WoW Tools never writes to the game's files. A macro shared by the whole account gets one text per client
+language, each with the characters it is for. What cannot be fixed (an unknown or ambiguous name, unbalanced brackets,
+hidden values) stays as it was and is counted under "Still to fix by hand"; a fixed text over 255 characters is not
+offered, only a note. `wow-tools macros` and the copied report print the same texts.
+
 <p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-en-dark.png"><img src="docs/images/macro-report-en.png" width="720" alt="The macro report window"></picture></p>
 
 ## Command line

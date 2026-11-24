@@ -427,6 +427,17 @@ problèmes de chaque type ont été trouvés. Le bouton **Ouvrir le rapport** le
 langues) ; **Télécharger** les récupère — seulement quand vous appuyez dessus, puis la vérification repart. La
 vérification n'a lieu que sur ce bouton, jamais d'elle-même.
 
+Quand la vérification connaît le remède, la première carte de la macro montre aussi la **macro corrigée** : le texte
+entier, avec les noms dans la mauvaise langue traduits (via les identifiants de sorts et d'objets), un alias de commande
+d'une autre langue remplacé par la commande anglaise (`/cast` marche dans tous les clients) et les fonctions supprimées
+remplacées là où la nouvelle est un remplacement direct (mêmes arguments, mêmes valeurs renvoyées : `GetItemCount`
+devient `C_Item.GetItemCount`, mais `GetSpellInfo`, qui renvoie maintenant une table, n'est pas touchée). **Copier** met
+exactement ce texte dans le presse-papiers ; vous le collez vous-même dans le jeu, WoW Tools n'écrit jamais dans les
+fichiers du jeu. Une macro commune à tout le compte reçoit un texte par langue de client, avec les personnages
+concernés. Ce qui ne peut pas être corrigé (un nom inconnu ou ambigu, des crochets non appariés, des valeurs masquées)
+reste tel quel et est compté sous « Reste à corriger à la main » ; un texte corrigé de plus de 255 caractères n'est pas
+proposé, seulement une note. `wow-tools macros` et le rapport copié affichent les mêmes textes.
+
 <p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-fr-dark.png"><img src="docs/images/macro-report-fr.png" width="720" alt="La fenêtre du rapport des macros"></picture></p>
 
 ## Ligne de commande

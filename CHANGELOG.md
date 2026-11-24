@@ -23,6 +23,14 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
   every finding in full (macro, line, where, what is wrong, the fix), the worst first -- red does not work, yellow may
   not work, grey is for information -- with **Copy** for the whole report. `wow-tools macros` and the copied report list
   the findings in the same order, with the level before each group.
+- The macro report shows a **fixed macro** where the check knows the cure: the whole text with names in the wrong
+  language translated (through spell and item ids; an ambiguous name is left), slash aliases of another language
+  replaced by the English command, and removed functions replaced where the new one takes the same arguments and
+  returns the same values (for example `GetItemCount` -> `C_Item.GetItemCount`; calls that now return a table stay).
+  **Copy** puts exactly that text on the clipboard, for you to paste into the game; nothing is written to the game's
+  files. A macro shared by the account gets one text per client language, with the characters it is for. "Still to fix
+  by hand: N" counts what the text does not solve; a fixed text over 255 characters is not offered, only a note.
+  `wow-tools macros` and the copied report print the same texts.
 
 ## [0.7.1] - 2026-11-16
 

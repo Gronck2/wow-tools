@@ -426,6 +426,17 @@ Der Reiter **Makros** im Panel macht dasselbe ohne Kommandozeile. **Makros prüf
 zeigt die geladenen Zauber- und Gegenstandsnamen (Spielversion und Sprachen); **Laden** holt sie — nur auf Knopfdruck,
 danach läuft die Prüfung neu. Geprüft wird nur auf Knopfdruck, nie von selbst.
 
+Wo die Prüfung die Abhilfe kennt, zeigt die erste Karte des Makros zusätzlich das **korrigierte Makro**: den ganzen
+Text, in dem Namen in der falschen Sprache übersetzt sind (über Zauber- und Gegenstands-IDs), ein Slash-Alias einer
+anderen Sprache durch den englischen Befehl ersetzt ist (`/cast` funktioniert in jedem Client) und entfernte Funktionen
+dort ersetzt sind, wo die neue ein direkter Ersatz ist (gleiche Argumente, gleiche Rückgabewerte: `GetItemCount` wird zu
+`C_Item.GetItemCount`, `GetSpellInfo`, das jetzt eine Tabelle liefert, bleibt unberührt). **Kopieren** legt genau diesen
+Text in die Zwischenablage; ins Spiel fügst du ihn selbst ein, WoW Tools schreibt nie in die Dateien des Spiels. Ein
+Makro für den ganzen Account bekommt einen Text pro Client-Sprache, jeweils mit den Charakteren, für die er gilt. Was
+sich nicht korrigieren lässt (ein unbekannter oder mehrdeutiger Name, unausgeglichene Klammern, verborgene Werte), bleibt
+wie es war und wird unter „Noch von Hand zu beheben“ gezählt; ein korrigierter Text über 255 Zeichen wird nicht angeboten,
+nur ein Hinweis. `wow-tools macros` und der kopierte Bericht geben dieselben Texte aus.
+
 <p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-de-dark.png"><img src="docs/images/macro-report-de.png" width="720" alt="Das Fenster mit dem Makro-Bericht"></picture></p>
 
 ## Befehlszeile

@@ -99,3 +99,32 @@ localized spell names, is the slow part. Nothing is written to WoW files: read-o
 
 No ADR needed: a pure transformation over existing data; the only external fact (drop-in list) is data, not an
 architectural decision. Security-shaped paths touched: `src/main.rs` (snapshot demo, CLI print) only; no write path.
+
+## Decisions
+Owner answers to the open questions (recommended options accepted):
+1. Partial fix is offered, with a "Still to fix by hand: N" line.
+2. Aliases become the canonical English command.
+3. An over-limit variant shows no text and no Copy button, only the mark ("N characters, over 255: shorten it by hand").
+4. A client language without cached name tables gives no variant; the hint stays.
+
+Drop-in list (verified 2026-11-24). Sources: warcraft.wiki.gg API change pages (Patch 10.0.2, 11.0.0, 11.0.2,
+12.0.0, 12.1.5 `/API_changes`), the pages of the old and new functions, and Blizzard's generated API documentation
+(`Blizzard_APIDocumentationGenerated/{Container,Item,Spell}Documentation.lua`, wow-ui-source `live`). For the items
+group the 12.1.0 shim file `Deprecated_ItemScript.lua` assigns the old global straight to the `C_Item` function
+(`GetItemCount = C_Item.GetItemCount`), and `Deprecated_11_0_0.lua` forwards `GetSpellTexture` / `IsUsableSpell` to
+`C_Spell` with the same argument.
+- `drop-in` (16): `GetContainerNumSlots`, `GetContainerItemLink`, `PickupContainerItem`, `SplitContainerItem`,
+  `SortBags` (same arguments and return, `C_Container`), `GetItemCount`, `GetItemCooldown`, `IsUsableItem`,
+  `GetItemSpell`, `GetItemIcon` (-> `C_Item.GetItemIconByID`), `IsEquippedItem`, `PickupItem`, `UseItemByName`,
+  `EquipItemByName` (`C_Item`), `IsUsableSpell` (-> `C_Spell.IsSpellUsable`, same `usable, noMana`),
+  `GetSpellTexture` (first return the icon; `C_Spell` adds trailing returns).
+- Left empty: `UseContainerItem` (old 3rd/4th arguments were `target`, `reagentBankAccessible`; the new 4th is
+  `bankType`, so a 4-argument call would change meaning), everything returning a table (`GetContainerItemInfo`,
+  `GetSpellInfo`, `GetSpellCooldown`, `GetSpellCharges`, `UnitAura` family, `GetActionCooldown`, ...), `GetMouseFocus`,
+  the `C_AddOns` group and the rest of the list (not checked as drop-in).
+
+Deviations from the text above: `rest` ("still to fix") is per variant, not on `MacroFix` (variants for different
+languages leave different things); an ambiguous name is not named on the card, it is counted in `rest`; the locale
+key of the button is `macros.copy_fix` (there is no `report` section); `ui-snapshot macro-report` renders 820 DIPs
+high (the window's 600 would cut the fixed block off); `translate_exact` takes the spell ids first and the item ids
+only when no spell has the name, as `Names::translate` does.

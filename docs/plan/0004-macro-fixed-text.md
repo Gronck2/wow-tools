@@ -62,3 +62,9 @@ deprecated list), so the two cannot disagree on what is "wrong" because they sha
 - Memory: the name tables are already loaded inside the background scan and dropped after; the fix runs in the same
   place and keeps only strings.
 - Variants by language rather than one "best guess" for account macros: the owner decides which client he plays.
+
+## Implementation notes
+- Drop-in verification and the owner's answers are recorded in the task's Decisions (16 rows; `UseContainerItem` left out).
+- `fix_line` decides per group of targets: a name is translated only when it is wrong for some target of the group
+  (`Names::retarget`, same predicate as `macro_names::check`), an alias only when some target lacks its language.
+- `deprecated()` pads a short row to five columns, so a row without the trailing tab still parses.

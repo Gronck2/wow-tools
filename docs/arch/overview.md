@@ -9,6 +9,11 @@ installed addon managers (CurseForge, WowUp, Wago App) plus ElvUI, cleanup, and 
   Direct2D/DirectWrite through `gfx.rs`. Tests are inline `#[cfg(test)]` modules.
 - `macros.rs` — the macro check (`wow-tools macros`): parser of `macros-cache.txt`, offline checks; tables in `data/*.tsv`.
 - `macro_names.rs` — spell/item name cache from wago.tools (`macros --update-names`, on request only) and the name check (wrong language, unknown).
+- `macro_fix.rs` — the fixed text of a macro (pure, no I/O): per client language of the targets it rewrites wrong-language
+  names (`Names::retarget`, byte spans from `macro_names::name_spans`), aliases (to the English command) and removed
+  functions marked `drop-in` in `data/deprecated-api.tsv`; `macros::walk` attaches the result to every `Finding` of the
+  macro (`Finding::fixed`), `report.rs` shows it on the first card with a Copy button (`Action::CopyFix`) and
+  `macros::report` prints it. Read-only: the owner pastes the text into the game.
 - The panel's **Macros** tab (`panel.rs`, `tray::MacroCheck`): the check runs on its own thread on a button
   (`tray::scan_macros`); the name tables are loaded inside `macros::scan` per game version and dropped with it, so the
   tray keeps only the findings. The name download is a worker request (`Request::UpdateNames`, `Work::Names`).
