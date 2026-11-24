@@ -412,6 +412,7 @@ plano (funciona con el juego abierto y no cambia nada); después la pestaña mue
 El botón **Abrir informe** los muestra en una ventana aparte que se puede redimensionar, minimizar y maximizar (se recuerdan su tamaño y su sitio): por cada problema la macro y la línea, dónde está (las macros comunes de la cuenta o un personaje), qué falla y cómo arreglarlo, todo completo, con saltos de línea. Los problemas van del más grave al más leve: los rojos no funcionan (función eliminada, macro demasiado larga, corchetes desparejados, nombre desconocido, nombre o comando en otro idioma en la macro propia de un personaje), los amarillos pueden no funcionar, los grises son informativos (se desconoce el idioma del reino); el encabezado los cuenta, y **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
 nombres de hechizos y objetos descargados (versión del juego e idiomas); **Descargar** los trae — solo al pulsarlo, y
 después el informe queda como estaba hasta que vuelvas a revisar (avisa de que los nombres se actualizaron). El último informe se guarda (`data\macro-report.json`) y se vuelve a mostrar tras un reinicio, con la hora de la revisión; el texto de la ventana del informe se selecciona con el ratón y se copia con Ctrl+C.
+La revisión solo se hace con este botón, nunca por sí sola.
 
 Donde la comprobación conoce el remedio, la primera tarjeta de la macro muestra además la **macro corregida**: el texto
 entero, con los nombres en el idioma equivocado traducidos (mediante los identificadores de hechizos y objetos), un alias

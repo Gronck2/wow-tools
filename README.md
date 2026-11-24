@@ -388,6 +388,7 @@ background (it works while the game runs and changes nothing), then the tab show
 found. The **Open report** button shows them in a window of its own that you can resize, minimize and maximize (its size and place are remembered): for each finding the macro and line, where it is (the account's shared macros or a character), what is wrong and how to fix it, all wrapped in full. Findings go from the worst to the mildest: red ones do not work (a removed function, a too long macro, unbalanced brackets, an unknown name, a name or command in the wrong language in a character's own macro), yellow ones may not work, grey ones are for information (the realm's language is unknown); the header counts them, and **Copy** puts the whole report on the clipboard. The last card shows the downloaded spell and item names
 (game build and languages) and **Download** fetches them — only when you press it; the report stays as it was until you check again (it then says the names were updated).
  The last report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check; text in the report window can be selected with the mouse and copied with Ctrl+C.
+The check is done only when you press the button, never by itself.
 
 Where the check knows the cure, the first card of the macro also shows the **fixed macro**: the whole text with
 names in the wrong language translated (through spell and item ids), a slash alias of another language replaced by the

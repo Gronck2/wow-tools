@@ -396,11 +396,16 @@ fn latest_build(product: &str) -> Result<String> {
         .with_context(|| tr!("macros.names_no_build", product = product))
 }
 
+/// A cache is current when its meta names `build` and the zip is still there (deleted or quarantined = download again).
+fn is_current(meta: &str, build: &str, zip_exists: bool) -> bool {
+    zip_exists && meta_build(meta) == Some(build)
+}
+
 /// Downloads the names of `locale` unless the cache holds `build`. Returns whether it downloaded.
 fn update_locale(dir: &Path, product: &str, locale: &str, build: &str, progress: &mut dyn FnMut(String)) -> Result<bool> {
     let meta = fs::read_to_string(cache_path(dir, product, locale, "meta")).unwrap_or_default();
     // A cache written before the item table was ItemSparse (ItemSearchName lacks many consumables) is not current.
-    if meta_build(&meta) == Some(build) {
+    if is_current(&meta, build, cache_path(dir, product, locale, "zip").exists()) {
         return Ok(false);
     }
     // enUS is done first in `update`; its cache is what a translation is compared with.
@@ -933,6 +938,13 @@ mod tests {
         let mut again = Vec::new();
         update(dir.path(), &needs, &mut |l| again.push(l)).unwrap();
         assert_eq!(again.len(), 2);
+    }
+
+    #[test]
+    fn current_needs_the_zip_and_the_build() {
+        assert!(is_current("1.2.5\titem-sparse", "1.2.5", true));
+        assert!(!is_current("1.2.5\titem-sparse", "1.2.5", false));
+        assert!(!is_current("1.2.4\titem-sparse", "1.2.5", true));
     }
 
     #[test]
