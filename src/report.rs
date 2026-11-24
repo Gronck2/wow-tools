@@ -1003,8 +1003,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 let grabbed = with_window(|w| {
                     let (x, y) = mouse(w, lparam);
                     let size = w.size();
+                    let mut cleared = false; // a selection dropped by this click must be repainted
                     if y >= HEAD_H && x < size.0 - 24.0 {
-                        w.sel = None;
+                        cleared = w.sel.take().is_some();
                         if fix_at(&w.lay, w.scroll, x, y).is_none()
                             && let Some(at) = place_at(&w.lay, &w.fmt, w.scroll, x, y, true)
                         {
@@ -1014,7 +1015,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         }
                     }
                     if y < HEAD_H || x < size.0 - 24.0 {
-                        return false;
+                        return cleared;
                     }
                     let Some(th) = thumb(size, w.lay.total, w.scroll) else { return false };
                     if th.contains(th.x, y) {
@@ -1041,17 +1042,23 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             WM_LBUTTONUP => {
                 let dragged = with_window(|w| w.grab.take().is_some());
                 // A drag over text selects; a click without a drag selects nothing and may press a button.
-                let selected = with_window(|w| {
+                let (was, selected) = with_window(|w| {
                     let was = std::mem::take(&mut w.selecting);
                     if was && w.sel.is_some_and(|s| s.is_empty()) {
                         w.sel = None;
                     }
-                    was && w.sel.is_some()
-                });
-                if dragged == Some(true) || selected == Some(true) {
+                    (was, was && w.sel.is_some())
+                })
+                .unwrap_or_default();
+                // The capture was taken on the press, so it is given back on every release that followed one.
+                if dragged == Some(true) || was {
                     ReleaseCapture();
                     InvalidateRect(hwnd, null(), 0);
-                } else if let Some(Some((_, text))) = with_window(|w| {
+                }
+                if dragged == Some(true) || selected {
+                    return 0;
+                }
+                if let Some(Some((_, text))) = with_window(|w| {
                     let (x, y) = mouse(w, lparam);
                     fix_at(&w.lay, w.scroll, x, y)
                 }) {

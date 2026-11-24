@@ -141,7 +141,7 @@ Decisions that override the earlier ones where they conflict.
    rewritten to `(C_X.F(args) or {}).field` (nil-safe) only when `macro_fix::single_value` says one value is used: an
    operand of an operator, an `if`/`while`/`until` condition, the single target of an assignment (`local a = X`, `a = X`),
    a parenthesised call, a non-last element of a list (`f(X, 1)`, `{X, 1}`, `local a, b = X, 1`), the sole argument of
-   `print`/`tostring`. Refused (hint only, counted in "still to fix"): `local a, b = X`, `select(n, X)`, the last
+   `tostring` (not `print`: it shows every return of the old function, so one field would change the output). Refused (hint only, counted in "still to fix"): `local a, b = X`, `select(n, X)`, the last
    element of a list, `return X`, a table constructor, an indexed or chained call, any other call's last argument. The
    old argument count must match (`GetSpellInfo(index, bookType)` is not rewritten). Such a variant says "Function
    replaced: check it in game" in the secondary color. `GetSpellTexture` / `IsUsableSpell` are replaced with exactly one

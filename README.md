@@ -387,14 +387,14 @@ The **Macros** tab of the panel does the same without the command line. **Check 
 background (it works while the game runs and changes nothing), then the tab shows how many problems of each kind were
 found. The **Open report** button shows them in a window of its own that you can resize, minimize and maximize (its size and place are remembered): for each finding the macro and line, where it is (the account's shared macros or a character), what is wrong and how to fix it, all wrapped in full. Findings go from the worst to the mildest: red ones do not work (a removed function, a too long macro, unbalanced brackets, an unknown name, a name or command in the wrong language in a character's own macro), yellow ones may not work, grey ones are for information (the realm's language is unknown); the header counts them, and **Copy** puts the whole report on the clipboard. The last card shows the downloaded spell and item names
 (game build and languages) and **Download** fetches them — only when you press it; the report stays as it was until you check again (it then says the names were updated).
-$1 The last report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check; text in the report window can be selected with the mouse and copied with Ctrl+C.
+ The last report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check; text in the report window can be selected with the mouse and copied with Ctrl+C.
 
 Where the check knows the cure, the first card of the macro also shows the **fixed macro**: the whole text with
 names in the wrong language translated (through spell and item ids), a slash alias of another language replaced by the
 English command (`/cast` works on every client) and removed functions replaced where the new one is a drop-in (the
 same arguments and the same return values: `GetItemCount` becomes `C_Item.GetItemCount`). A function that now returns a
 table (`GetSpellInfo`, `GetSpellCooldown`, `UnitBuff`, ...) is replaced only where the macro uses just its first value
-(`print(GetSpellInfo(x))`, `local n = GetSpellInfo(x)`, `if GetSpellInfo(x) then`) and becomes `(C_Spell.GetSpellInfo(x) or {}).name`;
+(`tostring(GetSpellInfo(x))`, `local n = GetSpellInfo(x)`, `if GetSpellInfo(x) then`) and becomes `(C_Spell.GetSpellInfo(x) or {}).name`;
 `GetSpellTexture` and `IsUsableSpell` are replaced when they have one argument. Such a text is marked "Function
 replaced: check it in game", and everything the check changed is highlighted in it, as the offending part is in the problem
 text. **Copy** puts exactly that text on the clipboard and you paste it into the game
@@ -443,7 +443,8 @@ rest in the chosen language.
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | log of the tray |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | update history (last 20) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | when WoW Tools last checked for a new version |
-$1| `%LOCALAPPDATA%\WoW Tools\data\macro-report.json` | the last macro report |
+| `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | the game versions last seen, to notice a patch |
+| `%LOCALAPPDATA%\WoW Tools\data\macro-report.json` | the last macro report |
 
 The portable version uses none of these: while `portable.txt` lies next to `wow-tools.exe`, the settings are in
 `config\config.toml` and everything else in `data\` beside the exe (backups in `data\backups`). Delete

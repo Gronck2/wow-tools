@@ -47,7 +47,6 @@ const WM_RESCAN: u32 = WM_APP + 5;
 const WM_QUIT_APP: u32 = WM_APP + 6;
 const QUIT_EXITING: LRESULT = 1;
 const QUIT_BUSY: LRESULT = 2;
-/// Check the macros again (posted by the worker after a name data download, when a check was done).
 /// Restore points the panel lists.
 const POINTS: usize = 5;
 
@@ -1155,7 +1154,8 @@ fn on_event(event: Event) {
                 st.status.phase = Phase::Idle;
                 st.macros.downloading = false;
                 // A check on screen stays as it is until the next one; it is only marked as made with the old names.
-                st.macros.names_stale = result.is_ok() && st.macros.scan.is_some();
+                // Even a failed run may have stored some tables, and a later failure must not clear the mark.
+                st.macros.names_stale |= st.macros.scan.is_some();
                 st.macros.names_done = Some(match &result {
                     Ok(summary) => (summary.clone(), Tone::Ok),
                     Err(e) => (format!("{e:#}"), Tone::Error),

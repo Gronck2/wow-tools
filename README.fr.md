@@ -424,15 +424,14 @@ d'addon). Le dossier `WTF` est seulement lu.
 L'onglet **Macros** du panneau fait la même chose sans ligne de commande. **Vérifier les macros** lit toutes les
 macros en arrière-plan (cela marche aussi pendant le jeu et ne change rien) ; l'onglet montre ensuite combien de
 problèmes de chaque type ont été trouvés. Le bouton **Ouvrir le rapport** les montre dans une fenêtre à part, que l'on peut redimensionner, réduire et agrandir (sa taille et sa place sont retenues) : pour chaque problème, la macro et la ligne, où elle se trouve (macros communes du compte ou un personnage), ce qui ne va pas et comment le corriger, le tout affiché en entier, à la ligne. Les problèmes vont du plus grave au plus bénin : les rouges ne marchent pas (fonction retirée, macro trop longue, crochets déséquilibrés, nom inconnu, nom ou commande dans la mauvaise langue dans la macro propre d'un personnage), les jaunes peuvent ne pas marcher, les gris sont à titre d'information (la langue du royaume est inconnue) ; l'en-tête les compte, et **Copier** met tout le rapport dans le presse-papiers. La dernière carte montre les noms de sorts et d'objets téléchargés (version du jeu et
-langues) ; **Télécharger** les récupère — seulement quand vous appuyez dessus, puis le rapport reste tel quel jusqu'à la prochaine vérification (il indique que les noms ont été mis à jour). } elsif (fr eq 'fr') {
- Le dernier rapport est enregistré (`datamacro-report.json`) et réaffiché après un redémarrage, avec l'heure de la vérification ; le texte de la fenêtre du rapport se sélectionne à la souris et se copie avec Ctrl+C.
+langues) ; **Télécharger** les récupère — seulement quand vous appuyez dessus, puis le rapport reste tel quel jusqu'à la prochaine vérification (il indique que les noms ont été mis à jour). Le dernier rapport est enregistré (`data\macro-report.json`) et réaffiché après un redémarrage, avec l'heure de la vérification ; le texte de la fenêtre du rapport se sélectionne à la souris et se copie avec Ctrl+C.
 
 Quand la vérification connaît le remède, la première carte de la macro montre aussi la **macro corrigée** : le texte
 entier, avec les noms dans la mauvaise langue traduits (via les identifiants de sorts et d'objets), un alias de commande
 d'une autre langue remplacé par la commande anglaise (`/cast` marche dans tous les clients) et les fonctions supprimées
 remplacées là où la nouvelle est un remplacement direct (mêmes arguments, mêmes valeurs renvoyées : `GetItemCount`
 devient `C_Item.GetItemCount`). Une fonction qui renvoie maintenant une table (`GetSpellInfo`, `GetSpellCooldown`, `UnitBuff`, ...)
-n'est remplacée que là où la macro n'utilise que sa première valeur (`print(GetSpellInfo(x))`, `local n = GetSpellInfo(x)`,
+n'est remplacée que là où la macro n'utilise que sa première valeur (`tostring(GetSpellInfo(x))`, `local n = GetSpellInfo(x)`,
 `if GetSpellInfo(x) then`) et devient `(C_Spell.GetSpellInfo(x) or {}).name` ; `GetSpellTexture` et `IsUsableSpell` sont
 remplacées avec un seul argument. Un tel texte porte la mention « Fonction remplacée : vérifiez en jeu », et tout ce que la
 vérification a changé y est mis en évidence, comme la partie fautive dans le texte du problème. **Copier** met
@@ -481,7 +480,8 @@ explique le reste dans la langue choisie.
 | `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` | journal de l'icône de notification |
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | historique des mises à jour (20 dernières) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | date de la dernière recherche d'une nouvelle version de WoW Tools |
-$1| `%LOCALAPPDATA%\WoW Tools\data\macro-report.json` | le dernier rapport de macros |
+| `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | les dernières versions du jeu vues, pour repérer un patch |
+| `%LOCALAPPDATA%\WoW Tools\data\macro-report.json` | le dernier rapport de macros |
 
 La version portable n'utilise aucun de ces chemins : tant que `portable.txt` se trouve à côté de `wow-tools.exe`, les
 paramètres sont dans `config\config.toml` et tout le reste dans `data\` à côté de l'exe (sauvegardes dans

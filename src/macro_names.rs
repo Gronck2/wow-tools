@@ -20,6 +20,15 @@ const ENUS: &str = "enUS";
 const SAME_MAX_PERCENT: usize = 98;
 /// (wago.tools table, entry name in the cache).
 const TABLES: [(&str, &str); 2] = [("SpellName", "spell"), ("ItemSparse", "item-sparse")];
+
+/// The `.meta` is `<build>\t<item table entry>`; a meta without the tab (written when the item table was
+/// ItemSearchName, which `Names::load` rejects) is stale: no build.
+fn meta_build(meta: &str) -> Option<&str> {
+    meta.trim()
+        .split_once('\t')
+        .filter(|(_, tables)| *tables == TABLES[1].1)
+        .map(|(build, _)| build)
+}
 const NAME_COMMANDS: &[&str] = &["/cast", "/use", "/castsequence", "/castrandom", "/userandom", "#showtooltip", "#show"];
 
 type Rows = Vec<(u32, String)>;
@@ -304,7 +313,9 @@ pub fn cached(dir: &Path) -> Vec<Cached> {
         if !cache_path(dir, product, locale, "zip").exists() {
             continue;
         }
-        let build = fs::read_to_string(e.path()).unwrap_or_default().trim().to_string();
+        let Some(build) = meta_build(&fs::read_to_string(e.path()).unwrap_or_default()).map(str::to_string) else {
+            continue;
+        };
         let entry = out.entry(product.to_string()).or_insert_with(|| Cached {
             product: product.to_string(),
             build: build.clone(),
@@ -348,7 +359,7 @@ fn write_cache(dir: &Path, product: &str, locale: &str, build: &str, tables: &[R
     }
     zip.finish()?;
     fs::rename(&tmp, cache_path(dir, product, locale, "zip"))?;
-    fs::write(&tmp, build)?;
+    fs::write(&tmp, format!("{build}\t{}", TABLES[1].1))?;
     fs::rename(&tmp, cache_path(dir, product, locale, "meta"))?;
     Ok(())
 }
@@ -389,11 +400,7 @@ fn latest_build(product: &str) -> Result<String> {
 fn update_locale(dir: &Path, product: &str, locale: &str, build: &str, progress: &mut dyn FnMut(String)) -> Result<bool> {
     let meta = fs::read_to_string(cache_path(dir, product, locale, "meta")).unwrap_or_default();
     // A cache written before the item table was ItemSparse (ItemSearchName lacks many consumables) is not current.
-    let tables_ok = fs::File::open(cache_path(dir, product, locale, "zip"))
-        .ok()
-        .and_then(|f| ZipArchive::new(f).ok())
-        .is_some_and(|mut z| TABLES.iter().all(|(_, entry)| z.by_name(entry).is_ok()));
-    if meta.trim() == build && tables_ok {
+    if meta_build(&meta) == Some(build) {
         return Ok(false);
     }
     // enUS is done first in `update`; its cache is what a translation is compared with.
@@ -933,13 +940,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let put = |name: &str, text: &str| fs::write(dir.path().join(name), text).unwrap();
         put("wow-ruRU.zip", "");
-        put("wow-ruRU.meta", "1.2.4");
+        put("wow-ruRU.meta", "1.2.4\titem-sparse");
         put("wow-enUS.zip", "");
-        put("wow-enUS.meta", "1.2.5\n");
+        put("wow-enUS.meta", "1.2.5\titem-sparse\n");
+        // An old meta (no item table named) is stale, as `Names::load` rejects such a zip.
+        put("wow-frFR.zip", "");
+        put("wow-frFR.meta", "1.2.5");
         // A meta without its zip (a cut write) is not data.
         put("wow-deDE.meta", "1.2.5");
         put("wow_classic_era-enUS.zip", "");
-        put("wow_classic_era-enUS.meta", "1.15.1");
+        put("wow_classic_era-enUS.meta", "1.15.1\titem-sparse");
         assert!(cached(&dir.path().join("none")).is_empty());
         let got = cached(dir.path());
         assert_eq!(got.len(), 2);

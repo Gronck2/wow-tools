@@ -131,7 +131,7 @@ fn call_span(code: &str) -> Option<(usize, usize)> {
 
 /// The value of a call is used as one value (so the first value of a function is all the code needs), by what stands
 /// before the call and after it. Conservative: an operand of an operator, a condition, the single target of an
-/// assignment, a parenthesised call, a non-last element of a list, and the sole argument of `print`/`tostring`. A call
+/// assignment, a parenthesised call, a non-last element of a list, and the sole argument of `tostring` (not `print`, which shows every return). A call
 /// that is the last element of a list, a `return`, a table constructor, an index or any other call's last argument
 /// passes all its values on and is not one of these.
 fn single_value(before: &str, after: &str) -> bool {
@@ -161,8 +161,8 @@ fn single_value(before: &str, after: &str) -> bool {
         let pre = pre.trim_end();
         let word = last_word(pre);
         let call = pre.ends_with([')', ']', '}', '"', '\'']) || (!word.is_empty() && !KEYWORDS.contains(&word.as_str()));
-        // a call takes the value on as its argument; only `print` and `tostring` are known to use one
-        return a.starts_with(')') && (!call || ["print", "tostring"].contains(&word.as_str()));
+        // a call takes the value on as its argument; only `tostring` is known to use just one (`print` shows every return)
+        return a.starts_with(')') && (!call || word == "tostring");
     }
     if let Some(lhs) = b.strip_suffix('=') {
         let run: String = lhs
@@ -669,7 +669,6 @@ mod tests {
     fn a_table_function_gets_its_first_field_where_one_value_is_used() {
         let name = "(C_Spell.GetSpellInfo(x) or {}).name";
         for (code, fixed) in [
-            ("print(GetSpellInfo(x))", format!("print({name})")),
             ("tostring(GetSpellInfo(x))", format!("tostring({name})")),
             ("if GetSpellInfo(x) then y() end", format!("if {name} then y() end")),
             ("while GetSpellInfo(x) do end", format!("while {name} do end")),
@@ -692,36 +691,39 @@ mod tests {
         }
         // the other functions: their own field and argument counts
         let cases = [
-            ("print(GetSpellCooldown(5))", "print((C_Spell.GetSpellCooldown(5) or {}).startTime)"),
-            ("print(GetSpellCharges(5))", "print((C_Spell.GetSpellCharges(5) or {}).currentCharges)"),
+            ("tostring(GetSpellCooldown(5))", "tostring((C_Spell.GetSpellCooldown(5) or {}).startTime)"),
+            ("tostring(GetSpellCharges(5))", "tostring((C_Spell.GetSpellCharges(5) or {}).currentCharges)"),
             (
-                "print(GetContainerItemInfo(0, 1))",
-                "print((C_Container.GetContainerItemInfo(0, 1) or {}).iconFileID)",
+                "tostring(GetContainerItemInfo(0, 1))",
+                "tostring((C_Container.GetContainerItemInfo(0, 1) or {}).iconFileID)",
             ),
             (
-                "print(UnitBuff(\"player\", 1))",
-                "print((C_UnitAuras.GetBuffDataByIndex(\"player\", 1) or {}).name)",
+                "tostring(UnitBuff(\"player\", 1))",
+                "tostring((C_UnitAuras.GetBuffDataByIndex(\"player\", 1) or {}).name)",
             ),
             (
-                "print(UnitDebuff(\"player\", 1, \"HARMFUL\"))",
-                "print((C_UnitAuras.GetDebuffDataByIndex(\"player\", 1, \"HARMFUL\") or {}).name)",
+                "tostring(UnitDebuff(\"player\", 1, \"HARMFUL\"))",
+                "tostring((C_UnitAuras.GetDebuffDataByIndex(\"player\", 1, \"HARMFUL\") or {}).name)",
             ),
             (
-                "print(UnitAura(\"player\", 1))",
-                "print((C_UnitAuras.GetAuraDataByIndex(\"player\", 1) or {}).name)",
+                "tostring(UnitAura(\"player\", 1))",
+                "tostring((C_UnitAuras.GetAuraDataByIndex(\"player\", 1) or {}).name)",
             ),
-            ("print(GetActionCooldown(1))", "print((C_ActionBar.GetActionCooldown(1) or {}).startTime)"),
-            ("print(GetActionCharges(1))", "print((C_ActionBar.GetActionCharges(1) or {}).currentCharges)"),
+            ("tostring(GetActionCooldown(1))", "tostring((C_ActionBar.GetActionCooldown(1) or {}).startTime)"),
+            (
+                "tostring(GetActionCharges(1))",
+                "tostring((C_ActionBar.GetActionCharges(1) or {}).currentCharges)",
+            ),
         ];
         for (code, fixed) in cases {
             assert_eq!(run(code).as_deref(), Some(fixed), "{code}");
         }
         // not the old call: the (index, bookType) form, a missing or an extra argument
         for code in [
-            "print(GetSpellInfo(1, \"spell\"))",
-            "print(GetSpellInfo())",
-            "print(GetContainerItemInfo(0))",
-            "print(UnitBuff(\"player\"))",
+            "tostring(GetSpellInfo(1, \"spell\"))",
+            "tostring(GetSpellInfo())",
+            "tostring(GetContainerItemInfo(0))",
+            "tostring(UnitBuff(\"player\"))",
         ] {
             assert_eq!(run(code), None, "{code}");
         }
@@ -733,6 +735,8 @@ mod tests {
             "local n, r, i = GetSpellInfo(x)",
             "n, r = GetSpellInfo(x)",
             "print(1, GetSpellInfo(x))",
+            "print(GetSpellInfo(x))",
+            "print(GetSpellCooldown(5))",
             "print(select(3, GetSpellInfo(x)))",
             "local i = select(n, GetSpellInfo(x))",
             "return GetSpellInfo(x)",
@@ -753,7 +757,7 @@ mod tests {
         // left alone and still counted
         let en = [target("A-En", "enUS")];
         let fix = build(
-            &mac(&["/run print(GetSpellInfo(1)) local a, b = GetSpellCooldown(1)"]),
+            &mac(&["/run local n = GetSpellInfo(1) local a, b = GetSpellCooldown(1)"]),
             true,
             &en,
             true,
@@ -762,7 +766,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             fix.variants[0].text,
-            "/run print((C_Spell.GetSpellInfo(1) or {}).name) local a, b = GetSpellCooldown(1)"
+            "/run local n = (C_Spell.GetSpellInfo(1) or {}).name local a, b = GetSpellCooldown(1)"
         );
         assert_eq!(fix.variants[0].rest, 1);
     }
@@ -772,7 +776,7 @@ mod tests {
         let en = [target("A-En", "enUS")];
         let body = [
             "/cast Feuerball",
-            "/run print(GetItemCount(5)) print(GetSpellInfo(1))",
+            "/run print(GetItemCount(5)) local n = GetSpellInfo(1)",
             "/run y = GetSpellInfo(7) z = IsUsableSpell(2)",
             "-- Feuerball",
         ];
@@ -808,10 +812,10 @@ mod tests {
         ] {
             assert_eq!(run(code), Some(fixed), "{code}");
         }
-        // nested: the outer call is print's only argument, the inner one passes all its values on and stays
+        // nested: the outer call is tostring's only argument, the inner one passes all its values on and stays
         assert_eq!(
-            run("print(GetSpellInfo(GetSpellInfo(1)))").as_deref(),
-            Some("print((C_Spell.GetSpellInfo(GetSpellInfo(1)) or {}).name)")
+            run("tostring(GetSpellInfo(GetSpellInfo(1)))").as_deref(),
+            Some("tostring((C_Spell.GetSpellInfo(GetSpellInfo(1)) or {}).name)")
         );
         assert_eq!(run("x = a:GetSpellInfo(1)"), None);
         // a German text for German characters has nothing replaced, so nothing is marked

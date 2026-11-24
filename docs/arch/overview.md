@@ -13,7 +13,8 @@ installed addon managers (CurseForge, WowUp, Wago App) plus ElvUI, cleanup, and 
   names (`Names::retarget`, byte spans from `macro_names::name_spans`), aliases (to the English command) and removed
   functions marked in `data/deprecated-api.tsv` (`drop-in`; `first:<field>:<min>-<max>` table functions where only the first value is used; `one-arg`), recording the replaced byte ranges (`Variant::marks`); `macros::walk` attaches the result to every `Finding` of the
   macro (`Finding::fixed`), `report.rs` shows it on the first card with a Copy button (`Action::CopyFix`) and
-$1- `macro_store.rs` — the last macro check as `data/macro-report.json` (versioned, temp file + rename), loaded when the tray starts;
+  `macros::report` prints it. Read-only: the owner pastes the text into the game.
+- `macro_store.rs` — the last macro check as `data/macro-report.json` (versioned, temp file + rename), loaded when the tray starts;
   the report window and the Macros tab show it with the check time, a new check overwrites it. `report.rs` draws text through
   `gfx::rich_text` (bold highlighted ranges) and supports mouse selection (`gfx::hit_index` / `range_rects`) and Ctrl+C.
 - The panel's **Macros** tab (`panel.rs`, `tray::MacroCheck`): the check runs on its own thread on a button

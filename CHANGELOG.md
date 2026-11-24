@@ -35,7 +35,8 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
   **Copy** puts exactly that text on the clipboard, for you to paste into the game; nothing is written to the game's
   files. A macro shared by the account gets one text per client language, each named by its client language; no card lists characters or realms. "Still to fix
   by hand: N" counts what the text does not solve; a fixed text over 255 characters is not offered, only a note.
-$1- Text in the macro report window can be selected with the mouse (across lines and cards) and copied with Ctrl+C.
+  `wow-tools macros` and the copied report print the same texts.
+- Text in the macro report window can be selected with the mouse (across lines and cards) and copied with Ctrl+C.
 - The last macro report is saved (`data\macro-report.json`) and shown again after a restart, with the time of the check.
   **Download** no longer re-checks by itself: the report says the names were updated until you check again.
 - Macro item names (potions, flasks, toys, trinkets) are now read from the full `ItemSparse` table, not `ItemSearchName`,

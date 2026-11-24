@@ -635,13 +635,13 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
     let fire = std::sync::Arc::new(macro_fix::MacroFix {
         variants: vec![
             variant("enUS", fire_text("Fireball"), 0, false, &["Fireball", "C_Item.GetItemCount"]),
-            variant("deDE", fire_text("Feuerball"), 1, false, &["Feuerball", "C_Item.GetItemCount"]),
+            variant("deDE", fire_text("Feuerball"), 1, false, &["C_Item.GetItemCount"]),
         ],
     });
     let heal = std::sync::Arc::new(macro_fix::MacroFix {
         variants: vec![variant(
             "enUS",
-            "#showtooltip\n/cast [@mouseover,help] Heal\n/run print((C_Spell.GetSpellInfo(2061) or {}).name)".into(),
+            "#showtooltip\n/cast [@mouseover,help] Heal\n/run local n = (C_Spell.GetSpellInfo(2061) or {}).name".into(),
             0,
             true,
             &["(C_Spell.GetSpellInfo", " or {}).name"],
