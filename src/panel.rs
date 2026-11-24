@@ -3535,4 +3535,27 @@ mod tests {
         assert!(all.iter().all(|(r, _)| r.x >= 0.0 && r.x + r.w <= wide + 0.01));
         assert!(settings_rect(wide).x + settings_rect(wide).w <= wide - PAD + 0.01 && lock_rect(wide).x + 32.0 < pin_rect(wide).x);
     }
+
+    #[test]
+    fn macro_scroll_clamps_when_findings_shrink_or_one_is_huge() {
+        let f = formats().unwrap();
+        let sheet = |first| Sheet {
+            list: SheetList::Macros,
+            first,
+            search: String::new(),
+        };
+        let many: Vec<Finding> = (1..=30).map(|n| finding("Retail", n, Kind::Brackets)).collect();
+        let v = view(many);
+        let max = macro_max_first(&v, &f);
+        assert!(max > 0 && max < 30);
+        assert_eq!(sheet_first(&v, &f, &sheet(999)), max);
+        // The list shrinks to one page: the old scroll position falls back to the top.
+        let few = view(vec![finding("Retail", 1, Kind::Brackets), finding("Retail", 2, Kind::Brackets)]);
+        assert_eq!(sheet_first(&few, &f, &sheet(max)), 0);
+        assert_eq!(sheet_first(&view(Vec::new()), &f, &sheet(5)), 0);
+        // A finding taller than the page still shows alone (at least one row).
+        let huge = view(vec![long_finding(2000), finding("Retail", 2, Kind::Brackets)]);
+        assert_eq!(macro_rows(&huge, &f, 0).len(), 1);
+        assert_eq!(macro_max_first(&huge, &f), 1);
+    }
 }
