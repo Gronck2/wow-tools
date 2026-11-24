@@ -5,6 +5,7 @@
 use std::cell::RefCell;
 use std::mem::{size_of, zeroed};
 use std::ptr::{null, null_mut};
+use std::sync::Arc;
 
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextFormat;
@@ -236,7 +237,7 @@ fn draw(p: &Painter, t: &Theme, f: &Formats, check: &MacroCheck, lay: &Layout, s
         line(&c.texts.place, &f.sub, 6.0, t.text2);
         line(&c.texts.problem, &f.body, 4.0, t.text);
         if let Some(fix) = &c.texts.fix {
-            line(fix, &f.body, 0.0, t.accent);
+            line(fix, &f.body, 0.0, t.text2);
         }
     }
     p.offset(0.0, 0.0);
@@ -360,11 +361,12 @@ fn saved_pos() -> Option<(i32, i32, i32, i32)> {
 }
 
 fn save_pos(hwnd: HWND) {
-    let mut wp: WINDOWPLACEMENT = unsafe { zeroed() };
-    wp.length = size_of::<WINDOWPLACEMENT>() as u32;
-    // The restored place, also while the window is minimized or maximized.
-    unsafe { GetWindowPlacement(hwnd, &mut wp) };
-    let r = wp.rcNormalPosition;
+    // Screen coordinates, as `open` restores them; a minimized or maximized window keeps the last normal place.
+    if unsafe { IsIconic(hwnd) != 0 || IsZoomed(hwnd) != 0 } {
+        return;
+    }
+    let mut r: RECT = unsafe { zeroed() };
+    unsafe { GetWindowRect(hwnd, &mut r) };
     if let Err(e) = std::fs::write(pos_file(), format_pos(r.left, r.top, r.right - r.left, r.bottom - r.top)) {
         log::warn!("{}: {e}", pos_file().display());
     }
@@ -443,9 +445,14 @@ fn open() -> gfx::Result<()> {
     let theme = gfx::theme();
     let title = tr!("macros.report_window", app = APP_NAME);
     let fmt = formats()?;
-    let (hwnd, scale) = gfx::create_window("WowToolsMacroReport", &title, Some(wndproc), (W0, H0), &theme, true);
+    let (hwnd, mut scale) = gfx::create_window("WowToolsMacroReport", &title, Some(wndproc), (W0, H0), &theme, true);
     if let Some((x, y, w, h)) = saved_pos() {
-        unsafe { SetWindowPos(hwnd, null_mut(), x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE) };
+        let place = || unsafe { SetWindowPos(hwnd, null_mut(), x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE) };
+        place();
+        // On a monitor with another DPI the move changes the window's scale (WM_DPICHANGED came before `WINDOW` was
+        // set); take it, and place again so the remembered pixel size wins over the suggested one.
+        scale = unsafe { GetDpiForWindow(hwnd) } as f32 / 96.0;
+        place();
     }
     let icon = tray::app_icon();
     let check = tray::macro_check();
@@ -475,8 +482,16 @@ fn open() -> gfx::Result<()> {
 pub fn refresh() {
     let check = tray::macro_check();
     if let Some(hwnd) = with_window(|w| {
+        // Percent updates of a backup also land here: measure again only for a new scan.
+        let same = match (&w.check.scan, &check.scan) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        };
         w.check = check;
-        w.relayout();
+        if !same {
+            w.relayout();
+        }
         w.surface.hwnd
     }) {
         unsafe { InvalidateRect(hwnd, null(), 0) };
@@ -586,9 +601,15 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     true
                 });
                 if grabbed == Some(true) {
-                    SetCapture(hwnd);
+                    if with_window(|w| w.grab.is_some()) == Some(true) {
+                        SetCapture(hwnd);
+                    }
                     InvalidateRect(hwnd, null(), 0);
                 }
+                0
+            }
+            WM_CAPTURECHANGED => {
+                with_window(|w| w.grab = None);
                 0
             }
             WM_LBUTTONUP => {
@@ -679,6 +700,7 @@ mod tests {
         Finding {
             flavor: "Retail".into(),
             scope: "Acc".into(),
+            account: false,
             name: "Heal".into(),
             line,
             kind,

@@ -501,14 +501,15 @@ fn cmd_tray(_: Ctx) -> Result<()> {
 #[cfg(windows)]
 fn demo_macros(view: &str) -> tray::MacroCheck {
     use macros::{Finding, How, Kind};
+    let account = tr!("macros.account", account = "132678446#1");
     let finding = |scope: &str, name: &str, line: usize, kind: Kind| Finding {
         flavor: "Retail".into(),
         scope: scope.into(),
+        account: scope == account,
         name: name.into(),
         line,
         kind,
     };
-    let account = tr!("macros.account", account = "132678446#1");
     let gronckk = "Gronckk-Tarren Mill";
     let findings = vec![
         finding(

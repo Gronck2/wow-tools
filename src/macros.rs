@@ -382,6 +382,8 @@ pub struct Finding {
     pub flavor: String,
     /// "Account X" or "Name-Realm".
     pub scope: String,
+    /// From the account's own macros (listed before its characters').
+    pub account: bool,
     pub name: String,
     pub line: usize,
     pub kind: Kind,
@@ -546,6 +548,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                     scan.findings.push(Finding {
                         flavor: fl.title(),
                         scope: scope.to_string(),
+                        account: !firm,
                         name: m.name.clone(),
                         line,
                         kind,
@@ -603,7 +606,8 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
 }
 
 pub fn sort_findings(findings: &mut [Finding]) {
-    findings.sort_by(|a, b| (a.level(), &a.flavor, &a.scope, &a.name, a.line).cmp(&(b.level(), &b.flavor, &b.scope, &b.name, b.line)));
+    let key = |f: &Finding| (f.level(), f.flavor.clone(), !f.account, f.scope.clone(), f.name.clone(), f.line);
+    findings.sort_by_key(key);
 }
 
 pub fn report(scan: &Scan) -> String {
@@ -991,6 +995,7 @@ mod tests {
         Finding {
             flavor: "Retail".into(),
             scope: "s".into(),
+            account: false,
             name: "n".into(),
             line: 1,
             kind,
@@ -1095,6 +1100,10 @@ mod tests {
                 at(Kind::Brackets, "Retail", "b"),
                 at(Kind::Brackets, "Era", "s"),
                 at(Kind::Brackets, "Retail", "a"),
+                Finding {
+                    account: true,
+                    ..at(Kind::Brackets, "Retail", "z")
+                },
             ],
             ..Default::default()
         };
@@ -1105,6 +1114,7 @@ mod tests {
             heads,
             [
                 format!("[{broken}] Era / s"),
+                format!("[{broken}] Retail / z"),
                 format!("[{broken}] Retail / a"),
                 format!("[{broken}] Retail / b"),
                 format!("[{warn}] Era / s")
@@ -1117,6 +1127,7 @@ mod tests {
         let f = |kind| Finding {
             flavor: "Retail".into(),
             scope: "s".into(),
+            account: false,
             name: "n".into(),
             line: 1,
             kind,

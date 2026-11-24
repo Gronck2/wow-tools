@@ -3200,6 +3200,7 @@ mod tests {
         Finding {
             flavor: flavor.into(),
             scope: "Acc".into(),
+            account: false,
             name: "Heal".into(),
             line,
             kind,
