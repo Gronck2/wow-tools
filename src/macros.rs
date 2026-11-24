@@ -255,6 +255,24 @@ pub enum Kind {
     },
 }
 
+/// How bad a finding is: it does not work, it may not work, or it is only for information.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Level {
+    Broken,
+    Warn,
+    Info,
+}
+
+impl Level {
+    pub fn label(self) -> &'static str {
+        match self {
+            Level::Broken => tr!("macros.level_broken"),
+            Level::Warn => tr!("macros.level_warn"),
+            Level::Info => tr!("macros.level_info"),
+        }
+    }
+}
+
 impl Kind {
     /// The short name of the kind, for the counts of the panel.
     pub fn title(&self) -> &'static str {
@@ -422,6 +440,26 @@ impl Finding {
         }
     }
 
+    /// Broken: fails for sure (removed API, too long, unbalanced brackets, a name nobody knows, or a name/command the
+    /// Russian realm of the character's own macro cannot read). Warn: may fail (an account-wide macro on a Russian realm,
+    /// works only with a client in another language, values hidden in combat). Info: the realm's language is unknown.
+    pub fn level(&self) -> Level {
+        match &self.kind {
+            Kind::Deprecated { .. } | Kind::TooLong { .. } | Kind::Brackets | Kind::UnknownName { .. } => Level::Broken,
+            Kind::Secret { .. } => Level::Warn,
+            Kind::WrongLanguage { how, .. } => match how {
+                How::Firm => Level::Broken,
+                How::Maybe | How::Client => Level::Warn,
+                How::Realm => Level::Info,
+            },
+            Kind::Alias { bad, soft, firm, .. } => match (bad.is_empty(), soft.is_empty()) {
+                (false, _) if *firm => Level::Broken,
+                (true, true) => Level::Info,
+                _ => Level::Warn,
+            },
+        }
+    }
+
     pub fn fix(&self) -> Option<String> {
         match &self.kind {
             Kind::Deprecated { replacement, url, .. } => Some(tr!("macros.fix_deprecated", replacement = replacement, url = url)),
@@ -446,6 +484,15 @@ pub struct Scan {
 }
 
 impl Scan {
+    /// How many findings there are of each level that occurs, worst first.
+    pub fn levels(&self) -> Vec<(Level, usize)> {
+        [Level::Broken, Level::Warn, Level::Info]
+            .into_iter()
+            .map(|l| (l, self.findings.iter().filter(|f| f.level() == l).count()))
+            .filter(|&(_, n)| n > 0)
+            .collect()
+    }
+
     /// How many findings there are of each kind, the most first.
     pub fn counts(&self) -> Vec<(&'static str, usize)> {
         let mut out: Vec<(&'static str, usize)> = Vec::new();
@@ -550,19 +597,25 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
             }
         }
     }
+    // Worst first, then by macro, so the panel report, the clipboard and the console list the same way.
+    sort_findings(&mut scan.findings);
     scan
+}
+
+pub fn sort_findings(findings: &mut [Finding]) {
+    findings.sort_by(|a, b| (a.level(), &a.flavor, &a.scope, &a.name, a.line).cmp(&(b.level(), &b.flavor, &b.scope, &b.name, b.line)));
 }
 
 pub fn report(scan: &Scan) -> String {
     let mut out = String::new();
-    let mut head: Option<(&str, &str)> = None;
+    let mut head: Option<(Level, &str, &str)> = None;
     for f in &scan.findings {
-        if head != Some((&f.flavor, &f.scope)) {
+        if head != Some((f.level(), &f.flavor, &f.scope)) {
             if !out.is_empty() {
                 out.push('\n');
             }
-            out.push_str(&format!("{} / {}\n", f.flavor, f.scope));
-            head = Some((&f.flavor, &f.scope));
+            out.push_str(&format!("[{}] {} / {}\n", f.level().label(), f.flavor, f.scope));
+            head = Some((f.level(), &f.flavor, &f.scope));
         }
         out.push_str(&if f.line == 0 {
             tr!("macros.item", name = f.name, problem = f.problem())
@@ -932,6 +985,101 @@ mod tests {
         };
         assert_eq!(unknown, &["Bbb-Nowhere"]);
         assert!(bad[0].starts_with("Aaa-Нигде (deDE, ") && bad[0] != "Aaa-Нигде (deDE)");
+    }
+
+    fn finding(kind: Kind) -> Finding {
+        Finding {
+            flavor: "Retail".into(),
+            scope: "s".into(),
+            name: "n".into(),
+            line: 1,
+            kind,
+        }
+    }
+
+    fn alias(bad: &[&str], soft: &[&str], unknown: &[&str], firm: bool) -> Kind {
+        let v = |l: &[&str]| l.iter().map(|s| s.to_string()).collect();
+        Kind::Alias {
+            alias: "/a".into(),
+            command: "/cast",
+            locales: "deDE".into(),
+            bad: v(bad),
+            soft: v(soft),
+            unknown: v(unknown),
+            firm,
+        }
+    }
+
+    fn wrong(how: How) -> Kind {
+        Kind::WrongLanguage {
+            name: "a".into(),
+            lang: "deDE".into(),
+            fix: "b".into(),
+            bad: vec!["X-Y".into()],
+            how,
+        }
+    }
+
+    #[test]
+    fn level_of_every_kind() {
+        let deprecated = Kind::Deprecated {
+            func: "f",
+            replacement: "g",
+            patch: "1",
+            url: "u",
+        };
+        let level = |k| finding(k).level();
+        assert_eq!(level(deprecated), Level::Broken);
+        assert_eq!(level(Kind::TooLong { chars: 300 }), Level::Broken);
+        assert_eq!(level(Kind::Brackets), Level::Broken);
+        assert_eq!(level(Kind::UnknownName { name: "x".into() }), Level::Broken);
+        assert_eq!(level(Kind::Secret { func: "f" }), Level::Warn);
+        assert_eq!(level(wrong(How::Firm)), Level::Broken);
+        assert_eq!(level(wrong(How::Maybe)), Level::Warn);
+        assert_eq!(level(wrong(How::Client)), Level::Warn);
+        assert_eq!(level(wrong(How::Realm)), Level::Info);
+        assert_eq!(level(alias(&["a"], &[], &[], true)), Level::Broken);
+        assert_eq!(level(alias(&["a"], &["b"], &["c"], true)), Level::Broken);
+        assert_eq!(level(alias(&["a"], &[], &[], false)), Level::Warn);
+        assert_eq!(level(alias(&[], &["b"], &["c"], false)), Level::Warn);
+        assert_eq!(level(alias(&[], &[], &["c"], false)), Level::Info);
+    }
+
+    #[test]
+    fn findings_sort_by_level_then_macro_and_the_report_marks_levels() {
+        let at = |level_kind: Kind, name: &str, line: usize| Finding {
+            name: name.into(),
+            line,
+            ..finding(level_kind)
+        };
+        let mut scan = Scan {
+            findings: vec![
+                at(wrong(How::Realm), "B", 1),
+                at(Kind::Brackets, "B", 5),
+                at(Kind::Secret { func: "f" }, "A", 1),
+                at(Kind::Brackets, "B", 2),
+                at(Kind::Brackets, "A", 9),
+            ],
+            ..Default::default()
+        };
+        sort_findings(&mut scan.findings);
+        let order: Vec<_> = scan.findings.iter().map(|f| (f.level(), f.name.as_str(), f.line)).collect();
+        assert_eq!(
+            order,
+            [
+                (Level::Broken, "A", 9),
+                (Level::Broken, "B", 2),
+                (Level::Broken, "B", 5),
+                (Level::Warn, "A", 1),
+                (Level::Info, "B", 1)
+            ]
+        );
+        assert_eq!(scan.levels(), [(Level::Broken, 3), (Level::Warn, 1), (Level::Info, 1)]);
+        scan.findings.retain(|f| f.level() != Level::Warn);
+        assert_eq!(scan.levels(), [(Level::Broken, 3), (Level::Info, 1)]);
+        let report = report(&scan);
+        assert!(report.find(Level::Broken.label()).unwrap() < report.find(Level::Info.label()).unwrap());
+        assert!(!report.contains(Level::Warn.label()));
     }
 
     #[test]

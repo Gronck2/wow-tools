@@ -18,6 +18,8 @@ mod menu;
 #[cfg(windows)]
 mod panel;
 mod profiles;
+#[cfg(windows)]
+mod report;
 mod schedule;
 mod selfupdate;
 #[cfg(windows)]
@@ -186,7 +188,7 @@ enum Cmd {
     #[command(hide = true)]
     UiSnapshot {
         out: PathBuf,
-        /// panel, busy, game, error, confirm, empty, macros, macros-list, macros-busy, macros-empty, macros-nodata, macros-names, macros-tip, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
+        /// panel, busy, game, error, confirm, empty, macros, macro-report, macros-busy, macros-empty, macros-nodata, macros-names, macros-tip, busy-addons, addons, addons-busy, addons-tip, addons-empty, addons-skipped, menu, settings, settings-backup, settings-exit, settings-days, settings-addons, settings-every, settings-one, settings-wago or settings-screenshots
         #[arg(default_value = "panel")]
         view: String,
         #[arg(long)]
@@ -540,8 +542,7 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
                 alias: "/zauber".into(),
                 command: "/cast",
                 locales: "deDE".into(),
-                bad: Vec::new(),
-                soft: [
+                bad: [
                     gronckk,
                     "Groncky-Tarren Mill",
                     "Gronckz-Draenor",
@@ -551,10 +552,11 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
                     "Gronckp-Argent Dawn",
                     "Gronckm-Hyjal",
                 ]
-                .map(|c| format!("{c} (enUS)"))
+                .map(|c| format!("{c} (ruRU)"))
                 .to_vec(),
+                soft: Vec::new(),
                 unknown: Vec::new(),
-                firm: false,
+                firm: true,
             },
         ),
         finding(gronckk, "Burst", 4, Kind::UnknownName { name: "Heroik Strike".into() }),
@@ -562,13 +564,51 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
         finding(gronckk, "Focus", 2, Kind::Brackets),
         finding(gronckk, "Health", 1, Kind::Secret { func: "UnitHealth" }),
         finding("Groncky-Tarren Mill", "Pull", 5, Kind::UnknownName { name: "Pull timer".into() }),
+        finding(
+            "Groncky-Tarren Mill",
+            "Heal",
+            1,
+            Kind::WrongLanguage {
+                name: "Heilendes Licht".into(),
+                lang: "deDE".into(),
+                fix: "Holy Light".into(),
+                bad: vec!["Gronckx-Nowhere".into()],
+                how: How::Realm,
+            },
+        ),
+        finding(
+            "Groncky-Tarren Mill",
+            "Cooldowns",
+            2,
+            Kind::Alias {
+                alias: "/benutzen".into(),
+                command: "/use",
+                locales: "deDE".into(),
+                bad: Vec::new(),
+                soft: Vec::new(),
+                unknown: vec!["Gronckx-Nowhere".into()],
+                firm: false,
+            },
+        ),
+        finding(
+            &account,
+            "Bag",
+            1,
+            Kind::Deprecated {
+                func: "GetContainerItemInfo",
+                replacement: "C_Container.GetContainerItemInfo",
+                patch: "11.0.2",
+                url: "https://warcraft.wiki.gg/wiki/Patch_11.0.2/API_changes",
+            },
+        ),
     ];
-    let scan = macros::Scan {
+    let mut scan = macros::Scan {
         missing: if view == "macros-nodata" { vec!["Retail".into()] } else { Vec::new() },
         findings: if view == "macros-empty" { Vec::new() } else { findings },
         checked: 212,
         ..Default::default()
     };
+    macros::sort_findings(&mut scan.findings);
     let cached = macro_names::Cached {
         product: "wow".into(),
         build: "12.0.5.65000".into(),
@@ -579,6 +619,7 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
         scanning: view == "macros-busy",
         downloading: view == "macros-names",
         names_done: None,
+        copied: (view == "macro-report").then(|| (tr!("macros.copied").to_string(), tray::Tone::Ok)),
         cached: if view == "macros-nodata" { Vec::new() } else { vec![cached] },
         ..Default::default()
     }
@@ -622,6 +663,9 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
         checked: Some(Local::now().naive_local()),
         ..Default::default()
     };
+    if view == "macro-report" {
+        return Ok(report::snapshot(&path, dark, &demo_macros(view))?);
+    }
     if view == "tray-icons" {
         // Each state at the tray sizes of 100-200 % scaling, over a light and a dark taskbar.
         let sizes = [16, 20, 24, 32];
@@ -1017,7 +1061,6 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             "cleanup-list" => Some(panel::SheetList::Clean(maintenance::List::Orphans)),
             "profiles-pick" => Some(panel::SheetList::SaveFrom),
             "profiles-apply" | "profiles-search" => Some(panel::SheetList::ApplyTo(0)),
-            "macros-list" => Some(panel::SheetList::Macros),
             _ => None,
         }
         .map(|list| panel::Sheet {

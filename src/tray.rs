@@ -9,7 +9,7 @@ use crate::panel::{self, View};
 use crate::profiles::{self, CharEntry, Profile};
 use crate::snapshot::{self, Kind};
 use crate::watch::{self, Event, Request, Work};
-use crate::{macro_names, macros, maintenance, menu, schedule, selfupdate, settings, wow};
+use crate::{macro_names, macros, maintenance, menu, report, schedule, selfupdate, settings, wow};
 use anyhow::{Result, bail};
 use chrono::{Local, NaiveDateTime};
 use std::cell::RefCell;
@@ -149,6 +149,8 @@ pub enum Action {
     OpenScreenshots,
     /// Check the macros of every character (read-only, in the background).
     ScanMacros,
+    /// Show the macro report window.
+    OpenMacroReport,
     /// The report of the last macro check to the clipboard.
     CopyMacros,
     /// Download the spell and item names for the macro check.
@@ -437,6 +439,7 @@ pub fn run(ctx: Ctx) -> Result<()> {
     panel::close();
     menu::close();
     settings::close();
+    report::close();
     log::info!("{}", tr!("tray.stopped"));
     Ok(())
 }
@@ -643,6 +646,11 @@ pub fn scan_macros() {
     post_state();
 }
 
+/// The macro check as it is now, for the report window.
+pub fn macro_check() -> MacroCheck {
+    STATE.lock().unwrap().macros.clone()
+}
+
 /// Drops how the last cleanup and profile job went (the panel shows it until it closes).
 pub fn forget_results() {
     let mut st = STATE.lock().unwrap();
@@ -706,6 +714,10 @@ pub fn act(action: Action) {
         }
         Action::ScanMacros => {
             scan_macros();
+            Ok(())
+        }
+        Action::OpenMacroReport => {
+            report::show();
             Ok(())
         }
         Action::CopyMacros => {
@@ -1205,6 +1217,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                 update_tray(hwnd, NIM_MODIFY);
                 panel::refresh();
                 settings::refresh();
+                report::refresh();
                 0
             }
             WM_DESTROY => {

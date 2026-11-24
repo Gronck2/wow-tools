@@ -215,8 +215,8 @@ pub fn text_format(dw: &IDWriteFactory, family: &str, size: f32, bold: bool, ali
 }
 
 /// Like `text_format`, but for paragraphs: words wrap, the text starts at the top.
-pub fn wrap_format(dw: &IDWriteFactory, size: f32) -> Result<IDWriteTextFormat> {
-    let f = text_format(dw, UI_FONT, size, false, Align::Left)?;
+pub fn wrap_format(dw: &IDWriteFactory, size: f32, bold: bool) -> Result<IDWriteTextFormat> {
+    let f = text_format(dw, UI_FONT, size, bold, Align::Left)?;
     unsafe {
         f.SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP)?;
         f.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR)?;
@@ -554,9 +554,10 @@ pub fn create_popup(class: &str, wndproc: WNDPROC, (x, y, w, h): (i32, i32, i32,
 }
 
 /// Creates a regular (taskbar, title bar) window of `w`×`h` DIPs of client area, centered on
-/// the cursor's monitor and no taller than its work area, with a title bar in the theme's colors.
+/// the cursor's monitor and no taller than its work area, with a title bar in the theme's colors; `resizable` adds the
+/// sizing border and the maximize button.
 /// Returns the window and the monitor scale.
-pub fn create_window(class: &str, title: &str, wndproc: WNDPROC, (w, h): (f32, f32), t: &Theme) -> (HWND, f32) {
+pub fn create_window(class: &str, title: &str, wndproc: WNDPROC, (w, h): (f32, f32), t: &Theme, resizable: bool) -> (HWND, f32) {
     unsafe {
         let hinst = GetModuleHandleW(null());
         let class: Vec<u16> = class.encode_utf16().chain([0]).collect();
@@ -568,7 +569,10 @@ pub fn create_window(class: &str, title: &str, wndproc: WNDPROC, (w, h): (f32, f
         wc.lpszClassName = class.as_ptr();
         RegisterClassW(&wc);
         let (_, work, scale) = cursor_monitor();
-        let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+        let mut style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+        if resizable {
+            style |= WS_THICKFRAME | WS_MAXIMIZEBOX;
+        }
         let mut rc = RECT {
             left: 0,
             top: 0,

@@ -17,7 +17,6 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 use crate::gfx::{self, Align, Painter, R, Surface, Theme};
-use crate::macros;
 use crate::maintenance::{self, Item, List};
 use crate::profiles::{CharEntry, Class, Faction, Look, Profile};
 use crate::snapshot;
@@ -139,9 +138,8 @@ enum Hit {
     SaveInfo,
     /// "Check macros".
     MacroScan,
-    /// The list button of the macro findings: opens them as a `Sheet`.
-    MacroList,
-    MacroCopy,
+    /// The report button of the macro findings: opens the report window.
+    MacroReport,
     /// "Download names".
     MacroNames,
     /// Hovering the name data card shows what the download is.
@@ -163,8 +161,8 @@ fn divider_y(v: &View) -> f32 {
 /// The macros tab: a counts card, the report row and the name data card under the button.
 const MACRO_COUNTS_Y: f32 = BUTTON_Y + BUTTON_H + 12.0;
 const MACRO_COUNTS_H: f32 = 112.0;
-const MACRO_COPY_Y: f32 = MACRO_COUNTS_Y + MACRO_COUNTS_H + 8.0;
-const MACRO_NAMES_Y: f32 = MACRO_COPY_Y + ROW_H + 8.0;
+const MACRO_REPORT_Y: f32 = MACRO_COUNTS_Y + MACRO_COUNTS_H + 8.0;
+const MACRO_NAMES_Y: f32 = MACRO_REPORT_Y + ROW_H + 8.0;
 const MACRO_NAMES_H: f32 = 84.0;
 
 fn macro_card(y: f32, h: f32) -> R {
@@ -287,38 +285,23 @@ pub enum SheetList {
     SaveFrom,
     /// Characters to put profile `i` on.
     ApplyTo(usize),
-    /// The findings of the macro check.
-    Macros,
 }
 
 const SHEET_HEAD: f32 = 52.0;
 const SHEET_ROW: f32 = 28.0;
-/// The window while the macro report is open: its rows are wrapped text and need the room.
-/// shortcut: a fixed width, so a work area narrower than this (in DIPs) cuts the right edge; take the width from the work area then.
-const W_REPORT: f32 = 640.0;
-
-/// The window width for a sheet of `list`.
-fn sheet_w(list: SheetList) -> f32 {
-    if list == SheetList::Macros { W_REPORT } else { W }
-}
-
-/// The window width with `sheet` open (or none).
-fn width(sheet: Option<&Sheet>) -> f32 {
-    sheet.map_or(W, |s| sheet_w(s.list))
-}
 
 /// The sheet covers the rows of the tab.
-fn sheet_rect(v: &View, list: SheetList) -> R {
+fn sheet_rect(v: &View) -> R {
     R {
         x: PAD,
         y: CLEAN_Y,
-        w: sheet_w(list) - 2.0 * PAD,
+        w: W - 2.0 * PAD,
         h: divider_y(v) - 10.0 - CLEAN_Y,
     }
 }
 
-fn sheet_close_rect(v: &View, list: SheetList) -> R {
-    let r = sheet_rect(v, list);
+fn sheet_close_rect(v: &View) -> R {
+    let r = sheet_rect(v);
     R {
         x: r.x + r.w - 42.0,
         y: r.y + 10.0,
@@ -337,81 +320,23 @@ fn sheet_head(list: SheetList) -> f32 {
 
 /// A list of characters to pick from (it has a search field).
 fn picks(list: SheetList) -> bool {
-    !matches!(list, SheetList::Clean(_) | SheetList::Macros)
+    !matches!(list, SheetList::Clean(_))
 }
 
 /// Entries that fit under the heading.
 fn sheet_rows(v: &View, list: SheetList) -> usize {
-    ((sheet_rect(v, list).h - sheet_head(list) - 8.0) / SHEET_ROW).floor().max(1.0) as usize
+    ((sheet_rect(v).h - sheet_head(list) - 8.0) / SHEET_ROW).floor().max(1.0) as usize
 }
 
 /// Visible entry `k` of the sheet.
 fn sheet_row_rect(v: &View, list: SheetList, k: usize) -> R {
-    let r = sheet_rect(v, list);
+    let r = sheet_rect(v);
     R {
         x: r.x + 4.0,
         y: r.y + sheet_head(list) + 4.0 + k as f32 * SHEET_ROW,
         w: r.w - 18.0,
         h: SHEET_ROW,
     }
-}
-
-/// Space around the texts of a report row, and the lines above the problem: the macro and where it is.
-const MACRO_TOP: f32 = 48.0;
-const MACRO_BOTTOM: f32 = 10.0;
-
-/// What is wrong with a finding, and how to fix it (a line of its own, `None` when there is no fix).
-fn macro_texts(finding: &macros::Finding) -> (String, Option<String>) {
-    (finding.problem(), finding.fix().map(|fix| format!("→ {fix}")))
-}
-
-/// The wrapped height of the problem and the fix of a finding at text width `w`.
-fn macro_text_heights(f: &Formats, finding: &macros::Finding, w: f32) -> (f32, f32) {
-    let (problem, fix) = macro_texts(finding);
-    (
-        gfx::text_height(&f.wrap, &problem, w),
-        fix.map_or(0.0, |fix| gfx::text_height(&f.wrap, &fix, w) + 2.0),
-    )
-}
-
-/// The room the report rows have (top, bottom, row width).
-fn macro_view(v: &View) -> (f32, f32, f32) {
-    let r = sheet_rect(v, SheetList::Macros);
-    (r.y + SHEET_HEAD + 4.0, r.y + r.h - 4.0, r.w - 18.0)
-}
-
-/// The report rows shown from finding `first`: (finding, rect), as many as fit (at least one).
-fn macro_rows(v: &View, f: &Formats, first: usize) -> Vec<(usize, R)> {
-    let findings = v.macros.scan.as_deref().map_or(&[][..], |s| &s.findings[..]);
-    let (mut y, bottom, w) = macro_view(v);
-    let x = sheet_rect(v, SheetList::Macros).x + 4.0;
-    let mut out: Vec<(usize, R)> = Vec::new();
-    for (i, finding) in findings.iter().enumerate().skip(first) {
-        let (problem, fix) = macro_text_heights(f, finding, w - 24.0);
-        let h = MACRO_TOP + problem + fix + MACRO_BOTTOM;
-        if y + h > bottom && !out.is_empty() {
-            break;
-        }
-        out.push((i, R { x, y, w, h }));
-        y += h;
-    }
-    out
-}
-
-/// The last `first` that still fills the page: the findings from it on all fit.
-fn macro_max_first(v: &View, f: &Formats) -> usize {
-    let findings = v.macros.scan.as_deref().map_or(&[][..], |s| &s.findings[..]);
-    let (top, bottom, w) = macro_view(v);
-    let (mut used, mut first) = (0.0, findings.len());
-    while first > 0 {
-        let (problem, fix) = macro_text_heights(f, &findings[first - 1], w - 24.0);
-        used += MACRO_TOP + problem + fix + MACRO_BOTTOM;
-        if used > bottom - top && first < findings.len() {
-            break;
-        }
-        first -= 1;
-    }
-    first
 }
 
 /// The characters a pick list offers (indexes into `View::chars`): any for saving, those of the
@@ -421,7 +346,7 @@ fn sheet_chars(v: &View, list: SheetList, search: &str) -> Vec<usize> {
     let search = search.to_lowercase();
     let Some(chars) = v.chars.as_ref() else { return Vec::new() };
     let profile = match list {
-        SheetList::Clean(_) | SheetList::Macros => return Vec::new(),
+        SheetList::Clean(_) => return Vec::new(),
         SheetList::SaveFrom => None,
         SheetList::ApplyTo(i) => match v.profiles.get(i) {
             Some(p) => Some(&p.meta),
@@ -469,25 +394,6 @@ fn sheet_entries(v: &View, s: &Sheet) -> Vec<SheetEntry> {
                 look: Look::default(),
             })
             .collect(),
-        SheetList::Macros => {
-            let scan = v.macros.scan.as_deref();
-            let findings = scan.map_or(&[][..], |s| &s.findings[..]);
-            // The game version only matters when there is more than one.
-            let many = findings.iter().any(|f| f.flavor != findings[0].flavor);
-            findings
-                .iter()
-                .map(|f| SheetEntry {
-                    name: if f.line == 0 {
-                        f.name.clone()
-                    } else {
-                        tr!("macros.sheet_line", name = f.name, line = f.line)
-                    },
-                    note: String::new(),
-                    right: if many { format!("{} · {}", f.flavor, f.scope) } else { f.scope.clone() },
-                    look: Look::default(),
-                })
-                .collect()
-        }
         _ => {
             let chars = v.chars.as_deref().unwrap_or_default();
             // The game version only matters when there is more than one.
@@ -514,15 +420,12 @@ fn sheet_entries(v: &View, s: &Sheet) -> Vec<SheetEntry> {
 }
 
 /// `first` kept in range, so the last page is full.
-fn sheet_first(v: &View, f: &Formats, s: &Sheet) -> usize {
-    if s.list == SheetList::Macros {
-        return s.first.min(macro_max_first(v, f));
-    }
+fn sheet_first(v: &View, s: &Sheet) -> usize {
     s.first.min(sheet_entries(v, s).len().saturating_sub(sheet_rows(v, s.list)))
 }
 
 fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>, s: &Sheet) {
-    let r = sheet_rect(v, s.list);
+    let r = sheet_rect(v);
     // The card is see-through in places: hide the rows under it first.
     p.fill(r, 8.0, t.bg);
     p.fill(r, 8.0, t.card);
@@ -536,13 +439,6 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
                 List::Big => tr!("cleanup.big_short").to_string(),
             };
             (title, tr!("cleanup.count_addons", n = entries.len(), size = snapshot::human_size(total)))
-        }
-        SheetList::Macros => {
-            let checked = v.macros.scan.as_ref().map_or(0, |s| s.checked);
-            (
-                tr!("macros.sheet_title").to_string(),
-                tr!("macros.sheet_sub", n = entries.len(), checked = checked),
-            )
         }
         SheetList::SaveFrom => (tr!("profiles.pick_save").to_string(), tr!("profiles.pick_sub").to_string()),
         SheetList::ApplyTo(i) => {
@@ -574,7 +470,7 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
         },
         t.text2,
     );
-    let close = sheet_close_rect(v, s.list);
+    let close = sheet_close_rect(v);
     if hover == Some(Hit::SheetClose) {
         p.fill(close, 4.0, t.card_hover);
     }
@@ -594,7 +490,7 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
         t.stroke,
     );
     let rows = sheet_rows(v, s.list);
-    let first = sheet_first(v, f, s);
+    let first = sheet_first(v, s);
     if entries.is_empty() {
         let none = match picking {
             true if !s.search.is_empty() => tr!("profiles.no_match"),
@@ -612,10 +508,6 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
             },
             t.text2,
         );
-    }
-    if s.list == SheetList::Macros {
-        draw_macro_rows(p, v, t, f, first, &entries);
-        return;
     }
     for (k, e) in entries.iter().skip(first).take(rows).enumerate() {
         let row = sheet_row_rect(v, s.list, k);
@@ -660,78 +552,6 @@ fn draw_sheet(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>,
         let thumb = R {
             x: r.x + r.w - 9.0,
             y: top + (track_h - thumb_h) * first as f32 / max_first,
-            w: 4.0,
-            h: thumb_h,
-        };
-        p.fill(thumb, 2.0, t.text2);
-    }
-}
-
-/// The findings of the macro report from `first`, in full: the macro and its line, where it is, what is
-/// wrong and the fix, wrapped (never cut). `entries`: their titles and where (`sheet_entries`).
-fn draw_macro_rows(p: &Painter, v: &View, t: &Theme, f: &Formats, first: usize, entries: &[SheetEntry]) {
-    let findings = v.macros.scan.as_deref().map_or(&[][..], |s| &s.findings[..]);
-    let rows = macro_rows(v, f, first);
-    for &(i, row) in &rows {
-        let (e, finding) = (&entries[i], &findings[i]);
-        p.fill(
-            R {
-                y: row.y + row.h - 1.0,
-                h: 1.0,
-                ..row
-            },
-            0.0,
-            t.stroke,
-        );
-        let (x, w) = (row.x + 12.0, row.w - 24.0);
-        p.text(&e.name, &f.text, R { x, y: row.y + 8.0, w, h: 20.0 }, t.text);
-        p.text(
-            &e.right,
-            &f.sub,
-            R {
-                x,
-                y: row.y + 28.0,
-                w,
-                h: 18.0,
-            },
-            t.text2,
-        );
-        let (problem, fix) = macro_texts(finding);
-        let (problem_h, fix_h) = macro_text_heights(f, finding, w);
-        p.text(
-            &problem,
-            &f.wrap,
-            R {
-                x,
-                y: row.y + MACRO_TOP,
-                w,
-                h: problem_h,
-            },
-            t.text,
-        );
-        if let Some(fix) = fix {
-            p.text(
-                &fix,
-                &f.wrap,
-                R {
-                    x,
-                    y: row.y + MACRO_TOP + problem_h + 2.0,
-                    w,
-                    h: fix_h - 2.0,
-                },
-                t.text2,
-            );
-        }
-    }
-    // Scroll bar: where the visible part is in the whole list.
-    if rows.len() < entries.len() {
-        let (top, bottom, _) = macro_view(v);
-        let r = sheet_rect(v, SheetList::Macros);
-        let thumb_h = ((bottom - top) * rows.len() as f32 / entries.len() as f32).max(24.0);
-        let max_first = macro_max_first(v, f).max(1) as f32;
-        let thumb = R {
-            x: r.x + r.w - 9.0,
-            y: top + (bottom - top - thumb_h) * first as f32 / max_first,
             w: 4.0,
             h: thumb_h,
         };
@@ -807,36 +627,36 @@ fn height(v: &View) -> f32 {
     divider_y(v) + 1.0 + FOOTER_H + 8.0
 }
 
-fn lock_rect(w: f32) -> R {
+fn lock_rect() -> R {
     R {
-        x: w - PAD - 148.0,
+        x: W - PAD - 148.0,
         y: 14.0,
         w: 32.0,
         h: 32.0,
     }
 }
 
-fn pin_rect(w: f32) -> R {
+fn pin_rect() -> R {
     R {
-        x: w - PAD - 110.0,
+        x: W - PAD - 110.0,
         y: 14.0,
         w: 32.0,
         h: 32.0,
     }
 }
 
-fn folder_rect(w: f32) -> R {
+fn folder_rect() -> R {
     R {
-        x: w - PAD - 72.0,
+        x: W - PAD - 72.0,
         y: 14.0,
         w: 32.0,
         h: 32.0,
     }
 }
 
-fn settings_rect(w: f32) -> R {
+fn settings_rect() -> R {
     R {
-        x: w - PAD - 34.0,
+        x: W - PAD - 34.0,
         y: 14.0,
         w: 32.0,
         h: 32.0,
@@ -844,14 +664,14 @@ fn settings_rect(w: f32) -> R {
 }
 
 /// The "new version" button left of the header icons, while there is one.
-fn update_rect(v: &View, f: &Formats, ww: f32) -> Option<R> {
+fn update_rect(v: &View, f: &Formats) -> Option<R> {
     v.self_update.available.as_ref()?;
-    let w = match pill_label(v, f, ww) {
+    let w = match pill_label(v, f) {
         "" => 32.0,
         label => gfx::text_width(&f.button, label) + 44.0,
     };
     Some(R {
-        x: lock_rect(ww).x - 8.0 - w,
+        x: lock_rect().x - 8.0 - w,
         y: 16.0,
         w,
         h: 28.0,
@@ -860,11 +680,11 @@ fn update_rect(v: &View, f: &Formats, ww: f32) -> Option<R> {
 
 /// The new version's number on its button, or nothing (an icon only) when the button would run
 /// into the title; the tip has the number either way.
-fn pill_label<'a>(v: &'a View, f: &Formats, ww: f32) -> &'a str {
+fn pill_label<'a>(v: &'a View, f: &Formats) -> &'a str {
     let Some(release) = v.self_update.available.as_ref() else { return "" };
     let w = gfx::text_width(&f.button, &release.version) + 44.0;
     let title_end = PAD + gfx::text_width(&f.title, crate::config::APP_NAME);
-    if lock_rect(ww).x - 8.0 - w < title_end + 12.0 { "" } else { &release.version }
+    if lock_rect().x - 8.0 - w < title_end + 12.0 { "" } else { &release.version }
 }
 
 fn button_rect() -> R {
@@ -912,11 +732,11 @@ fn confirm_rect(row: R) -> R {
     }
 }
 
-fn footer_rect(v: &View, ww: f32) -> R {
+fn footer_rect(v: &View) -> R {
     R {
         x: 4.0,
         y: divider_y(v) + 5.0,
-        w: ww - 8.0,
+        w: W - 8.0,
         h: FOOTER_H,
     }
 }
@@ -945,15 +765,14 @@ fn tabs(v: &View, f: &Formats) -> Vec<(R, Tab)> {
 }
 
 fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<Confirm>, sheet: Option<&Sheet>, prof_first: usize) -> Vec<(R, Hit)> {
-    let ww = width(sheet);
     let mut out = vec![
-        (lock_rect(ww), Hit::Lock),
-        (pin_rect(ww), Hit::Pin),
-        (folder_rect(ww), Hit::Folder),
-        (settings_rect(ww), Hit::Settings),
-        (footer_rect(v, ww), Hit::Autostart),
+        (lock_rect(), Hit::Lock),
+        (pin_rect(), Hit::Pin),
+        (folder_rect(), Hit::Folder),
+        (settings_rect(), Hit::Settings),
+        (footer_rect(v), Hit::Autostart),
     ];
-    if let Some(r) = update_rect(v, f, ww).filter(|_| !v.self_update.installing) {
+    if let Some(r) = update_rect(v, f).filter(|_| !v.self_update.installing) {
         out.push((r, Hit::SelfUpdate));
     }
     out.extend(tabs(v, f).into_iter().filter(|(_, t)| *t != tab).map(|(r, t)| (r, Hit::Tab(t))));
@@ -964,13 +783,13 @@ fn hits(v: &View, f: &Formats, tab: Tab, confirm: Option<Confirm>, sheet: Option
         out.extend((0..v.updates.len()).map(|i| (row_rect(i), Hit::History(i))));
         return out;
     }
-    if let (Tab::Cleanup | Tab::Profiles | Tab::Macros, Some(s)) = (tab, sheet) {
-        out.push((sheet_close_rect(v, s.list), Hit::SheetClose));
+    if let (Tab::Cleanup | Tab::Profiles, Some(s)) = (tab, sheet) {
+        out.push((sheet_close_rect(v), Hit::SheetClose));
+        let n = sheet_entries(v, s).len().saturating_sub(sheet_first(v, s)).min(sheet_rows(v, s.list));
         if picks(s.list) {
-            let n = sheet_entries(v, s).len().saturating_sub(sheet_first(v, f, s)).min(sheet_rows(v, s.list));
             out.extend((0..n).map(|k| (sheet_row_rect(v, s.list, k), Hit::SheetRow(k))));
         }
-        out.push((sheet_rect(v, s.list), Hit::Sheet));
+        out.push((sheet_rect(v), Hit::Sheet));
         return out;
     }
     if tab == Tab::Profiles {
@@ -1043,7 +862,7 @@ struct Formats {
 fn formats() -> gfx::Result<Formats> {
     let dw = gfx::dwrite()?;
     Ok(Formats {
-        wrap: gfx::wrap_format(&dw, 12.0)?,
+        wrap: gfx::wrap_format(&dw, 12.0, false)?,
         tab: gfx::text_format(&dw, gfx::UI_FONT, 14.0, false, Align::Center)?,
         tab_on: gfx::text_format(&dw, gfx::UI_FONT, 14.0, true, Align::Center)?,
         title: gfx::text_format(&dw, gfx::TITLE_FONT, 20.0, true, Align::Left)?,
@@ -1127,7 +946,6 @@ fn draw(
     prof_first: usize,
     lifted: Option<(Tab, f32)>,
 ) {
-    let ww = width(sheet);
     p.clear(t.bg);
     p.text(
         crate::config::APP_NAME,
@@ -1143,8 +961,8 @@ fn draw(
     // The paperclip and the lock: accent-filled while pinned / locked.
     let unlocked = UNLOCKED.load(Ordering::Relaxed);
     for (r, hit, icon, on) in [
-        (lock_rect(ww), Hit::Lock, if unlocked { "\u{E785}" } else { "\u{E72E}" }, !unlocked),
-        (pin_rect(ww), Hit::Pin, "\u{E723}", PINNED.load(Ordering::Relaxed)),
+        (lock_rect(), Hit::Lock, if unlocked { "\u{E785}" } else { "\u{E72E}" }, !unlocked),
+        (pin_rect(), Hit::Pin, "\u{E723}", PINNED.load(Ordering::Relaxed)),
     ] {
         if on {
             p.fill(r, 4.0, t.accent);
@@ -1156,13 +974,13 @@ fn draw(
             p.text(icon, &f.icon, r, t.text);
         }
     }
-    for (r, hit, icon) in [(folder_rect(ww), Hit::Folder, "\u{E838}"), (settings_rect(ww), Hit::Settings, "\u{E713}")] {
+    for (r, hit, icon) in [(folder_rect(), Hit::Folder, "\u{E838}"), (settings_rect(), Hit::Settings, "\u{E713}")] {
         if hover == Some(hit) {
             p.fill(r, 4.0, t.card_hover);
         }
         p.text(icon, &f.icon, r, t.text);
     }
-    if let Some(r) = update_rect(v, f, ww) {
+    if let Some(r) = update_rect(v, f) {
         let style = if v.self_update.installing {
             Style::Disabled
         } else {
@@ -1170,9 +988,9 @@ fn draw(
                 hover: hover == Some(Hit::SelfUpdate),
             }
         };
-        button(p, f, r, "\u{E896}", pill_label(v, f, ww), style, t);
+        button(p, f, r, "\u{E896}", pill_label(v, f), style, t);
     }
-    draw_tabs(p, v, t, f, tab, hover, lifted, ww);
+    draw_tabs(p, v, t, f, tab, hover, lifted);
     match tab {
         Tab::Backup => {
             let confirm = match confirm {
@@ -1186,10 +1004,10 @@ fn draw(
         Tab::Profiles => draw_profiles(p, v, t, f, hover, confirm, prof_first),
         Tab::Macros => draw_macros(p, v, t, f, hover),
     }
-    if let (Tab::Cleanup | Tab::Profiles | Tab::Macros, Some(s)) = (tab, sheet) {
+    if let (Tab::Cleanup | Tab::Profiles, Some(s)) = (tab, sheet) {
         draw_sheet(p, v, t, f, hover, s);
     }
-    draw_footer(p, v, t, f, hover, ww);
+    draw_footer(p, v, t, f, hover);
     if let (Tab::Addons, Some(Hit::History(i))) = (tab, hover) {
         draw_history_tip(p, v, t, f, i);
     }
@@ -1228,7 +1046,7 @@ fn draw(
         let r = R {
             x: PAD,
             y: TABS_Y + 4.0,
-            w: ww - 2.0 * PAD,
+            w: W - 2.0 * PAD,
             h: 0.0,
         };
         draw_tip(p, t, f, r, &text, false);
@@ -1278,8 +1096,7 @@ fn draw_row_tip(p: &Painter, v: &View, t: &Theme, f: &Formats, row: R, text: &st
 
 /// `lifted`: a tab held with the mouse and the left edge it is drawn at; its place in the strip stays
 /// an empty slot and the tab is drawn over the strip as a card with an accent frame.
-#[allow(clippy::too_many_arguments)]
-fn draw_tabs(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>, lifted: Option<(Tab, f32)>, ww: f32) {
+fn draw_tabs(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Option<Hit>, lifted: Option<(Tab, f32)>) {
     let draw_tab = |r: R, item: Tab| {
         let on = item == tab;
         p.text(item.label(), if on { &f.tab_on } else { &f.tab }, r, if on { t.text } else { t.text2 });
@@ -1314,7 +1131,7 @@ fn draw_tabs(p: &Painter, v: &View, t: &Theme, f: &Formats, tab: Tab, hover: Opt
         R {
             x: 0.0,
             y: TABS_Y + TABS_H + 2.0,
-            w: ww,
+            w: W,
             h: 1.0,
         },
         0.0,
@@ -2160,19 +1977,8 @@ fn draw_profiles(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hi
     }
 }
 
-/// The list button of the counts card (only with findings).
-fn macro_list_rect() -> R {
-    let card = macro_card(MACRO_COUNTS_Y, MACRO_COUNTS_H);
-    R {
-        x: card.x + card.w - 42.0,
-        y: card.y + 8.0,
-        w: 30.0,
-        h: 30.0,
-    }
-}
-
-fn macro_copy_rect(f: &Formats) -> R {
-    end_button_rect(macro_card(MACRO_COPY_Y, ROW_H), f, tr!("macros.copy"))
+fn macro_report_rect(f: &Formats) -> R {
+    end_button_rect(macro_card(MACRO_REPORT_Y, ROW_H), f, tr!("macros.open_report"))
 }
 
 fn macro_names_rect(f: &Formats) -> R {
@@ -2195,15 +2001,16 @@ fn macro_names_allowed(v: &View) -> bool {
     v.status.phase != Phase::Busy && !v.macros.downloading && !v.macros.scanning
 }
 
+fn has_findings(v: &View) -> bool {
+    v.macros.scan.as_ref().is_some_and(|s| !s.findings.is_empty())
+}
+
 fn macro_hits(v: &View, f: &Formats, out: &mut Vec<(R, Hit)>) {
     if macro_scan_allowed(v) {
         out.push((button_rect(), Hit::MacroScan));
     }
-    if v.macros.scan.as_ref().is_some_and(|s| !s.findings.is_empty()) {
-        out.push((macro_list_rect(), Hit::MacroList));
-    }
-    if v.macros.scan.is_some() && !v.macros.scanning {
-        out.push((macro_copy_rect(f), Hit::MacroCopy));
+    if has_findings(v) {
+        out.push((macro_report_rect(f), Hit::MacroReport));
     }
     if macro_names_allowed(v) {
         out.push((macro_names_rect(f), Hit::MacroNames));
@@ -2291,12 +2098,11 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
         button(p, f, button_rect(), "\u{E721}", tr!("macros.scan"), style, t);
     }
 
-    // Counts per kind, and the list button.
+    // Counts per kind.
     let card = macro_card(MACRO_COUNTS_Y, MACRO_COUNTS_H);
     p.fill(card, 6.0, t.card);
     p.stroke(card, 6.0, t.stroke, 1.0);
-    let has_list = scan.is_some_and(|s| !s.findings.is_empty());
-    let text_w = card.w - 32.0 - if has_list { 38.0 } else { 0.0 };
+    let text_w = card.w - 32.0;
     p.text(
         tr!("macros.counts_title"),
         &f.text,
@@ -2319,32 +2125,21 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
         },
         t.text2,
     );
-    if has_list {
-        let r = macro_list_rect();
-        if hover == Some(Hit::MacroList) {
-            p.fill(r, 4.0, t.card_hover);
-        }
-        p.text("\u{E8FD}", &f.icon, r, t.text);
-    }
 
-    // The report.
-    let card = macro_card(MACRO_COPY_Y, ROW_H);
+    // The report: opens in a window of its own.
+    let card = macro_card(MACRO_REPORT_Y, ROW_H);
     p.fill(card, 6.0, t.card);
     p.stroke(card, 6.0, t.stroke, 1.0);
-    let copy = macro_copy_rect(f);
-    let (sub, color) = match &m.copied {
-        Some((text, tone)) => result_line(t, text, *tone),
-        None => (tr!("macros.copy_sub").to_string(), t.text2),
-    };
-    row_texts(p, f, t, card, copy.x, tr!("macros.copy_title"), (&sub, color));
-    let style = if scan.is_some() && !m.scanning {
+    let open = macro_report_rect(f);
+    row_texts(p, f, t, card, open.x, tr!("macros.report_title"), (tr!("macros.report_sub"), t.text2));
+    let style = if has_findings(v) {
         Style::Plain {
-            hover: hover == Some(Hit::MacroCopy),
+            hover: hover == Some(Hit::MacroReport),
         }
     } else {
         Style::Disabled
     };
-    button(p, f, copy, "", tr!("macros.copy"), style, t);
+    button(p, f, open, "", tr!("macros.open_report"), style, t);
 
     // The name data: the button at the top right, what it holds under the title.
     let card = macro_card(MACRO_NAMES_Y, MACRO_NAMES_H);
@@ -2542,11 +2337,11 @@ fn draw_backup(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
     }
 }
 
-fn draw_footer(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>, ww: f32) {
+fn draw_footer(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>) {
     // Footer: autostart switch.
     let dy = divider_y(v);
-    p.fill(R { x: 0.0, y: dy, w: ww, h: 1.0 }, 0.0, t.stroke);
-    let foot = footer_rect(v, ww);
+    p.fill(R { x: 0.0, y: dy, w: W, h: 1.0 }, 0.0, t.stroke);
+    let foot = footer_rect(v);
     if hover == Some(Hit::Autostart) {
         p.fill(foot.inset(2.0), 4.0, t.card_hover);
     }
@@ -2596,8 +2391,6 @@ struct Panel {
     prof_first: usize,
     tracking: bool,
     anchor_bottom: bool,
-    /// Pixels the window moved left to grow for the macro report (see `fit`).
-    shift: i32,
     /// A tab held down with the left button (`Drag`).
     drag: Option<Drag>,
 }
@@ -2771,7 +2564,6 @@ fn open() -> gfx::Result<()> {
         prof_first: 0,
         tracking: false,
         anchor_bottom: saved.is_none() && edge == 3,
-        shift: 0,
         drag: None,
     };
     let cleaning = spinning(&panel.view);
@@ -2853,7 +2645,7 @@ pub fn refresh() {
     };
     spin(hwnd, cleaning);
     unsafe {
-        fit(hwnd);
+        fit_height(hwnd);
         InvalidateRect(hwnd, null(), 0);
     }
 }
@@ -2901,42 +2693,21 @@ fn spin(hwnd: HWND, on: bool) {
     }
 }
 
-/// Resizes the panel to the width of the open list and the height of the tab, keeping the taskbar side in
-/// place. A wider window that would leave the screen grows to the left (`Panel::shift` remembers by how
-/// much, the narrow window goes back there).
-unsafe fn fit(hwnd: HWND) {
-    let Some((want_w, want_h, anchor_bottom, shift, scale)) = with_panel(|p| {
-        let scale = p.surface.scale;
-        let (w, h) = (width(p.sheet.as_ref()) * scale, height(&p.view) * scale);
-        (w.round() as i32, h.round() as i32, p.anchor_bottom, p.shift, scale)
-    }) else {
+/// Resizes the panel when the list changed length, keeping the taskbar side in place.
+unsafe fn fit_height(hwnd: HWND) {
+    let Some((want, anchor_bottom)) = with_panel(|p| ((height(&p.view) * p.surface.scale).round() as i32, p.anchor_bottom)) else {
         return;
     };
     unsafe {
         let mut rc: RECT = zeroed();
         GetWindowRect(hwnd, &mut rc);
-        let w = rc.right - rc.left;
-        if w == want_w && rc.bottom - rc.top == want_h {
+        if rc.bottom - rc.top == want {
             return;
         }
-        let y = if anchor_bottom { rc.bottom - want_h } else { rc.top };
-        let work = gfx::monitor_at(POINT { x: rc.left, y: rc.top }).map(|(r, _)| r);
-        let (mut x, mut shift) = (rc.left, shift);
-        if want_w > w {
-            let over = work.map_or(0, |r| (x + want_w - (r.right - (12.0 * scale) as i32)).max(0));
-            (x, shift) = (x - over, shift + over);
-        } else if want_w < w {
-            (x, shift) = (x + shift, 0);
-        }
-        if let Some(r) = work {
-            x = x.min(r.right - want_w).max(r.left);
-        }
-        SetWindowPos(hwnd, null_mut(), x, y, want_w, want_h, SWP_NOZORDER | SWP_NOACTIVATE);
-        with_panel(|p| {
-            p.shift = shift;
-            p.surface.reset();
-        });
+        let y = if anchor_bottom { rc.bottom - want } else { rc.top };
+        SetWindowPos(hwnd, null_mut(), rc.left, y, rc.right - rc.left, want, SWP_NOZORDER | SWP_NOACTIVATE);
     }
+    with_panel(|p| p.surface.reset());
 }
 
 fn hit_at(p: &Panel, lparam: LPARAM) -> Option<Hit> {
@@ -3017,16 +2788,8 @@ fn click(hwnd: HWND, hit: Hit) {
         }
         Hit::Sheet | Hit::ProfileInfo(_) | Hit::SaveInfo | Hit::ApplyBlocked(_) | Hit::NamesInfo => None,
         Hit::MacroScan => Some(Action::ScanMacros),
-        Hit::MacroCopy => Some(Action::CopyMacros),
         Hit::MacroNames => Some(Action::UpdateNames),
-        Hit::MacroList => {
-            p.sheet = Some(Sheet {
-                list: SheetList::Macros,
-                first: 0,
-                search: String::new(),
-            });
-            None
-        }
+        Hit::MacroReport => Some(Action::OpenMacroReport),
         Hit::SaveProfile => {
             p.sheet = Some(Sheet {
                 list: SheetList::SaveFrom,
@@ -3051,14 +2814,14 @@ fn click(hwnd: HWND, hit: Hit) {
         }
         Hit::SheetRow(k) => {
             let s = p.sheet.take()?;
-            let c = *sheet_chars(&p.view, s.list, &s.search).get(sheet_first(&p.view, &p.fmt, &s) + k)?;
+            let c = *sheet_chars(&p.view, s.list, &s.search).get(sheet_first(&p.view, &s) + k)?;
             match s.list {
                 SheetList::SaveFrom => p.view.chars.as_ref()?.get(c).cloned().map(Action::SaveProfile),
                 SheetList::ApplyTo(i) => {
                     p.confirm = Some(Confirm::ApplyProfile(i, c));
                     None
                 }
-                SheetList::Clean(_) | SheetList::Macros => None,
+                SheetList::Clean(_) => None,
             }
         }
         Hit::ProfileConfirm => match p.confirm.take()? {
@@ -3086,10 +2849,7 @@ fn click(hwnd: HWND, hit: Hit) {
     if close {
         unsafe { DestroyWindow(hwnd) };
     } else {
-        unsafe {
-            fit(hwnd);
-            InvalidateRect(hwnd, null(), 0);
-        }
+        unsafe { InvalidateRect(hwnd, null(), 0) };
     }
     if let Some(action) = action {
         tray::act(action);
@@ -3237,7 +2997,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     None => false,
                 });
                 if handled == Some(true) {
-                    fit(hwnd);
                     InvalidateRect(hwnd, null(), 0);
                 } else {
                     DestroyWindow(hwnd);
@@ -3285,10 +3044,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                         p.prof_first = profile_first(&p.view, if up { first.saturating_sub(1) } else { first + 1 });
                         return p.prof_first != first;
                     };
-                    let first = sheet_first(&p.view, &p.fmt, s);
-                    let step = if s.list == SheetList::Macros { 1 } else { 3 };
-                    s.first = if up { first.saturating_sub(step) } else { first + step };
-                    s.first = sheet_first(&p.view, &p.fmt, s);
+                    let first = sheet_first(&p.view, s);
+                    s.first = if up { first.saturating_sub(3) } else { first + 3 };
+                    s.first = sheet_first(&p.view, s);
                     s.first != first
                 });
                 if changed == Some(true) {
@@ -3319,8 +3077,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             // No maximize on a double click, no window menu on a right click of that header.
             WM_NCLBUTTONDBLCLK | WM_NCRBUTTONDOWN | WM_NCRBUTTONUP if wparam == HTCAPTION as WPARAM => 0,
             WM_EXITSIZEMOVE => {
-                // A drag makes the user's corner the reference: `fit` keeps this left edge when a wide report closes.
-                with_panel(|p| p.shift = 0);
                 save_pos(hwnd);
                 0
             }
@@ -3380,7 +3136,6 @@ pub fn snapshot(
             // With a game running the demo hovers the blocked apply button.
             Tab::Profiles if !view.running.is_empty() => Hit::ApplyBlocked(k),
             Tab::Profiles => Hit::ProfileInfo(k),
-            // The name data card.
             Tab::Macros => Hit::NamesInfo,
             _ => Hit::History(k),
         })
@@ -3392,7 +3147,7 @@ pub fn snapshot(
             Header::Settings => Hit::Settings,
         }))
         .or(hover_button.then_some(button));
-    gfx::render_png(path, width(sheet.as_ref()), height(view), 1.5, |p| {
+    gfx::render_png(path, W, height(view), 1.5, |p| {
         draw(p, view, &theme, &fmt, tab, hover, confirm, sheet.as_ref(), 0, lifted)
     })
 }
@@ -3452,110 +3207,21 @@ mod tests {
     }
 
     #[test]
-    fn macro_rows_and_counts_text() {
-        let s = Sheet {
-            list: SheetList::Macros,
-            first: 5,
-            search: String::new(),
-        };
+    fn macro_counts_text_and_report_button() {
         let mut v = view(vec![finding("Retail", 2, Kind::Brackets), finding("Retail", 0, Kind::Brackets)]);
-        let rows = sheet_entries(&v, &s);
-        assert_eq!(rows[0].name, tr!("macros.sheet_line", name = "Heal", line = 2));
-        assert_eq!(rows[1].name, "Heal");
-        assert_eq!(rows[0].right, "Acc");
+        let f = formats().unwrap();
+        let has_report = |v: &View| {
+            let mut out = Vec::new();
+            macro_hits(v, &f, &mut out);
+            out.iter().any(|(_, h)| *h == Hit::MacroReport)
+        };
         assert_eq!(macro_counts_text(&v), format!("{}: 2", Kind::Brackets.title()));
-        // A scroll position past the end is pulled back; with one game version the right column omits it.
-        assert_eq!(sheet_first(&v, &formats().unwrap(), &s), 0);
-        v.macros.scan = Some(Arc::new(Scan {
-            findings: vec![finding("Retail", 1, Kind::Brackets), finding("Era", 1, Kind::Brackets)],
-            ..Default::default()
-        }));
-        assert_eq!(sheet_entries(&v, &s)[1].right, "Era · Acc");
+        assert!(has_report(&v));
         v.macros.scan = Some(Arc::new(Scan::default()));
         assert_eq!(macro_counts_text(&v), tr!("macros.counts_clean"));
+        assert!(!has_report(&v));
         v.macros.scan = None;
         assert_eq!(macro_counts_text(&v), tr!("macros.counts_hint"));
-        assert!(sheet_entries(&v, &s).is_empty());
-    }
-
-    fn long_finding(n: usize) -> Finding {
-        Finding {
-            kind: Kind::UnknownName {
-                name: "Heroik Strike ".repeat(n),
-            },
-            ..finding("Retail", 1, Kind::Brackets)
-        }
-    }
-
-    #[test]
-    fn width_is_narrow_except_for_the_macro_report() {
-        let sheet = |list| Sheet {
-            list,
-            first: 0,
-            search: String::new(),
-        };
-        assert_eq!(width(None), W);
-        assert_eq!(width(Some(&sheet(SheetList::Clean(List::Orphans)))), W);
-        assert_eq!(width(Some(&sheet(SheetList::SaveFrom))), W);
-        assert_eq!(width(Some(&sheet(SheetList::Macros))), W_REPORT);
-        assert_eq!(sheet_rect(&view(Vec::new()), SheetList::Clean(List::Big)).w, W - 2.0 * PAD);
-    }
-
-    #[test]
-    fn macro_rows_grow_with_the_text_and_do_not_overlap() {
-        let f = formats().unwrap();
-        let (short, long) = (long_finding(1), long_finding(40));
-        let w = macro_view(&view(Vec::new())).2 - 24.0;
-        let h = |fd: &Finding| macro_text_heights(&f, fd, w);
-        // Wrapped, not cut: the long text takes more lines than the short one.
-        assert!(h(&long).0 > 2.0 * h(&short).0);
-        let v = view(vec![short, long, finding("Retail", 2, Kind::Brackets), finding("Retail", 3, Kind::Brackets)]);
-        let rows = macro_rows(&v, &f, 0);
-        assert!(!rows.is_empty() && rows[0].0 == 0);
-        for pair in rows.windows(2) {
-            assert!((pair[0].1.y + pair[0].1.h - pair[1].1.y).abs() < 0.01 && pair[1].0 == pair[0].0 + 1);
-        }
-        let (top, bottom, _) = macro_view(&v);
-        let last = rows.last().unwrap().1;
-        assert!(rows[0].1.y >= top && last.y + last.h <= bottom);
-        assert!(rows[0].1.h > MACRO_TOP + h(&v.macros.scan.as_ref().unwrap().findings[0]).0);
-        // The last page is full: scrolling stops where the rest fits.
-        let max = macro_max_first(&v, &f);
-        let tail = macro_rows(&v, &f, max);
-        assert_eq!(tail.last().unwrap().0, 3);
-        assert!(max == 0 || macro_rows(&v, &f, max - 1).last().unwrap().0 < 3);
-        // The hits of the wide layout stay inside it and the header buttons do not overlap.
-        let s = Sheet {
-            list: SheetList::Macros,
-            first: 0,
-            search: String::new(),
-        };
-        let all = hits(&v, &f, Tab::Macros, None, Some(&s), 0);
-        let wide = W_REPORT;
-        assert!(all.iter().all(|(r, _)| r.x >= 0.0 && r.x + r.w <= wide + 0.01));
-        assert!(settings_rect(wide).x + settings_rect(wide).w <= wide - PAD + 0.01 && lock_rect(wide).x + 32.0 < pin_rect(wide).x);
-    }
-
-    #[test]
-    fn macro_scroll_clamps_when_findings_shrink_or_one_is_huge() {
-        let f = formats().unwrap();
-        let sheet = |first| Sheet {
-            list: SheetList::Macros,
-            first,
-            search: String::new(),
-        };
-        let many: Vec<Finding> = (1..=30).map(|n| finding("Retail", n, Kind::Brackets)).collect();
-        let v = view(many);
-        let max = macro_max_first(&v, &f);
-        assert!(max > 0 && max < 30);
-        assert_eq!(sheet_first(&v, &f, &sheet(999)), max);
-        // The list shrinks to one page: the old scroll position falls back to the top.
-        let few = view(vec![finding("Retail", 1, Kind::Brackets), finding("Retail", 2, Kind::Brackets)]);
-        assert_eq!(sheet_first(&few, &f, &sheet(max)), 0);
-        assert_eq!(sheet_first(&view(Vec::new()), &f, &sheet(5)), 0);
-        // A finding taller than the page still shows alone (at least one row).
-        let huge = view(vec![long_finding(2000), finding("Retail", 2, Kind::Brackets)]);
-        assert_eq!(macro_rows(&huge, &f, 0).len(), 1);
-        assert_eq!(macro_max_first(&huge, &f), 1);
+        assert!(!has_report(&v));
     }
 }
