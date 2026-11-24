@@ -503,7 +503,7 @@ fn cmd_tray(_: Ctx) -> Result<()> {
 #[cfg(windows)]
 fn demo_macros(view: &str) -> tray::MacroCheck {
     use macros::{Finding, How, Kind};
-    let account = tr!("macros.account", account = "132678446#1");
+    let account = tr!("macros.account", account = "12345678#1");
     let finding = |scope: &str, name: &str, line: usize, kind: Kind| Finding {
         flavor: "Retail".into(),
         scope: scope.into(),
@@ -939,7 +939,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                 path: format!("{name}-{realm}.zip").into(),
                 meta: profiles::Meta {
                     flavor: "_retail_".into(),
-                    account: "132678446#1".into(),
+                    account: "12345678#1".into(),
                     realm: realm.into(),
                     name: name.into(),
                     created: now - Duration::hours(hours),
@@ -994,7 +994,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                 look: profiles::Look { class, faction },
                 flavor: "_retail_".into(),
                 character: chars::Character {
-                    account: "132678446#1".into(),
+                    account: "12345678#1".into(),
                     realm: realm.into(),
                     name: name.into(),
                     dir: Default::default(),

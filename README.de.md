@@ -17,6 +17,9 @@ Ein kleines Windows-Programm für den Infobereich (Tray), das Ihre Einstellungen
   seiner offiziellen Website.
 - **Spiel-Patches**: Aktualisiert Battle.net das Spiel, werden Einstellungen und Addons vor dem ersten Start auf der
   neuen Version gesichert, und Sie sehen, welche Addons noch nicht dafür gemacht sind.
+- **Makro-Prüfung**: findet defekte Makros – entfernte Funktionen, Namen und Befehle in der falschen Sprache,
+  Tippfehler, Makros über 255 Zeichen – nach Farben geordnet, mit einem fertig korrigierten Text zum Kopieren. Sie
+  liest nur.
 - **Aufräumen**: Einstellungen entfernter Addons, die `.bak`-Kopien von WoW, alte Kampflogs, Screenshots und der
   Cache – mit Größenangaben, mit einem Klick.
 - **UI-Profile**: die Oberfläche eines Charakters speichern (Layouts des Bearbeitungsmodus, Chat, Addons und
@@ -415,14 +418,14 @@ Realms des Charakters. Ein gemeinsames Account-Makro wird als „funktioniert ev
 Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Ein russischer Realm akzeptiert nur Russisch; jeder andere seine eigene Sprache
 und die Sprachen des genutzten Spiel-Clients (`textLocale` in `Config.wtf`, dazu Russisch, wenn der Account Charaktere
 auf einem russischen Realm hat); alles andere wird als „funktioniert nur mit einem Client in dieser Sprache“ gemeldet. Nach
-`wow-tools macros --update-names` (lädt die Namen von Zaubern und Gegenständen von wago.tools, einmal pro Spielbuild)
+`wow-tools macros --update-names` (lädt die Namen von Zaubern und Gegenständen von wago.tools, einmal pro Spielbuild; etwa 75 MB pro Sprache)
 werden auch die Namen in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` und `#show`
 geprüft: ein Name in der falschen Sprache wird mit dem Namen der Realm-Sprache gemeldet, ein Name, der nirgends
 vorkommt, als „unbekannt“ (Tippfehler oder entfernt; es kann auch ein Ausrüstungsset, ein Begleiter oder etwas von
 einem Addon sein). Der Ordner `WTF` wird nur gelesen.
 
 Der Reiter **Makros** im Panel macht dasselbe ohne Kommandozeile. **Makros prüfen** liest alle Makros im Hintergrund
-(das geht auch bei laufendem Spiel und ändert nichts); danach zeigt der Reiter, wie viele Probleme es je Art gibt. Die Schaltfläche **Bericht öffnen** zeigt sie in einem eigenen Fenster, das sich vergrößern, minimieren und maximieren lässt (Größe und Platz werden gemerkt): je Fund das Makro und die Zeile, wo es liegt (die gemeinsamen Makros des Accounts oder ein Charakter), was falsch ist und wie man es behebt, alles vollständig umbrochen. Die Funde gehen vom schlimmsten zum harmlosesten: rote funktionieren nicht (entfernte Funktion, zu langes Makro, unausgeglichene Klammern, unbekannter Name, ein Name oder Befehl in der falschen Sprache im eigenen Makro eines Charakters), gelbe funktionieren eventuell nicht, graue sind zur Info (die Sprache des Realms ist unbekannt); die Kopfzeile zählt sie, und **Kopieren** legt den ganzen Bericht in die Zwischenablage. Die letzte Karte
+(das geht auch bei laufendem Spiel und ändert nichts); danach zeigt der Reiter, wie viele Probleme es je Art gibt. Die Schaltfläche **Bericht öffnen** zeigt sie in einem eigenen Fenster, das sich vergrößern, minimieren und maximieren lässt (Größe und Platz werden gemerkt): je Fund das Makro und die Zeile, wo es liegt (die gemeinsamen Makros des Accounts oder ein Charakter), was falsch ist und wie man es behebt, alles vollständig umbrochen. Die Funde gehen vom schlimmsten zum harmlosesten: rote funktionieren nicht (entfernte Funktion, zu langes Makro, unausgeglichene Klammern, unbekannter Name, ein Name oder Befehl in der falschen Sprache im eigenen Makro eines Charakters), gelbe funktionieren eventuell nicht (oder nur mit einem Client in anderer Sprache), graue sind zur Info (die Sprache des Realms ist unbekannt); die Kopfzeile zählt sie, und **Kopieren** legt den ganzen Bericht in die Zwischenablage. Die letzte Karte
 zeigt die geladenen Zauber- und Gegenstandsnamen (Spielversion und Sprachen); **Laden** holt sie — nur auf Knopfdruck,
 danach bleibt der Bericht, wie er war, bis du erneut prüfst (er weist darauf hin, dass die Namen aktualisiert wurden). Der letzte Bericht wird gespeichert (`data\macro-report.json`) und nach einem Neustart mit der Zeit der Prüfung wieder angezeigt; Text im Berichtsfenster lässt sich mit der Maus markieren und mit Strg+C kopieren.
 Geprüft wird nur auf Knopfdruck, nie von selbst.
@@ -465,7 +468,7 @@ nur ein Hinweis. `wow-tools macros` und der kopierte Bericht geben dieselben Tex
 | `schedule interval [--every MIN]` | Aufgabe in der Aufgabenplanung, die `backup` alle N Minuten ausführt (standardmäßig einmal täglich) |
 | `schedule status` / `schedule remove` | Autostart und Aufgabe anzeigen / entfernen |
 | `outdated` | Addons, die nicht für die installierte Spielversion gemacht sind |
-| `macros [--flavor F]` | defekte Makros finden (entfernte API, zu lang, falsche Klammern, Befehle einer anderen Sprache) |
+| `macros [--flavor F] [--update-names]` | defekte Makros finden (entfernte API, zu lang, falsche Klammern, Namen und Befehle einer anderen Sprache, Tippfehler); `--update-names` lädt Zauber- und Gegenstandsnamen von wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | anzeigen, was sich aufräumen lässt; mit Angaben aufräumen |
 | `self-update [--check]` | bei GitHub nach einer neuen Version von WoW Tools suchen und sie installieren |
 
@@ -498,13 +501,13 @@ Windows).
 
 ## Datenschutz und Sicherheit
 
-- WoW Tools baut selbst Verbindungen zu zwei Stellen auf. Zu **GitHub**, um nach einer neuen Version von WoW Tools
+- WoW Tools baut selbst Verbindungen zu drei Stellen auf. Zu **GitHub**, um nach einer neuen Version von WoW Tools
   zu suchen (siehe [WoW Tools aktualisieren](#wow-tools-aktualisieren)) – einmal am Tag, und das lässt sich
   ausschalten. Und zu **tukui.org** während eines Addon-Updates, wenn ElvUI installiert und sein Schalter an ist, für
   [ElvUI](#elvui). Beides sind einfache Abfragen der neuesten Version, wie das Öffnen der Download-Seite im Browser;
-  über Sie, Ihr Spiel oder Ihre Addons wird nichts gesendet.
-- Nur auf Ihren Wunsch (`wow-tools macros --update-names`) lädt WoW Tools außerdem Namen von Zaubern und Gegenständen
-  von **wago.tools** herunter (etwa 15–30 MB pro Sprache, gespeichert in `%LOCALAPPDATA%\WoW Tools\data\names`, neu
+  über Sie, Ihr Spiel oder Ihre Addons wird nichts gesendet. Und zu **wago.tools**, nur auf Ihren Wunsch (siehe unten).
+- Nur auf Ihren Wunsch (**Laden** im Reiter „Makros“ oder `wow-tools macros --update-names`) lädt WoW Tools Namen von Zaubern und Gegenständen
+  von **wago.tools** herunter (etwa 75 MB pro Sprache, vor allem die Gegenstandsnamen, gespeichert in `%LOCALAPPDATA%\WoW Tools\data\names`, neu
   erst nach einem neuen Spielbuild) für das [Prüfen von Makros](#makros-prüfen). Die Anfragen enthalten nur die
   Spielversion und die Sprache, nichts über Sie.
 - Addons lädt nur das von Ihnen gewählte Addon-Programm herunter – außer ElvUI, das WoW Tools von seiner offiziellen

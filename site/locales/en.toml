@@ -99,6 +99,10 @@ title = "Copy between characters"
 text = "Bindings, macros, chat windows, frame layout, enabled addons and addon settings from one character to others."
 
 [[features]]
+title = "Macro check"
+text = "Finds broken macros — removed functions, names in the wrong language, typos, too long — ranked by colour, with a ready fixed text to copy. Read-only."
+
+[[features]]
 title = "Cleanup"
 text = "Settings of removed addons, WoW's <code>.bak</code> copies, old combat logs, screenshots and the cache — with sizes, in one click."
 
@@ -126,13 +130,18 @@ alt = "Profiles tab with saved UI profiles"
 caption = "Profiles: save and apply a UI"
 
 [[shots]]
+view = "macros"
+alt = "Macros tab with the number of problems of each kind"
+caption = "Macros: what is broken, by kind"
+
+[[shots]]
 view = "settings"
 alt = "Settings window, General tab"
 caption = "Settings: every change applies at once"
 
 [[privacy]]
-head = "Two network requests, nothing about you."
-text = "GitHub once a day for a new version of WoW Tools (can be switched off), and tukui.org for ElvUI when it is installed."
+head = "Three network requests, nothing about you."
+text = "GitHub once a day for a new version of WoW Tools (can be switched off), tukui.org for ElvUI when it is installed, and wago.tools for spell and item names only when you press Download in the macro check."
 
 [[privacy]]
 head = "Never touches the game."

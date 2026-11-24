@@ -18,6 +18,9 @@ Une petite application Windows pour World of Warcraft, dans la zone de notificat
   depuis son site officiel.
 - **Patchs du jeu** : quand Battle.net met le jeu à jour, les réglages et les addons sont sauvegardés avant le premier
   lancement sur la nouvelle version, et vous voyez quels addons ne sont pas encore faits pour elle.
+- **Vérification des macros** : trouve les macros cassées — fonctions retirées, noms et commandes dans la mauvaise
+  langue, fautes de frappe, macros de plus de 255 caractères — classées par couleur, avec un texte corrigé prêt à
+  copier. Elle ne fait que lire.
 - **Nettoyage** : réglages d'addons supprimés, copies `.bak` de WoW, vieux journaux de combat, captures d'écran et
   cache — avec leur taille, en un clic.
 - **Profils d'interface** : enregistrez l'interface d'un personnage (dispositions du mode Édition, discussion,
@@ -416,14 +419,14 @@ concernés ; une langue de royaume inconnue est dite, jamais devinée. Un royaum
 du client de jeu utilisé (`textLocale` dans `Config.wtf`, plus le russe si le compte a des personnages sur un royaume
 russe) ; le reste est signalé comme ne marchant qu'avec un client dans cette langue. Après
 `wow-tools macros --update-names` (télécharge depuis wago.tools les noms des sorts et des objets, une fois par version
-du jeu), il vérifie aussi les noms dans `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip`
+du jeu ; environ 75 Mo par langue), il vérifie aussi les noms dans `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip`
 et `#show` : un nom dans la mauvaise langue est signalé avec le nom de la langue du royaume, un nom introuvable comme
 « inconnu » (faute de frappe ou supprimé ; ce peut aussi être un ensemble d'équipement, une mascotte ou un élément
 d'addon). Le dossier `WTF` est seulement lu.
 
 L'onglet **Macros** du panneau fait la même chose sans ligne de commande. **Vérifier les macros** lit toutes les
 macros en arrière-plan (cela marche aussi pendant le jeu et ne change rien) ; l'onglet montre ensuite combien de
-problèmes de chaque type ont été trouvés. Le bouton **Ouvrir le rapport** les montre dans une fenêtre à part, que l'on peut redimensionner, réduire et agrandir (sa taille et sa place sont retenues) : pour chaque problème, la macro et la ligne, où elle se trouve (macros communes du compte ou un personnage), ce qui ne va pas et comment le corriger, le tout affiché en entier, à la ligne. Les problèmes vont du plus grave au plus bénin : les rouges ne marchent pas (fonction retirée, macro trop longue, crochets déséquilibrés, nom inconnu, nom ou commande dans la mauvaise langue dans la macro propre d'un personnage), les jaunes peuvent ne pas marcher, les gris sont à titre d'information (la langue du royaume est inconnue) ; l'en-tête les compte, et **Copier** met tout le rapport dans le presse-papiers. La dernière carte montre les noms de sorts et d'objets téléchargés (version du jeu et
+problèmes de chaque type ont été trouvés. Le bouton **Ouvrir le rapport** les montre dans une fenêtre à part, que l'on peut redimensionner, réduire et agrandir (sa taille et sa place sont retenues) : pour chaque problème, la macro et la ligne, où elle se trouve (macros communes du compte ou un personnage), ce qui ne va pas et comment le corriger, le tout affiché en entier, à la ligne. Les problèmes vont du plus grave au plus bénin : les rouges ne marchent pas (fonction retirée, macro trop longue, crochets déséquilibrés, nom inconnu, nom ou commande dans la mauvaise langue dans la macro propre d'un personnage), les jaunes peuvent ne pas marcher (ou seulement avec un client dans une autre langue), les gris sont à titre d'information (la langue du royaume est inconnue) ; l'en-tête les compte, et **Copier** met tout le rapport dans le presse-papiers. La dernière carte montre les noms de sorts et d'objets téléchargés (version du jeu et
 langues) ; **Télécharger** les récupère — seulement quand vous appuyez dessus, puis le rapport reste tel quel jusqu'à la prochaine vérification (il indique que les noms ont été mis à jour). Le dernier rapport est enregistré (`data\macro-report.json`) et réaffiché après un redémarrage, avec l'heure de la vérification ; le texte de la fenêtre du rapport se sélectionne à la souris et se copie avec Ctrl+C.
 La vérification n'a lieu que sur ce bouton, jamais d'elle-même.
 
@@ -464,7 +467,7 @@ proposé, seulement une note. `wow-tools macros` et le rapport copié affichent 
 | `schedule interval [--every MIN]` | une tâche du Planificateur de tâches qui lance `backup` toutes les N minutes (une fois par jour par défaut) |
 | `schedule status` / `schedule remove` | affiche / supprime le démarrage automatique et la tâche |
 | `outdated` | les addons qui ne sont pas faits pour la version installée du jeu |
-| `macros [--flavor F]` | trouver les macros cassées (API retirée, trop longues, crochets, commandes d'une autre langue) |
+| `macros [--flavor F] [--update-names]` | trouver les macros cassées (API retirée, trop longues, crochets, noms et commandes d'une autre langue, fautes de frappe) ; `--update-names` télécharge les noms des sorts et des objets depuis wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | affiche ce qui peut être nettoyé ; avec des éléments, les nettoie |
 | `self-update [--check]` | cherche une nouvelle version de WoW Tools sur GitHub et l'installe |
 
@@ -496,13 +499,14 @@ défaut) et `language` (`ru`, `en`, `de`, `fr`, `es` ; absent = la langue d'affi
 
 ## Confidentialité et sécurité
 
-- WoW Tools se connecte lui-même à deux endroits. À **GitHub**, pour chercher une nouvelle version de WoW Tools (voir
+- WoW Tools se connecte lui-même à trois endroits. À **GitHub**, pour chercher une nouvelle version de WoW Tools (voir
   [Mettre à jour WoW Tools](#mettre-à-jour-wow-tools)) — une fois par jour, et cela peut être désactivé. Et à
   **tukui.org**, pendant une mise à jour des addons quand ElvUI est installé et que son interrupteur est activé, pour
   [ElvUI](#elvui). Ce sont de simples requêtes pour obtenir la dernière version, comme si vous ouvriez la page de
-  téléchargement dans un navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé.
-- Seulement à votre demande (`wow-tools macros --update-names`), WoW Tools télécharge aussi les noms des sorts et des
-  objets depuis **wago.tools** (environ 15–30 Mo par langue, gardés dans `%LOCALAPPDATA%\WoW Tools\data\names`, de
+  téléchargement dans un navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé. Et à **wago.tools**,
+  seulement à votre demande (voir ci-dessous).
+- Seulement à votre demande (**Télécharger** dans l'onglet « Macros » ou `wow-tools macros --update-names`), WoW Tools télécharge les noms des sorts et des
+  objets depuis **wago.tools** (environ 75 Mo par langue, surtout les noms d'objets, gardés dans `%LOCALAPPDATA%\WoW Tools\data\names`, de
   nouveau seulement après une nouvelle version du jeu) pour [vérifier les macros](#vérifier-les-macros). Les requêtes
   ne contiennent que la version du jeu et la langue, rien sur vous.
 - Les addons sont téléchargés uniquement par le programme d'addons que vous avez choisi — sauf ElvUI, que WoW Tools

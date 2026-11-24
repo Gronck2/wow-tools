@@ -24,7 +24,7 @@ BASE = "https://wow-tool.gronck.com/"
 LANGS = ["en", "ru", "de", "fr", "es"]
 NAMES = {"en": "English", "ru": "Русский", "de": "Deutsch", "fr": "Français", "es": "Español"}
 # Screenshots of "A look inside", in order, with their pixel sizes (ui-snapshot renders at 1.5x).
-SHOTS = {"addons": (540, 907), "cleanup": (540, 907), "profiles": (540, 907), "settings": (840, 1290)}
+SHOTS = {"addons": (540, 907), "cleanup": (540, 907), "profiles": (540, 907), "macros": (540, 907), "settings": (840, 1290)}
 STATIC = ["style.css", "site.js", "404.html", "fonts", "kofi-cup.png", "boosty-mark.svg"]
 # The support buttons: Boosty first for these languages (its audience), Ko-fi first for the rest. build.py writes the
 # links, so their locale keys are read here, not in template.html.

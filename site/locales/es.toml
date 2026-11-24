@@ -99,6 +99,10 @@ title = "Copia entre personajes"
 text = "Atajos, macros, ventanas de chat, disposición de marcos, addons activados y su configuración, de un personaje a otros."
 
 [[features]]
+title = "Revisión de macros"
+text = "Encuentra macros rotas —funciones eliminadas, nombres en otro idioma, erratas, demasiado largas— ordenadas por color, con un texto corregido listo para copiar. Solo lectura."
+
+[[features]]
 title = "Limpieza"
 text = "Configuración de addons eliminados, copias <code>.bak</code> de WoW, registros de combate antiguos, capturas de pantalla y la caché, con sus tamaños, en un clic."
 
@@ -126,13 +130,18 @@ alt = "Pestaña Perfiles con los perfiles de interfaz guardados"
 caption = "Perfiles: guardar y aplicar una interfaz"
 
 [[shots]]
+view = "macros"
+alt = "Pestaña Macros con el número de problemas de cada tipo"
+caption = "Macros: qué está roto, por tipo"
+
+[[shots]]
 view = "settings"
 alt = "Ventana de configuración, pestaña General"
 caption = "Configuración: cada cambio se aplica al instante"
 
 [[privacy]]
-head = "Dos consultas de red, nada sobre ti."
-text = "GitHub una vez al día, por si hay una nueva versión de WoW Tools (se puede desactivar), y tukui.org para ElvUI si está instalado."
+head = "Tres consultas de red, nada sobre ti."
+text = "GitHub una vez al día, por si hay una nueva versión de WoW Tools (se puede desactivar), tukui.org para ElvUI si está instalado, y wago.tools para los nombres de hechizos y objetos, solo cuando pulsas «Descargar» en la revisión de macros."
 
 [[privacy]]
 head = "Nunca toca el juego."
