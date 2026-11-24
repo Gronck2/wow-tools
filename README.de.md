@@ -418,7 +418,7 @@ Realms des Charakters. Ein gemeinsames Account-Makro wird als „funktioniert ev
 Charakteren gemeldet; ist die Sprache eines Realms unbekannt, wird das gesagt und nicht geraten. Ein russischer Realm akzeptiert nur Russisch; jeder andere seine eigene Sprache
 und die Sprachen des genutzten Spiel-Clients (`textLocale` in `Config.wtf`, dazu Russisch, wenn der Account Charaktere
 auf einem russischen Realm hat); alles andere wird als „funktioniert nur mit einem Client in dieser Sprache“ gemeldet. Nach
-`wow-tools macros --update-names` (lädt die Namen von Zaubern und Gegenständen von wago.tools, einmal pro Spielbuild; bis zu etwa 55 MB pro Sprache)
+`wow-tools macros --update-names` (lädt die Namen von Zaubern und Gegenständen von wago.tools, einmal pro Spielbuild; etwa 75 MB pro Sprache)
 werden auch die Namen in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` und `#show`
 geprüft: ein Name in der falschen Sprache wird mit dem Namen der Realm-Sprache gemeldet, ein Name, der nirgends
 vorkommt, als „unbekannt“ (Tippfehler oder entfernt; es kann auch ein Ausrüstungsset, ein Begleiter oder etwas von
@@ -507,7 +507,7 @@ Windows).
   [ElvUI](#elvui). Beides sind einfache Abfragen der neuesten Version, wie das Öffnen der Download-Seite im Browser;
   über Sie, Ihr Spiel oder Ihre Addons wird nichts gesendet. Und zu **wago.tools**, nur auf Ihren Wunsch (siehe unten).
 - Nur auf Ihren Wunsch (**Laden** im Reiter „Makros“ oder `wow-tools macros --update-names`) lädt WoW Tools Namen von Zaubern und Gegenständen
-  von **wago.tools** herunter (bis zu etwa 55 MB pro Sprache, vor allem die Gegenstandsnamen, gespeichert in `%LOCALAPPDATA%\WoW Tools\data\names`, neu
+  von **wago.tools** herunter (etwa 75 MB pro Sprache, vor allem die Gegenstandsnamen, gespeichert in `%LOCALAPPDATA%\WoW Tools\data\names`, neu
   erst nach einem neuen Spielbuild) für das [Prüfen von Makros](#makros-prüfen). Die Anfragen enthalten nur die
   Spielversion und die Sprache, nichts über Sie.
 - Addons lädt nur das von Ihnen gewählte Addon-Programm herunter – außer ElvUI, das WoW Tools von seiner offiziellen

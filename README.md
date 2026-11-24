@@ -379,7 +379,7 @@ language of the realm the character is on. A macro shared by the whole account i
 characters where it would fail; a realm whose language is not known is said so, never guessed. A Russian realm accepts only Russian; any other realm accepts its own
 language and the languages of the game client you use (`textLocale` in `Config.wtf`, plus Russian when the account has
 characters on a Russian realm); anything else is reported as working only with a client in that language. After
-`wow-tools macros --update-names` (it downloads the names of spells and items from wago.tools, once per game build; up to about 55 MB per language)
+`wow-tools macros --update-names` (it downloads the names of spells and items from wago.tools, once per game build; about 75 MB per language)
 it also checks the names in `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` and `#show`:
 a name in the wrong language is reported with the name the realm's language uses, a name found nowhere as "unknown"
 (a typo, or removed; it may also be an equipment set, a pet or something an addon adds). Otherwise it only reads the
@@ -466,7 +466,7 @@ default) and `language` (`ru`, `en`, `de`, `fr`, `es`; absent = the Windows disp
   latest version, like opening the download page in a browser; nothing about you, your game or your addons is sent.
   And **wago.tools**, only when you ask for it (see below).
 - Only when you ask for it (**Download** in the Macros tab or `wow-tools macros --update-names`), WoW Tools downloads spell and item names from
-  **wago.tools** (up to about 55 MB per language — the item names are the big part —, kept in `%LOCALAPPDATA%\WoW Tools\data\names` and downloaded again only
+  **wago.tools** (about 75 MB per language — the item names are the big part —, kept in `%LOCALAPPDATA%\WoW Tools\data\names` and downloaded again only
   after a new game build) for [checking macros](#checking-macros). The requests carry only the game version and the
   language, nothing about you.
 - Addons are downloaded only by the addon program you chose — except ElvUI, which WoW Tools takes from its official site.

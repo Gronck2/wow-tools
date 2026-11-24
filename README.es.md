@@ -404,7 +404,7 @@ el idioma de un reino, se dice, nunca se adivina. Un reino ruso solo acepta ruso
 (`textLocale` en `Config.wtf`, más el ruso si la cuenta tiene personajes en un reino ruso); lo demás se indica como
 que solo funciona con un cliente en ese idioma. Tras
 `wow-tools macros --update-names` (descarga de wago.tools los nombres de hechizos y objetos, una vez por versión del
-juego; hasta unos 55 MB por idioma) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` y
+juego; unos 75 MB por idioma) también revisa los nombres de `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip` y
 `#show`: un nombre en otro idioma se indica con el nombre del idioma del reino, y uno que no existe en ninguno como
 «desconocido» (errata o eliminado; también puede ser un conjunto de equipo, una mascota o algo de un addon). La
 carpeta `WTF` solo se lee.
@@ -490,7 +490,7 @@ defecto) y `language` (`ru`, `en`, `de`, `fr`, `es`; si no está = el idioma de 
   son simples consultas de la última versión, como abrir la página de descarga en el navegador; no se envía nada sobre
   ti, tu juego ni tus addons. Y a **wago.tools**, solo cuando lo pides (mira abajo).
 - Solo cuando lo pides (**Descargar** en la pestaña «Macros» o `wow-tools macros --update-names`), WoW Tools descarga de **wago.tools** los nombres
-  de hechizos y objetos (hasta unos 55 MB por idioma, sobre todo los de objetos, guardados en `%LOCALAPPDATA%\WoW Tools\data\names`, de nuevo solo
+  de hechizos y objetos (unos 75 MB por idioma, sobre todo los de objetos, guardados en `%LOCALAPPDATA%\WoW Tools\data\names`, de nuevo solo
   tras una nueva versión del juego) para [revisar macros](#revisar-macros). Las peticiones solo llevan la versión del
   juego y el idioma, nada sobre ti.
 - Los addons solo los descarga el programa de addons que hayas elegido, salvo ElvUI, que WoW Tools toma de su web

@@ -419,7 +419,7 @@ concernés ; une langue de royaume inconnue est dite, jamais devinée. Un royaum
 du client de jeu utilisé (`textLocale` dans `Config.wtf`, plus le russe si le compte a des personnages sur un royaume
 russe) ; le reste est signalé comme ne marchant qu'avec un client dans cette langue. Après
 `wow-tools macros --update-names` (télécharge depuis wago.tools les noms des sorts et des objets, une fois par version
-du jeu ; jusqu'à environ 55 Mo par langue), il vérifie aussi les noms dans `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip`
+du jeu ; environ 75 Mo par langue), il vérifie aussi les noms dans `/cast`, `/use`, `/castsequence`, `/castrandom`, `/userandom`, `#showtooltip`
 et `#show` : un nom dans la mauvaise langue est signalé avec le nom de la langue du royaume, un nom introuvable comme
 « inconnu » (faute de frappe ou supprimé ; ce peut aussi être un ensemble d'équipement, une mascotte ou un élément
 d'addon). Le dossier `WTF` est seulement lu.
@@ -506,7 +506,7 @@ défaut) et `language` (`ru`, `en`, `de`, `fr`, `es` ; absent = la langue d'affi
   téléchargement dans un navigateur ; rien sur vous, votre jeu ou vos addons n'est envoyé. Et à **wago.tools**,
   seulement à votre demande (voir ci-dessous).
 - Seulement à votre demande (**Télécharger** dans l'onglet « Macros » ou `wow-tools macros --update-names`), WoW Tools télécharge les noms des sorts et des
-  objets depuis **wago.tools** (jusqu'à environ 55 Mo par langue, surtout les noms d'objets, gardés dans `%LOCALAPPDATA%\WoW Tools\data\names`, de
+  objets depuis **wago.tools** (environ 75 Mo par langue, surtout les noms d'objets, gardés dans `%LOCALAPPDATA%\WoW Tools\data\names`, de
   nouveau seulement après une nouvelle version du jeu) pour [vérifier les macros](#vérifier-les-macros). Les requêtes
   ne contiennent que la version du jeu et la langue, rien sur vous.
 - Les addons sont téléchargés uniquement par le programme d'addons que vous avez choisi — sauf ElvUI, que WoW Tools
