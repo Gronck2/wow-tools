@@ -385,6 +385,14 @@ mod tests {
             ("frFR", &[(2, "Wort")], &[]),
         ]);
         assert!(build(&mac(&["/cast Wort"]), true, &ru, true, &n).is_none());
+        // the second meaning has no Russian row at all: still no guess for the player of that language
+        let n = Names::fake(&[
+            ("enUS", &[(1, "A"), (2, "B")], &[]),
+            ("ruRU", &[(1, "Один")], &[]),
+            ("deDE", &[(1, "Wort")], &[]),
+            ("frFR", &[(2, "Wort")], &[]),
+        ]);
+        assert!(build(&mac(&["/cast Wort"]), true, &ru, true, &n).is_none());
         // a spell and an item of one name with different Russian names: no guess
         let n = Names::fake(&[("enUS", &[(1, "Potion")], &[(5, "Potion")]), ("ruRU", &[(1, "Зелье")], &[(5, "Эликсир")])]);
         assert!(build(&mac(&["/use Potion"]), true, &ru, true, &n).is_none());

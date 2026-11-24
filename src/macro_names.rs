@@ -243,8 +243,7 @@ impl Names {
             if code != lang && other.has(&lc) {
                 match self.translate_exact(code, &lc, lang) {
                     Exact::One(new) if one.as_ref().is_none_or(|o| o.to_lowercase() == new.to_lowercase()) => one = Some(new),
-                    Exact::One(_) | Exact::Ambiguous => return None,
-                    Exact::None => {}
+                    Exact::One(_) | Exact::Ambiguous | Exact::None => return None,
                 }
             }
         }
