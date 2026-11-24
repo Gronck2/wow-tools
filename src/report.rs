@@ -770,5 +770,11 @@ mod tests {
         assert_eq!(parse_pos("10 20 x 500"), None);
         assert_eq!(parse_pos("10 20 0 0"), None);
         assert_eq!(parse_pos(""), None);
+        // Too small, negative or overflowing sizes would give an unusable window.
+        assert_eq!(parse_pos("0 0 199 500"), None);
+        assert_eq!(parse_pos("0 0 800 149"), None);
+        assert_eq!(parse_pos("0 0 -800 -500"), None);
+        assert_eq!(parse_pos("0 0 99999999999 500"), None);
+        assert_eq!(parse_pos("0 0 200 150"), Some((0, 0, 200, 150)));
     }
 }

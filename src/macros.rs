@@ -1083,6 +1083,36 @@ mod tests {
     }
 
     #[test]
+    fn report_groups_by_level_then_flavor_and_scope() {
+        let at = |kind: Kind, flavor: &str, scope: &str| Finding {
+            flavor: flavor.into(),
+            scope: scope.into(),
+            ..finding(kind)
+        };
+        let mut scan = Scan {
+            findings: vec![
+                at(Kind::Secret { func: "f" }, "Era", "s"),
+                at(Kind::Brackets, "Retail", "b"),
+                at(Kind::Brackets, "Era", "s"),
+                at(Kind::Brackets, "Retail", "a"),
+            ],
+            ..Default::default()
+        };
+        sort_findings(&mut scan.findings);
+        let heads: Vec<_> = report(&scan).lines().filter(|l| l.starts_with('[')).map(String::from).collect();
+        let (broken, warn) = (Level::Broken.label(), Level::Warn.label());
+        assert_eq!(
+            heads,
+            [
+                format!("[{broken}] Era / s"),
+                format!("[{broken}] Retail / a"),
+                format!("[{broken}] Retail / b"),
+                format!("[{warn}] Era / s")
+            ]
+        );
+    }
+
+    #[test]
     fn counts_group_findings_by_kind_most_first() {
         let f = |kind| Finding {
             flavor: "Retail".into(),
