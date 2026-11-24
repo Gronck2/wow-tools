@@ -6,21 +6,24 @@
 //! start with neither `/` nor `#` are addon data (HealBot `hbCrashProt_*`, `!dosmarkers`) and ignored.
 
 use crate::chars::{Character, subdirs};
+use crate::macro_fix::{self, MacroFix};
 use crate::macro_names::{self, Names};
 use crate::profiles::{Roster, last_played, realm_key};
 use crate::wow::Flavor;
+use serde::{Deserialize, Serialize};
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::ops::Range;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 const REALMS: &str = include_str!("../data/realms.tsv");
 const DEPRECATED: &str = include_str!("../data/deprecated-api.tsv");
 const ALIASES: &str = include_str!("../data/slash-aliases.tsv");
 
 /// The game's limit of a macro's text.
-const MAX_LEN: usize = 255;
+pub const MAX_LEN: usize = 255;
 
 /// Midnight (12.0) hides some combat values from addon code; a macro reading them may stop working.
 const SECRET: &[&str] = &[
@@ -101,10 +104,40 @@ fn realms() -> &'static [Realm] {
     })
 }
 
-/// (function, replacement, removed in patch, source).
-fn deprecated() -> &'static [[&'static str; 4]] {
-    static T: OnceLock<Vec<[&'static str; 4]>> = OnceLock::new();
-    T.get_or_init(|| rows(DEPRECATED).filter_map(|r| r[..].try_into().ok()).collect())
+/// (function, replacement, removed in patch, source, `drop-in` or empty).
+fn deprecated() -> &'static [[&'static str; 5]] {
+    static T: OnceLock<Vec<[&'static str; 5]>> = OnceLock::new();
+    T.get_or_init(|| {
+        rows(DEPRECATED)
+            .filter(|r| r.len() >= 4)
+            .map(|r| [r[0], r[1], r[2], r[3], r.get(4).copied().unwrap_or_default()])
+            .collect()
+    })
+}
+
+/// What a removed function is called now, when the new one takes the same arguments and returns the same values.
+pub fn drop_in(func: &str) -> Option<&'static str> {
+    deprecated().iter().find(|r| r[0] == func && r[4] == "drop-in").map(|r| r[1])
+}
+
+/// A removed function that returns a table now: (replacement, the table field that holds the old first value, the
+/// argument counts the old call had). The other old values are not mapped, so only a call using one value is rewritten.
+pub fn first_value(func: &str) -> Option<(&'static str, &'static str, std::ops::RangeInclusive<usize>)> {
+    let r = deprecated().iter().find(|r| r[0] == func)?;
+    let mut it = r[4].strip_prefix("first:")?.split(':');
+    let field = it.next()?;
+    let (lo, hi) = it.next()?.split_once('-')?;
+    Some((r[1], field, lo.parse().ok()?..=hi.parse().ok()?))
+}
+
+/// A removed function whose replacement is the same call only with one argument (the old one also took `(slot, bookType)`).
+pub fn one_arg(func: &str) -> Option<&'static str> {
+    deprecated().iter().find(|r| r[0] == func && r[4] == "one-arg").map(|r| r[1])
+}
+
+/// The client languages that know the slash alias `cmd` (empty: not an alias).
+pub fn alias_locales(cmd: &str) -> Vec<&'static str> {
+    aliases().iter().filter(|a| a[2] == cmd).map(|a| a[1]).collect()
 }
 
 /// (command, locale, alias).
@@ -184,6 +217,8 @@ fn realm_locale(acc_dir: &Path, folder: &str, region: Option<&str>, roster: &Onc
 pub struct Target {
     pub label: String,
     pub loc: Option<Loc>,
+    /// The text language of the player's own client (`Config.wtf`), as it is, not widened by `client`.
+    pub client_main: Option<&'static str>,
     /// Client languages the player really uses (see `scan`); a Russian realm ignores them.
     pub client: Vec<&'static str>,
 }
@@ -204,7 +239,7 @@ impl Target {
 }
 
 /// How sure a wrong-language name is for its targets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum How {
     /// A Russian realm, the character's own macro.
     Firm,
@@ -216,38 +251,37 @@ pub enum How {
     Realm,
 }
 
-#[derive(Debug, Clone)]
+/// What a check found.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Kind {
     Deprecated {
-        func: &'static str,
-        replacement: &'static str,
-        patch: &'static str,
-        url: &'static str,
+        func: String,
+        replacement: String,
+        patch: String,
+        url: String,
     },
     TooLong {
         chars: usize,
     },
     Brackets,
     /// `bad`: Russian realms (`firm`: a character's own macro, else it may not work there); `soft`: other realms,
-    /// where it works with a client in that language; `unknown`: realms of unknown language.
+    /// where it works with a client in that language; neither: realms of unknown language.
     Alias {
         alias: String,
-        command: &'static str,
+        command: String,
         locales: String,
         bad: Vec<String>,
         soft: Vec<String>,
-        unknown: Vec<String>,
         firm: bool,
     },
     Secret {
-        func: &'static str,
+        func: String,
     },
     /// A name of the language `lang`; `fix` is what the realm's language calls it.
     WrongLanguage {
         name: String,
         lang: String,
         fix: String,
-        bad: Vec<String>,
         how: How,
     },
     UnknownName {
@@ -256,7 +290,7 @@ pub enum Kind {
 }
 
 /// How bad a finding is: it does not work, it may not work, or it is only for information.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Level {
     Broken,
     Warn,
@@ -271,6 +305,49 @@ impl Level {
             Level::Info => tr!("macros.level_info"),
         }
     }
+}
+
+/// A client language as its name in the interface language (`deDE` -> German); an unknown code stays.
+pub fn lang_name(code: &str) -> String {
+    match code {
+        "enUS" => tr!("game_lang.enUS"),
+        "deDE" => tr!("game_lang.deDE"),
+        "esES" => tr!("game_lang.esES"),
+        "esMX" => tr!("game_lang.esMX"),
+        "frFR" => tr!("game_lang.frFR"),
+        "itIT" => tr!("game_lang.itIT"),
+        "koKR" => tr!("game_lang.koKR"),
+        "ptBR" => tr!("game_lang.ptBR"),
+        "ruRU" => tr!("game_lang.ruRU"),
+        "zhCN" => tr!("game_lang.zhCN"),
+        "zhTW" => tr!("game_lang.zhTW"),
+        _ => code,
+    }
+    .to_string()
+}
+
+/// The same for a sentence "... in German".
+fn lang_in(code: &str) -> String {
+    match code {
+        "enUS" => tr!("game_lang.in_enUS"),
+        "deDE" => tr!("game_lang.in_deDE"),
+        "esES" => tr!("game_lang.in_esES"),
+        "esMX" => tr!("game_lang.in_esMX"),
+        "frFR" => tr!("game_lang.in_frFR"),
+        "itIT" => tr!("game_lang.in_itIT"),
+        "koKR" => tr!("game_lang.in_koKR"),
+        "ptBR" => tr!("game_lang.in_ptBR"),
+        "ruRU" => tr!("game_lang.in_ruRU"),
+        "zhCN" => tr!("game_lang.in_zhCN"),
+        "zhTW" => tr!("game_lang.in_zhTW"),
+        _ => code,
+    }
+    .to_string()
+}
+
+/// `deDE/ruRU` as the names joined by " / ".
+pub fn lang_names(codes: &str, name: fn(&str) -> String) -> String {
+    codes.split('/').map(name).collect::<Vec<_>>().join(" / ")
 }
 
 impl Kind {
@@ -294,8 +371,19 @@ fn find_word(line: &str, word: &str) -> bool {
     line.match_indices(word).any(|(at, _)| {
         let before = line[..at].chars().next_back();
         let after = line[at + word.len()..].chars().next();
-        !before.is_some_and(|c| ident(c) || c == '.' || c == ':') && !after.is_some_and(ident)
+        // `..` is concatenation, not a field access
+        let field = before.is_some_and(|c| c == ':' || (c == '.' && !line[..at - 1].ends_with('.')));
+        !before.is_some_and(ident) && !field && !after.is_some_and(ident)
     })
+}
+
+/// Every `[` of the line is closed and no `]` comes first.
+pub fn balanced(line: &str) -> bool {
+    let mut depth = 0i32;
+    line.chars().all(|c| {
+        depth += i32::from(c == '[') - i32::from(c == ']');
+        depth >= 0
+    }) && depth == 0
 }
 
 fn is_retail(flavor: &str) -> bool {
@@ -321,23 +409,26 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
         if matches!(cmd.as_str(), "/run" | "/script") {
             if retail {
                 let code = &line[end..];
-                for [func, replacement, patch, url] in deprecated().iter().copied() {
+                for [func, replacement, patch, url, _] in deprecated().iter().copied() {
                     if find_word(code, func) {
-                        out.push((i, Kind::Deprecated { func, replacement, patch, url }));
+                        out.push((
+                            i,
+                            Kind::Deprecated {
+                                func: func.into(),
+                                replacement: replacement.into(),
+                                patch: patch.into(),
+                                url: url.into(),
+                            },
+                        ));
                     }
                 }
                 if let Some(func) = SECRET.iter().find(|f| find_word(code, f)) {
-                    out.push((i, Kind::Secret { func }));
+                    out.push((i, Kind::Secret { func: func.to_string() }));
                 }
             }
             continue;
         }
-        let mut depth = 0i32;
-        let balanced = line.chars().all(|c| {
-            depth += i32::from(c == '[') - i32::from(c == ']');
-            depth >= 0
-        }) && depth == 0;
-        if !balanced {
+        if !balanced(line) {
             out.push((i, Kind::Brackets));
         }
         let found: Vec<&[&str; 3]> = aliases().iter().filter(|a| a[2] == cmd).collect();
@@ -348,26 +439,25 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
                 Some(l) => format!("{} ({})", t.label, l.code),
                 None => t.label.clone(),
             };
-            let (mut bad, mut soft, mut unknown) = (Vec::new(), Vec::new(), Vec::new());
+            let (mut bad, mut soft, mut unknown) = (Vec::new(), Vec::new(), 0);
             for t in targets.iter().filter(|t| !t.valid().iter().any(|c| locales.contains(c))) {
                 // A realm of unknown language is never called bad: it may well be the alias's language.
                 match (t.ru(), t.loc.is_some()) {
                     (true, _) => bad.push(label(t)),
                     (_, true) => soft.push(label(t)),
-                    _ => unknown.push(label(t)),
+                    _ => unknown += 1,
                 }
             }
             let firm = firm && !bad.is_empty();
-            if !bad.is_empty() || !soft.is_empty() || !unknown.is_empty() {
+            if !bad.is_empty() || !soft.is_empty() || unknown > 0 {
                 out.push((
                     i,
                     Kind::Alias {
                         alias: cmd,
-                        command: first[0],
+                        command: first[0].into(),
                         locales: locales.join("/"),
                         bad,
                         soft,
-                        unknown,
                         firm,
                     },
                 ));
@@ -377,7 +467,7 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
     out
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
     pub flavor: String,
     /// "Account X" or "Name-Realm".
@@ -387,12 +477,38 @@ pub struct Finding {
     pub name: String,
     pub line: usize,
     pub kind: Kind,
+    /// The whole macro corrected, the same for all findings of one macro (shown with the first, see `first_fixes`).
+    /// Not stored with the finding: `macro_store` keeps the texts once and links them back.
+    #[serde(skip)]
+    pub fixed: Option<Arc<MacroFix>>,
+}
+
+/// Per finding, the fixed text of its macro when it is the first finding of that macro (so a text is shown once).
+pub fn first_fixes(findings: &[Finding]) -> Vec<Option<&Arc<MacroFix>>> {
+    let mut seen: Vec<&Arc<MacroFix>> = Vec::new();
+    findings
+        .iter()
+        .map(|f| {
+            let fix = f.fixed.as_ref()?;
+            if seen.iter().any(|s| Arc::ptr_eq(s, fix)) {
+                return None;
+            }
+            seen.push(fix);
+            Some(fix)
+        })
+        .collect()
 }
 
 impl Finding {
     pub fn problem(&self) -> String {
-        match &self.kind {
-            Kind::Deprecated { func, patch, .. } => tr!("macros.deprecated", func = func, patch = patch),
+        self.problem_marked().0
+    }
+
+    /// The problem text and the byte ranges of its offending parts (the name, function or alias), to be highlighted.
+    pub fn problem_marked(&self) -> (String, Vec<Range<usize>>) {
+        let m = |s: &str| format!("\u{1}{s}\u{2}");
+        let text = match &self.kind {
+            Kind::Deprecated { func, patch, .. } => tr!("macros.deprecated", func = m(func), patch = patch),
             Kind::TooLong { chars } => tr!("macros.too_long", n = chars, max = MAX_LEN),
             Kind::Brackets => tr!("macros.brackets").to_string(),
             Kind::Alias {
@@ -401,45 +517,38 @@ impl Finding {
                 locales,
                 bad,
                 soft,
-                unknown,
                 firm,
+                ..
             } => {
-                let mut parts = Vec::new();
-                if !bad.is_empty() {
-                    let targets = crate::maintenance::names_text(bad, 6);
-                    parts.push(if *firm {
-                        tr!("macros.alias_firm", alias = alias, command = command, locale = locales, targets = targets)
-                    } else {
-                        tr!("macros.alias_maybe", alias = alias, command = command, locale = locales, targets = targets)
-                    });
+                let (alias, locale) = (m(alias), lang_names(locales, lang_name));
+                match (bad.is_empty(), soft.is_empty()) {
+                    (false, _) if *firm => tr!("macros.alias_firm", alias = alias, command = command, locale = locale),
+                    (false, _) => tr!("macros.alias_maybe", alias = alias, command = command, locale = locale),
+                    (true, false) => tr!("macros.alias_soft", alias = alias, command = command, locale = locale),
+                    (true, true) => tr!("macros.alias_unknown", alias = alias, command = command, locale = locale),
                 }
-                if !soft.is_empty() {
-                    let targets = crate::maintenance::names_text(soft, 6);
-                    parts.push(tr!("macros.alias_soft", alias = alias, command = command, locale = locales, targets = targets));
-                }
-                if !unknown.is_empty() {
-                    parts.push(tr!(
-                        "macros.alias_unknown",
-                        alias = alias,
-                        command = command,
-                        locale = locales,
-                        targets = crate::maintenance::names_text(unknown, 6)
-                    ));
-                }
-                parts.join("; ")
             }
-            Kind::Secret { func } => tr!("macros.secret", func = func),
-            Kind::WrongLanguage { name, lang, bad, how, .. } => {
-                let targets = crate::maintenance::names_text(bad, 6);
+            Kind::Secret { func } => tr!("macros.secret", func = m(func)),
+            Kind::WrongLanguage { name, lang, how, .. } => {
+                let (name, lang) = (m(name), lang_in(lang));
                 match how {
-                    How::Firm => tr!("macros.wrong_firm", name = name, lang = lang, targets = targets),
-                    How::Maybe => tr!("macros.wrong_maybe", name = name, lang = lang, targets = targets),
-                    How::Client => tr!("macros.wrong_soft", name = name, lang = lang, targets = targets),
-                    How::Realm => tr!("macros.wrong_realm", name = name, lang = lang, targets = targets),
+                    How::Firm => tr!("macros.wrong_firm", name = name, lang = lang),
+                    How::Maybe => tr!("macros.wrong_maybe", name = name, lang = lang),
+                    How::Client => tr!("macros.wrong_soft", name = name, lang = lang),
+                    How::Realm => tr!("macros.wrong_realm", name = name, lang = lang),
                 }
             }
-            Kind::UnknownName { name } => tr!("macros.unknown_name", name = name),
+            Kind::UnknownName { name } => tr!("macros.unknown_name", name = m(name)),
+        };
+        let (mut out, mut marks, mut from) = (String::new(), Vec::new(), 0);
+        for c in text.chars() {
+            match c {
+                '\u{1}' => from = out.len(),
+                '\u{2}' => marks.push(from..out.len()),
+                c => out.push(c),
+            }
         }
+        (out, marks)
     }
 
     /// Broken: fails for sure (removed API, too long, unbalanced brackets, a name nobody knows, or a name/command the
@@ -474,12 +583,13 @@ impl Finding {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Scan {
     pub findings: Vec<Finding>,
     /// Macros read.
     pub checked: usize,
     /// Per product, the realm languages of the characters found (what `--update-names` downloads).
+    #[serde(skip)]
     pub locales: BTreeMap<String, BTreeSet<&'static str>>,
     /// Flavors with macros whose realm languages have no name data yet.
     pub missing: Vec<String>,
@@ -544,6 +654,11 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                 let mut found = check(&m, retail, targets, firm);
                 found.extend(macro_names::check(&m, targets, firm, &names));
                 found.sort_by_key(|(line, _)| *line);
+                let fixed = if found.is_empty() {
+                    None
+                } else {
+                    macro_fix::build(&m, retail, targets, firm, &names).map(Arc::new)
+                };
                 for (line, kind) in found {
                     scan.findings.push(Finding {
                         flavor: fl.title(),
@@ -552,6 +667,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                         name: m.name.clone(),
                         line,
                         kind,
+                        fixed: fixed.clone(),
                     });
                 }
             }
@@ -576,6 +692,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                         Target {
                             label: format!("{name}-{realm}"),
                             loc,
+                            client_main: client,
                             client: client.into_iter().collect(),
                         },
                         dir,
@@ -613,7 +730,7 @@ pub fn sort_findings(findings: &mut [Finding]) {
 pub fn report(scan: &Scan) -> String {
     let mut out = String::new();
     let mut head: Option<(Level, &str, &str)> = None;
-    for f in &scan.findings {
+    for (f, fix) in scan.findings.iter().zip(first_fixes(&scan.findings)) {
         if head != Some((f.level(), &f.flavor, &f.scope)) {
             if !out.is_empty() {
                 out.push('\n');
@@ -629,6 +746,9 @@ pub fn report(scan: &Scan) -> String {
         out.push('\n');
         if let Some(fix) = f.fix() {
             out.push_str(&format!("      -> {fix}\n"));
+        }
+        if let Some(fix) = fix {
+            out.push_str(&macro_fix::render(fix));
         }
     }
     if !out.is_empty() {
@@ -662,6 +782,7 @@ mod tests {
         Target {
             label: label.into(),
             loc: code.map(|code| Loc { code, guessed: false }),
+            client_main: None,
             client: Vec::new(),
         }
     }
@@ -736,7 +857,7 @@ mod tests {
         let Kind::Alias { soft, bad, command, .. } = &firm[0].1 else {
             panic!("{firm:?}")
         };
-        assert_eq!((soft.as_slice(), *command), (&["B-En (enUS)".to_string()][..], "/cast"));
+        assert_eq!((soft.as_slice(), command.as_str()), (&["B-En (enUS)".to_string()][..], "/cast"));
         assert!(bad.is_empty());
         let soft = check(&mac, true, &[ru.clone(), en.clone()], false);
         assert!(matches!(&soft[0].1, Kind::Alias { firm: false, bad, soft, .. } if bad.is_empty() && soft.len() == 1));
@@ -750,9 +871,9 @@ mod tests {
         let mut en_client = target("D-Nowhere", None);
         en_client.client = vec!["enUS"];
         let f = check(&mac, true, &[en_client], true);
-        assert!(matches!(&f[0].1, Kind::Alias { bad, soft, unknown, .. } if bad.is_empty() && soft.is_empty() && unknown.len() == 1));
+        assert!(matches!(&f[0].1, Kind::Alias { bad, soft, .. } if bad.is_empty() && soft.is_empty()));
         let unknown = check(&mac, true, &[target("C-Nowhere", None)], true);
-        assert!(matches!(&unknown[0].1, Kind::Alias { bad, unknown, .. } if bad.is_empty() && unknown.len() == 1));
+        assert!(matches!(&unknown[0].1, Kind::Alias { bad, soft, .. } if bad.is_empty() && soft.is_empty()));
         // The English command is fine everywhere.
         assert!(check(&m(&["/cast Heal"]), true, &[target("B-En", Some("enUS"))], true).is_empty());
     }
@@ -851,7 +972,7 @@ mod tests {
     fn put_names(dir: &Path, locale: &str, spell: &str) {
         use std::io::Write;
         let mut zip = zip::ZipWriter::new(fs::File::create(dir.join(format!("wow-{locale}.zip"))).unwrap());
-        for (entry, text) in [("spell", spell), ("item", "")] {
+        for (entry, text) in [("spell", spell), ("item-sparse", "")] {
             zip.start_file(entry, zip::write::SimpleFileOptions::default()).unwrap();
             zip.write_all(text.as_bytes()).unwrap();
         }
@@ -890,6 +1011,12 @@ mod tests {
         // The Russian realm in the account list "may not work", it never gets the client clause.
         assert!(wrong.iter().any(|(scope, how)| *scope != "Bbb-Гордунни" && *how == How::Maybe));
         assert!(!s.findings.iter().any(|f| f.scope == "Aaa-Tarren Mill"));
+        // The fixed text: the character's own macro in its realm's language; the account's only for the Russian realm.
+        let own = s.findings.iter().find(|f| f.scope == "Bbb-Гордунни").and_then(|f| f.fixed.as_ref()).unwrap();
+        assert_eq!((own.variants[0].lang.as_str(), own.variants[0].text.as_str()), ("ruRU", "/cast Огненный шар"));
+        let account = s.findings.iter().find(|f| f.account).and_then(|f| f.fixed.as_ref()).unwrap();
+        assert_eq!(account.variants.len(), 1);
+        assert!(report(&s).contains("        /cast Огненный шар\n"));
     }
 
     #[test]
@@ -906,7 +1033,9 @@ mod tests {
         assert_eq!(scopes.iter().filter(|x| **x == "Aaa-Tarren Mill").count(), 2);
         assert_eq!(scopes.iter().filter(|x| **x == "Bbb-Tarren Mill").count(), 2);
         let alias = s.findings.iter().find(|f| matches!(&f.kind, Kind::Alias { firm: false, .. })).unwrap();
-        assert!(alias.problem().contains("Aaa-Tarren Mill (enUS)"));
+        // the card names no character; the data still knows them
+        let Kind::Alias { soft, .. } = &alias.kind else { panic!() };
+        assert!(soft.contains(&"Aaa-Tarren Mill (enUS)".to_string()) && !alias.problem().contains("Aaa-Tarren Mill"));
         assert!(!s.findings.iter().any(|f| matches!(&f.kind, Kind::Alias { firm: true, .. })));
         let text = report(&s);
         assert!(text.contains("Heal (строка 1)") && text.contains("C_Spell.GetSpellInfo"));
@@ -950,7 +1079,8 @@ mod tests {
         let s = scan(std::slice::from_ref(&fl), std::path::Path::new("no-names"));
         assert_eq!(s.checked, 1);
         let alias = s.findings.iter().find(|f| matches!(&f.kind, Kind::Alias { .. })).unwrap();
-        assert!(alias.problem().contains("Aaa-Tarren Mill") && !alias.problem().contains("Gone"));
+        let Kind::Alias { soft, bad, .. } = &alias.kind else { panic!() };
+        assert!(soft.iter().chain(bad).any(|c| c.contains("Aaa-Tarren Mill")) && !soft.iter().chain(bad).any(|c| c.contains("Gone")));
     }
 
     #[test]
@@ -971,23 +1101,17 @@ mod tests {
     }
 
     #[test]
-    fn guessed_language_is_marked_and_soft_wording_lists_the_characters() {
+    fn guessed_language_is_marked_in_the_stored_labels() {
         let guessed = Target {
             label: "Aaa-Нигде".into(),
             loc: Some(Loc { code: "deDE", guessed: true }),
+            client_main: None,
             client: Vec::new(),
         };
         let found = check(&m(&["/закл Heal"]), true, &[guessed, target("Bbb-Nowhere", None)], false);
-        let Kind::Alias {
-            soft: bad,
-            unknown,
-            firm: false,
-            ..
-        } = &found[0].1
-        else {
+        let Kind::Alias { soft: bad, firm: false, .. } = &found[0].1 else {
             panic!("{found:?}")
         };
-        assert_eq!(unknown, &["Bbb-Nowhere"]);
         assert!(bad[0].starts_with("Aaa-Нигде (deDE, ") && bad[0] != "Aaa-Нигде (deDE)");
     }
 
@@ -999,18 +1123,18 @@ mod tests {
             name: "n".into(),
             line: 1,
             kind,
+            fixed: None,
         }
     }
 
-    fn alias(bad: &[&str], soft: &[&str], unknown: &[&str], firm: bool) -> Kind {
+    fn alias(bad: &[&str], soft: &[&str], firm: bool) -> Kind {
         let v = |l: &[&str]| l.iter().map(|s| s.to_string()).collect();
         Kind::Alias {
             alias: "/a".into(),
-            command: "/cast",
+            command: "/cast".into(),
             locales: "deDE".into(),
             bad: v(bad),
             soft: v(soft),
-            unknown: v(unknown),
             firm,
         }
     }
@@ -1020,7 +1144,6 @@ mod tests {
             name: "a".into(),
             lang: "deDE".into(),
             fix: "b".into(),
-            bad: vec!["X-Y".into()],
             how,
         }
     }
@@ -1028,26 +1151,26 @@ mod tests {
     #[test]
     fn level_of_every_kind() {
         let deprecated = Kind::Deprecated {
-            func: "f",
-            replacement: "g",
-            patch: "1",
-            url: "u",
+            func: "f".into(),
+            replacement: "g".into(),
+            patch: "1".into(),
+            url: "u".into(),
         };
         let level = |k| finding(k).level();
         assert_eq!(level(deprecated), Level::Broken);
         assert_eq!(level(Kind::TooLong { chars: 300 }), Level::Broken);
         assert_eq!(level(Kind::Brackets), Level::Broken);
         assert_eq!(level(Kind::UnknownName { name: "x".into() }), Level::Broken);
-        assert_eq!(level(Kind::Secret { func: "f" }), Level::Warn);
+        assert_eq!(level(Kind::Secret { func: "f".into() }), Level::Warn);
         assert_eq!(level(wrong(How::Firm)), Level::Broken);
         assert_eq!(level(wrong(How::Maybe)), Level::Warn);
         assert_eq!(level(wrong(How::Client)), Level::Warn);
         assert_eq!(level(wrong(How::Realm)), Level::Info);
-        assert_eq!(level(alias(&["a"], &[], &[], true)), Level::Broken);
-        assert_eq!(level(alias(&["a"], &["b"], &["c"], true)), Level::Broken);
-        assert_eq!(level(alias(&["a"], &[], &[], false)), Level::Warn);
-        assert_eq!(level(alias(&[], &["b"], &["c"], false)), Level::Warn);
-        assert_eq!(level(alias(&[], &[], &["c"], false)), Level::Info);
+        assert_eq!(level(alias(&["a"], &[], true)), Level::Broken);
+        assert_eq!(level(alias(&["a"], &["b"], true)), Level::Broken);
+        assert_eq!(level(alias(&["a"], &[], false)), Level::Warn);
+        assert_eq!(level(alias(&[], &["b"], false)), Level::Warn);
+        assert_eq!(level(alias(&[], &[], false)), Level::Info);
     }
 
     #[test]
@@ -1061,7 +1184,7 @@ mod tests {
             findings: vec![
                 at(wrong(How::Realm), "B", 1),
                 at(Kind::Brackets, "B", 5),
-                at(Kind::Secret { func: "f" }, "A", 1),
+                at(Kind::Secret { func: "f".into() }, "A", 1),
                 at(Kind::Brackets, "B", 2),
                 at(Kind::Brackets, "A", 9),
             ],
@@ -1096,7 +1219,7 @@ mod tests {
         };
         let mut scan = Scan {
             findings: vec![
-                at(Kind::Secret { func: "f" }, "Era", "s"),
+                at(Kind::Secret { func: "f".into() }, "Era", "s"),
                 at(Kind::Brackets, "Retail", "b"),
                 at(Kind::Brackets, "Era", "s"),
                 at(Kind::Brackets, "Retail", "a"),
@@ -1123,6 +1246,113 @@ mod tests {
     }
 
     #[test]
+    fn the_removed_functions_table_has_five_columns_and_a_verified_drop_in_set() {
+        assert!(
+            deprecated()
+                .iter()
+                .all(|r| r[3].starts_with("https://") && matches!(r[4], "" | "drop-in" | "one-arg") || r[4].starts_with("first:"))
+        );
+        assert_eq!(drop_in("GetItemCount"), Some("C_Item.GetItemCount"));
+        assert_eq!(drop_in("GetItemIcon"), Some("C_Item.GetItemIconByID"));
+        // tables, other arguments or unverified: never replaced
+        for f in [
+            "GetSpellInfo",
+            "GetContainerItemInfo",
+            "UnitAura",
+            "UseContainerItem",
+            "GetMouseFocus",
+            "GetAddOnInfo",
+            "NoSuchFunction",
+        ] {
+            assert_eq!(drop_in(f), None, "{f}");
+        }
+        // the old book-slot form (slot, bookType) of these two is read as a spell id by C_Spell
+        assert_eq!((drop_in("GetSpellTexture"), drop_in("IsUsableSpell")), (None, None));
+        assert_eq!(deprecated().iter().filter(|r| r[4] == "drop-in").count(), 14);
+        // concatenation is no field access
+        assert!(find_word("print(\"n: \"..GetItemCount(5))", "GetItemCount"));
+        assert!(!find_word("print(C_Item.GetItemCount(5))", "GetItemCount"));
+    }
+
+    #[test]
+    fn the_problem_marks_the_offending_part_and_names_no_character() {
+        let cases = [
+            (Kind::UnknownName { name: "Heroik Strike".into() }, "Heroik Strike"),
+            (
+                Kind::WrongLanguage {
+                    name: "Огненный шар".into(),
+                    lang: "ruRU".into(),
+                    fix: "Fireball".into(),
+                    how: How::Firm,
+                },
+                "Огненный шар",
+            ),
+            (
+                Kind::Deprecated {
+                    func: "GetSpellInfo".into(),
+                    replacement: "C_Spell.GetSpellInfo".into(),
+                    patch: "12.0.0".into(),
+                    url: "u".into(),
+                },
+                "GetSpellInfo",
+            ),
+            (Kind::Secret { func: "UnitHealth".into() }, "UnitHealth"),
+            (alias(&["Secret-Realm (ruRU)"], &["Other-Realm (enUS)"], true), "/a"),
+            (alias(&[], &["Other-Realm (enUS)"], false), "/a"),
+            (alias(&[], &[], false), "/a"),
+        ];
+        for (kind, token) in cases {
+            let (text, marks) = finding(kind).problem_marked();
+            assert_eq!(marks.iter().map(|m| &text[m.clone()]).collect::<Vec<_>>(), [token], "{text}");
+            assert!(!text.contains("Realm") && !text.contains("ruRU)"), "{text}");
+        }
+        // a problem without an offending part has no marks, and `problem` is the same text
+        let f = finding(Kind::Brackets);
+        assert_eq!(f.problem_marked(), (f.problem(), Vec::new()));
+        // every client language has a name; an unknown code stays as it is
+        for code in CLIENT_LOCALES {
+            assert_ne!(lang_name(code), code);
+        }
+        assert_eq!(
+            (lang_name("xxXX"), lang_names("deDE/ruRU", lang_name)),
+            ("xxXX".to_string(), format!("{} / {}", lang_name("deDE"), lang_name("ruRU")))
+        );
+    }
+
+    #[test]
+    fn the_removed_function_table_maps_the_first_value_and_the_one_argument_functions() {
+        assert_eq!(first_value("GetSpellInfo"), Some(("C_Spell.GetSpellInfo", "name", 1..=1)));
+        assert_eq!(first_value("UnitBuff"), Some(("C_UnitAuras.GetBuffDataByIndex", "name", 2..=3)));
+        assert_eq!(
+            first_value("GetContainerItemInfo"),
+            Some(("C_Container.GetContainerItemInfo", "iconFileID", 2..=2))
+        );
+        assert_eq!(first_value("GetItemCount"), None);
+        assert_eq!(one_arg("IsUsableSpell"), Some("C_Spell.IsSpellUsable"));
+        assert_eq!(one_arg("GetSpellTexture"), Some("C_Spell.GetSpellTexture"));
+        assert_eq!(one_arg("GetSpellInfo"), None);
+        // the three kinds of compat never overlap
+        for r in deprecated() {
+            let kinds = [r[4] == "drop-in", r[4] == "one-arg", first_value(r[0]).is_some()];
+            assert!(kinds.iter().filter(|k| **k).count() <= 1, "{}", r[0]);
+        }
+    }
+
+    #[test]
+    fn a_macro_shows_its_fixed_text_once() {
+        let fix = Arc::new(MacroFix { variants: Vec::new() });
+        let mut a = finding(Kind::Brackets);
+        a.fixed = Some(fix.clone());
+        let mut b = finding(Kind::Brackets);
+        b.fixed = Some(fix);
+        let mut other = finding(Kind::Brackets);
+        other.fixed = Some(Arc::new(MacroFix { variants: Vec::new() }));
+        let all = [a, finding(Kind::Brackets), b, other];
+        let shown = first_fixes(&all);
+        assert_eq!(shown.iter().map(Option::is_some).collect::<Vec<_>>(), [true, false, false, true]);
+    }
+
+    #[test]
     fn counts_group_findings_by_kind_most_first() {
         let f = |kind| Finding {
             flavor: "Retail".into(),
@@ -1131,6 +1361,7 @@ mod tests {
             name: "n".into(),
             line: 1,
             kind,
+            fixed: None,
         };
         let name = |n: &str| Kind::UnknownName { name: n.into() };
         let scan = Scan {

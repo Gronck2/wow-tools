@@ -362,7 +362,7 @@ pub(crate) mod http {
         Ok(())
     }
 
-    const MAX_BODY: usize = 64 << 20;
+    const MAX_BODY: usize = 128 << 20;
 
     /// A GET over HTTPS (redirects followed); returns the status and the body.
     pub fn get(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {
@@ -412,7 +412,7 @@ pub(crate) mod http {
                     break;
                 }
                 let start = body.len();
-                // The biggest download is a ~20 MB name table (macro_names); the exe is smaller.
+                // The biggest download is a ~55 MB name table (macro_names, ItemSparse); the exe is smaller.
                 if start + available as usize > MAX_BODY {
                     bail!("response over {} MB", MAX_BODY >> 20);
                 }

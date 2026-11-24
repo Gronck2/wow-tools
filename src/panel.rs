@@ -2037,6 +2037,9 @@ fn names_lines(v: &View, t: &Theme) -> Vec<(String, D2D1_COLOR_F)> {
     } else if let Some((text, tone)) = &m.names_done {
         out.push(result_line(t, text, *tone));
     }
+    if m.names_stale && !m.downloading {
+        out.push((tr!("macros.names_stale").to_string(), t.warn));
+    }
     if let Some(s) = m.scan.as_deref().filter(|s| !s.missing.is_empty()) {
         out.push((tr!("macros.names_missing", flavors = s.missing.join(", ")), t.warn));
     }
@@ -2131,7 +2134,8 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
     p.fill(card, 6.0, t.card);
     p.stroke(card, 6.0, t.stroke, 1.0);
     let open = macro_report_rect(f);
-    row_texts(p, f, t, card, open.x, tr!("macros.report_title"), (tr!("macros.report_sub"), t.text2));
+    let sub = v.macros.checked_at().unwrap_or_else(|| tr!("macros.report_sub").to_string());
+    row_texts(p, f, t, card, open.x, tr!("macros.report_title"), (&sub, t.text2));
     let style = if has_findings(v) {
         Style::Plain {
             hover: hover == Some(Hit::MacroReport),
@@ -3204,6 +3208,7 @@ mod tests {
             name: "Heal".into(),
             line,
             kind,
+            fixed: None,
         }
     }
 

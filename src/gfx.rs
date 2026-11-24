@@ -224,6 +224,16 @@ pub fn wrap_format(dw: &IDWriteFactory, size: f32, bold: bool) -> Result<IDWrite
     Ok(f)
 }
 
+/// Like `wrap_format`, in a fixed-width font (macro text).
+pub fn mono_format(dw: &IDWriteFactory, size: f32) -> Result<IDWriteTextFormat> {
+    let f = text_format(dw, "Consolas", size, false, Align::Left)?;
+    unsafe {
+        f.SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP)?;
+        f.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR)?;
+    }
+    Ok(f)
+}
+
 /// The height `s` takes in `fmt` wrapped at `width`.
 pub fn text_height(fmt: &IDWriteTextFormat, s: &str, width: f32) -> f32 {
     let measure = || -> Result<f32> {
@@ -457,6 +467,145 @@ impl Surface {
     }
 }
 
+// ---------------------------------------------------------------- rich text and selection
+
+/// A piece of a text drawn bold in `color`: a byte range of the string.
+#[derive(Clone, Debug)]
+pub struct Mark {
+    pub range: std::ops::Range<usize>,
+    pub color: D2D1_COLOR_F,
+}
+
+/// The UTF-16 position of byte `at` of `s` (DirectWrite counts UTF-16 units).
+pub fn utf16_at(s: &str, at: usize) -> u32 {
+    s[..at.min(s.len())].encode_utf16().count() as u32
+}
+
+/// The byte offset of UTF-16 position `pos` of `s` (the end when it is past it).
+pub fn byte_at(s: &str, pos: u32) -> usize {
+    let mut units = 0;
+    for (i, c) in s.char_indices() {
+        if units >= pos {
+            return i;
+        }
+        units += c.len_utf16() as u32;
+    }
+    s.len()
+}
+
+/// A layout of `s` in `fmt` wrapped at `width`, the marks set bold.
+pub fn make_layout(fmt: &IDWriteTextFormat, s: &str, width: f32, marks: &[Mark]) -> Result<IDWriteTextLayout> {
+    let text: Vec<u16> = s.encode_utf16().collect();
+    unsafe {
+        let layout = dwrite()?.CreateTextLayout(&text, fmt, width, 10_000.0)?;
+        for m in marks
+            .iter()
+            .filter(|m| m.range.start < m.range.end && s.is_char_boundary(m.range.start) && m.range.end <= s.len())
+        {
+            if s.is_char_boundary(m.range.end) {
+                layout.SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, text_range(s, &m.range))?;
+            }
+        }
+        Ok(layout)
+    }
+}
+
+fn text_range(s: &str, r: &std::ops::Range<usize>) -> DWRITE_TEXT_RANGE {
+    DWRITE_TEXT_RANGE {
+        startPosition: utf16_at(s, r.start),
+        length: utf16_at(s, r.end) - utf16_at(s, r.start),
+    }
+}
+
+/// The height of `s` wrapped at `width` with its marks set bold.
+pub fn rich_height(fmt: &IDWriteTextFormat, s: &str, width: f32, marks: &[Mark]) -> f32 {
+    let measure = || -> Result<f32> {
+        let mut m = DWRITE_TEXT_METRICS::default();
+        unsafe { make_layout(fmt, s, width, marks)?.GetMetrics(&mut m)? };
+        Ok(m.height)
+    };
+    measure().unwrap_or_else(|_| text_height(fmt, s, width))
+}
+
+/// The UTF-16 position of the character boundary nearest the point (`x`, `y`) of the layout (clamped into the text).
+pub fn hit_index(layout: &IDWriteTextLayout, x: f32, y: f32) -> u32 {
+    let (mut trailing, mut inside) = (windows::core::BOOL(0), windows::core::BOOL(0));
+    let mut m = DWRITE_HIT_TEST_METRICS::default();
+    unsafe {
+        if layout.HitTestPoint(x, y, &mut trailing, &mut inside, &mut m).is_err() {
+            return 0;
+        }
+    }
+    m.textPosition + if trailing.as_bool() { m.length } else { 0 }
+}
+
+/// The rectangles a UTF-16 range covers in the layout (one per line it touches).
+pub fn range_rects(layout: &IDWriteTextLayout, start: u32, len: u32) -> Vec<R> {
+    if len == 0 {
+        return Vec::new();
+    }
+    let mut count = 0u32;
+    unsafe {
+        // The first call only counts: it fails with "insufficient buffer" by design.
+        let _ = layout.HitTestTextRange(start, len, 0.0, 0.0, None, &mut count);
+        if count == 0 {
+            return Vec::new();
+        }
+        let mut metrics = vec![DWRITE_HIT_TEST_METRICS::default(); count as usize];
+        if layout.HitTestTextRange(start, len, 0.0, 0.0, Some(&mut metrics), &mut count).is_err() {
+            return Vec::new();
+        }
+        metrics
+            .iter()
+            .take(count as usize)
+            .map(|m| R {
+                x: m.left,
+                y: m.top,
+                w: m.width,
+                h: m.height,
+            })
+            .collect()
+    }
+}
+
+impl Painter<'_> {
+    /// Draws `s` in `r` like `text`, with `marks` bold in their colors and `sel` (a UTF-16 range, the highlight's color)
+    /// painted behind the text.
+    pub fn rich_text(&self, s: &str, fmt: &IDWriteTextFormat, r: R, color: D2D1_COLOR_F, marks: &[Mark], sel: Option<(std::ops::Range<u32>, D2D1_COLOR_F)>) {
+        let Ok(layout) = make_layout(fmt, s, r.w, marks) else {
+            return self.text(s, fmt, r, color);
+        };
+        unsafe {
+            let origin = windows_numerics::Vector2 { X: r.x, Y: r.y };
+            if let Some((range, c)) = sel.filter(|(range, _)| range.start < range.end) {
+                for q in range_rects(&layout, range.start, range.end - range.start) {
+                    self.fill(
+                        R {
+                            x: r.x + q.x,
+                            y: r.y + q.y,
+                            ..q
+                        },
+                        0.0,
+                        c,
+                    );
+                }
+            }
+            for m in marks
+                .iter()
+                .filter(|m| m.range.start < m.range.end && s.is_char_boundary(m.range.start) && m.range.end <= s.len())
+            {
+                if s.is_char_boundary(m.range.end)
+                    && let Ok(brush) = self.rt.CreateSolidColorBrush(&m.color, None)
+                {
+                    let _ = layout.SetDrawingEffect(&brush, text_range(s, &m.range));
+                }
+            }
+            self.brush.SetColor(&color);
+            self.rt.DrawTextLayout(origin, &layout, self.brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+        }
+    }
+}
+
 // ---------------------------------------------------------------- windows
 
 /// Where the taskbar is docked: 0 left, 1 top, 2 right, 3 bottom.
@@ -673,6 +822,43 @@ pub fn render_png(path: &str, w: f32, h: f32, scale: f32, draw: impl FnOnce(&Pai
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn utf16_positions_and_byte_offsets_agree_across_surrogate_pairs() {
+        let s = "a😀б";
+        assert_eq!((utf16_at(s, 0), utf16_at(s, 1), utf16_at(s, 5), utf16_at(s, 7)), (0, 1, 3, 4));
+        assert_eq!((byte_at(s, 0), byte_at(s, 1), byte_at(s, 3), byte_at(s, 4), byte_at(s, 99)), (0, 1, 5, 7, 7));
+        // a position inside a surrogate pair rounds forward to the next character
+        assert_eq!(byte_at(s, 2), 5);
+    }
+
+    #[test]
+    fn a_layout_is_hit_tested_and_a_range_has_rectangles() {
+        let dw = dwrite().unwrap();
+        let fmt = wrap_format(&dw, 13.0, false).unwrap();
+        let layout = make_layout(
+            &fmt,
+            "Огненный шар",
+            300.0,
+            &[Mark {
+                range: 0..6,
+                color: col(0, 0, 0, 1.0),
+            }],
+        )
+        .unwrap();
+        // the left edge is the start, far right and below the end of the text
+        assert_eq!(hit_index(&layout, 0.5, 5.0), 0);
+        assert_eq!(hit_index(&layout, 290.0, 5.0), 12);
+        assert_eq!(hit_index(&layout, 290.0, 500.0), 12);
+        let rects = range_rects(&layout, 0, 12);
+        assert_eq!(rects.len(), 1);
+        assert!(rects[0].w > 20.0 && rects[0].h > 8.0);
+        // the middle of the whole text is somewhere inside it
+        let mid = hit_index(&layout, rects[0].w / 2.0, 5.0);
+        assert!(mid > 2 && mid < 10);
+        assert!(range_rects(&layout, 0, 0).is_empty());
+        assert!(rich_height(&fmt, "Огненный шар", 300.0, &[]) > 8.0);
+    }
 
     #[test]
     fn grey_accent_is_replaced() {

@@ -411,7 +411,22 @@ La pestaña **Macros** del panel hace lo mismo sin línea de comandos. **Revisar
 plano (funciona con el juego abierto y no cambia nada); después la pestaña muestra cuántos problemas hay de cada tipo.
 El botón **Abrir informe** los muestra en una ventana aparte que se puede redimensionar, minimizar y maximizar (se recuerdan su tamaño y su sitio): por cada problema la macro y la línea, dónde está (las macros comunes de la cuenta o un personaje), qué falla y cómo arreglarlo, todo completo, con saltos de línea. Los problemas van del más grave al más leve: los rojos no funcionan (función eliminada, macro demasiado larga, corchetes desparejados, nombre desconocido, nombre o comando en otro idioma en la macro propia de un personaje), los amarillos pueden no funcionar, los grises son informativos (se desconoce el idioma del reino); el encabezado los cuenta, y **Copiar** pone todo el informe en el portapapeles. La última tarjeta muestra los
 nombres de hechizos y objetos descargados (versión del juego e idiomas); **Descargar** los trae — solo al pulsarlo, y
-después la revisión se repite. La revisión solo se hace con este botón, nunca por sí sola.
+después el informe queda como estaba hasta que vuelvas a revisar (avisa de que los nombres se actualizaron). El último informe se guarda (`data\macro-report.json`) y se vuelve a mostrar tras un reinicio, con la hora de la revisión; el texto de la ventana del informe se selecciona con el ratón y se copia con Ctrl+C.
+La revisión solo se hace con este botón, nunca por sí sola.
+
+Donde la comprobación conoce el remedio, la primera tarjeta de la macro muestra además la **macro corregida**: el texto
+entero, con los nombres en el idioma equivocado traducidos (mediante los identificadores de hechizos y objetos), un alias
+de comando de otro idioma sustituido por el comando en inglés (`/cast` funciona en todos los clientes) y las funciones
+eliminadas sustituidas donde la nueva es un reemplazo directo (mismos argumentos y mismos valores devueltos:
+`GetItemCount` pasa a `C_Item.GetItemCount`). Una función que ahora devuelve una tabla (`GetSpellInfo`, `GetSpellCooldown`,
+`UnitBuff`, ...) se sustituye solo donde la macro usa nada más su primer valor (`tostring(GetSpellInfo(x))`,
+`local n = GetSpellInfo(x)`, `if GetSpellInfo(x) then`) y pasa a `(C_Spell.GetSpellInfo(x) or {}).name`; `GetSpellTexture` y
+`IsUsableSpell` se sustituyen con un solo argumento. Un texto así lleva la nota «Función reemplazada: compruébela en el
+juego», y todo lo que la revisión cambió aparece resaltado en él, igual que la parte errónea en el texto del problema. **Copiar**
+pone exactamente ese texto en el portapapeles y lo pegas tú mismo en el juego: WoW Tools nunca escribe en los archivos
+del juego. Una macro común a toda la cuenta recibe un texto por idioma de cliente, cada uno con su idioma de cliente. Lo que no se puede corregir (un nombre desconocido o ambiguo, corchetes sin cerrar, valores ocultos) queda como
+estaba y se cuenta en «Queda por corregir a mano»; un texto corregido de más de 255 caracteres no se ofrece, solo una
+nota. `wow-tools macros` y el informe copiado imprimen los mismos textos.
 
 <p><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/macro-report-es-dark.png"><img src="docs/images/macro-report-es.png" width="720" alt="La ventana del informe de macros"></picture></p>
 
@@ -454,6 +469,7 @@ resto en el idioma elegido.
 | `%LOCALAPPDATA%\WoW Tools\data\addon-updates.json` | historial de actualizaciones (las 20 últimas) |
 | `%LOCALAPPDATA%\WoW Tools\data\self-update.json` | cuándo buscó WoW Tools una nueva versión por última vez |
 | `%LOCALAPPDATA%\WoW Tools\data\game-versions.json` | las últimas versiones del juego vistas, para detectar un parche |
+| `%LOCALAPPDATA%\WoW Tools\data\macro-report.json` | el último informe de macros |
 
 La versión portátil no usa ninguna de estas rutas: mientras haya un `portable.txt` junto a `wow-tools.exe`, la
 configuración está en `config\config.toml` y todo lo demás en `data\` junto al exe (las copias en `data\backups`).
