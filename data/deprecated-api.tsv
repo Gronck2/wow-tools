@@ -18,10 +18,10 @@ GetMouseFocus	GetMouseFoci()[1]	11.0.0	https://warcraft.wiki.gg/wiki/Patch_11.0.
 GetSpellInfo	C_Spell.GetSpellInfo	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellCooldown	C_Spell.GetSpellCooldown	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellCharges	C_Spell.GetSpellCharges	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-GetSpellTexture	C_Spell.GetSpellTexture	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	drop-in
+GetSpellTexture	C_Spell.GetSpellTexture	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellDescription	C_Spell.GetSpellDescription	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellCount	C_Spell.GetSpellCastCount	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
-IsUsableSpell	C_Spell.IsSpellUsable	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	drop-in
+IsUsableSpell	C_Spell.IsSpellUsable	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetNumSpellTabs	C_SpellBook.GetNumSpellBookSkillLines	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellTabInfo	C_SpellBook.GetSpellBookSkillLineInfo	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	
 GetSpellBookItemName	C_SpellBook.GetSpellBookItemName	12.0.0	https://warcraft.wiki.gg/wiki/Patch_12.0.0/API_changes	

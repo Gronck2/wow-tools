@@ -312,7 +312,9 @@ fn find_word(line: &str, word: &str) -> bool {
     line.match_indices(word).any(|(at, _)| {
         let before = line[..at].chars().next_back();
         let after = line[at + word.len()..].chars().next();
-        !before.is_some_and(|c| ident(c) || c == '.' || c == ':') && !after.is_some_and(ident)
+        // `..` is concatenation, not a field access
+        let field = before.is_some_and(|c| c == ':' || (c == '.' && !line[..at - 1].ends_with('.')));
+        !before.is_some_and(ident) && !field && !after.is_some_and(ident)
     })
 }
 
@@ -1199,7 +1201,12 @@ mod tests {
         ] {
             assert_eq!(drop_in(f), None, "{f}");
         }
-        assert_eq!(deprecated().iter().filter(|r| r[4] == "drop-in").count(), 16);
+        // the old book-slot form (slot, bookType) of these two is read as a spell id by C_Spell
+        assert_eq!((drop_in("GetSpellTexture"), drop_in("IsUsableSpell")), (None, None));
+        assert_eq!(deprecated().iter().filter(|r| r[4] == "drop-in").count(), 14);
+        // concatenation is no field access
+        assert!(find_word("print(\"n: \"..GetItemCount(5))", "GetItemCount"));
+        assert!(!find_word("print(C_Item.GetItemCount(5))", "GetItemCount"));
     }
 
     #[test]

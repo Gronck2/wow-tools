@@ -193,31 +193,40 @@ impl Names {
         name
     }
 
-    /// What `dst` calls what `src` calls `lc` (lowercased): through the ids of a spell, else of an item. Rows of `dst`
-    /// that only repeat the text (untranslated) are no answer; two different names left = `Ambiguous`.
+    /// What `dst` calls what `src` calls `lc` (lowercased): through the ids of a spell and of an item. Rows of `dst`
+    /// that only repeat the text (untranslated, not a name of `dst`) are no answer; two different names left, or a
+    /// spell and an item that disagree = `Ambiguous`.
     pub fn translate_exact(&self, src: &str, lc: &str, dst: &str) -> Exact {
         let (Some(s), Some(d)) = (self.locales.get(src), self.locales.get(dst)) else {
             return Exact::None;
         };
+        let mut answers = Vec::new();
         for (from, to) in [(&s.spell, &d.spell), (&s.item, &d.item)] {
             let mut found: Vec<&str> = Vec::new();
             for name in from.by_name.get(lc).into_iter().flatten().filter_map(|id| to.by_id.get(id)) {
                 let name = name.trim();
-                if name.to_lowercase() != lc && !found.iter().any(|f| f.to_lowercase() == name.to_lowercase()) {
+                let low = name.to_lowercase();
+                if low != lc && to.by_name.contains_key(&low) && !found.iter().any(|f| f.to_lowercase() == low) {
                     found.push(name);
                 }
             }
             match found[..] {
                 [] => {}
-                [one] => return Exact::One(one.to_string()),
+                [one] => answers.push(one),
                 _ => return Exact::Ambiguous,
             }
         }
-        Exact::None
+        match answers[..] {
+            [] => Exact::None,
+            [one] => Exact::One(one.to_string()),
+            [a, b] if a.to_lowercase() == b.to_lowercase() => Exact::One(a.to_string()),
+            _ => Exact::Ambiguous,
+        }
     }
 
     /// The name `lang` calls `name` (the bytes of `name` it replaces, that name), when it is wrong for a target of
-    /// `valid` (the languages that work for each target) and exactly one name is known. Targets whose
+    /// `valid` (the languages that work for each target) and exactly one name is known: every other language that
+    /// knows the text must give the same one (homographs across languages = no guess). Targets whose
     /// languages are not all cached are not judged, as in `check`.
     pub fn retarget(&self, name: &str, lang: &str, valid: &[Vec<&str>]) -> Option<(usize, String)> {
         let name = self.base(name);
@@ -229,16 +238,17 @@ impl Names {
         if !wrong {
             return None;
         }
+        let mut one: Option<String> = None;
         for (code, other) in &self.locales {
             if code != lang && other.has(&lc) {
                 match self.translate_exact(code, &lc, lang) {
-                    Exact::One(new) => return Some((name.len(), new)),
-                    Exact::Ambiguous => return None,
+                    Exact::One(new) if one.as_ref().is_none_or(|o| o.to_lowercase() == new.to_lowercase()) => one = Some(new),
+                    Exact::One(_) | Exact::Ambiguous => return None,
                     Exact::None => {}
                 }
             }
         }
-        None
+        one.map(|new| (name.len(), new))
     }
 }
 

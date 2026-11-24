@@ -117,7 +117,8 @@ fn replace_dropin(code: &str) -> String {
             let end = rest.find(|d: char| !(d.is_alphanumeric() || d == '_')).unwrap_or(rest.len());
             let word = &rest[..end];
             let call = rest[end..].trim_start().starts_with('(');
-            let field = code[..i].trim_end().ends_with(['.', ':']);
+            let before = code[..i].trim_end();
+            let field = before.ends_with(':') || (before.ends_with('.') && !before.ends_with(".."));
             match macros::drop_in(word) {
                 Some(new) if call && !field && prev != "function" && prev != "local" => out.push_str(new),
                 _ => out.push_str(word),
@@ -158,7 +159,13 @@ fn fix_line(line: &str, lang: &str, group: &[&Target], retail: bool, names: &Nam
     let valid: Vec<Vec<&str>> = group.iter().map(|t| t.valid()).collect();
     let mut out = line.to_string();
     for span in name_spans(line).iter().rev() {
-        if let Some((len, new)) = names.retarget(&span.name, lang, &valid) {
+        // A `(Rank N)` / `(Subtext)` stays in the old language and would still fail: the name is left (and counted).
+        if line[span.end..].trim_start().starts_with('(') {
+            continue;
+        }
+        if let Some((len, new)) = names.retarget(&span.name, lang, &valid)
+            && len == span.name.len()
+        {
             out.replace_range(span.start..span.start + len, &new);
         }
     }
@@ -174,7 +181,8 @@ fn fix_line(line: &str, lang: &str, group: &[&Target], retail: bool, names: &Nam
 pub fn build(m: &Macro, retail: bool, targets: &[Target], firm: bool, names: &Names) -> Option<MacroFix> {
     let mut groups: BTreeMap<&str, Vec<&Target>> = BTreeMap::new();
     for t in targets {
-        if let Some(lang) = target_lang(t, firm).filter(|l| names.has(l)) {
+        // A language without cached names still gets aliases and drop-ins (`retarget` finds nothing there).
+        if let Some(lang) = target_lang(t, firm) {
             groups.entry(lang).or_default().push(t);
         }
     }
@@ -293,7 +301,7 @@ mod tests {
             fixed[0].1,
             [
                 "#showtooltip Огненный шар",
-                "/cast [@focus,harm] !Огненный шар(Rank 1); [mod] Смерть и разложение",
+                "/cast [@focus,harm] !Fireball(Rank 1); [mod] Смерть и разложение",
                 "/castsequence reset=5/target Огненный шар, Смерть и разложение",
                 "/use Лечебное зелье",
                 "/use 13",
@@ -327,8 +335,59 @@ mod tests {
         // the same text for two languages is one variant for both
         let both = texts(&["/закл Foo"], true, &[target("A-De", "deDE"), target("B-En", "enUS")], false);
         assert_eq!(both, [("deDE/enUS".to_string(), "/cast Foo".to_string())]);
-        // a language whose names are not cached gives no variant
+        // a language whose names are not cached gives no variant for names...
         assert!(texts(&["/cast Fireball"], true, &[target("C-Fr", "frFR")], true).is_empty());
+    }
+
+    #[test]
+    fn a_language_without_tables_still_gets_aliases_and_drop_ins() {
+        let fr = [target("A-Fr", "frFR")];
+        let got = texts(&["/run GetItemCount(5)", "/закл Feuerball"], true, &fr, true);
+        assert_eq!(
+            got,
+            [(
+                "frFR".into(),
+                "/run C_Item.GetItemCount(5)
+/cast Feuerball"
+                    .into()
+            )]
+        );
+    }
+
+    #[test]
+    fn a_rank_or_subtext_in_the_old_language_keeps_the_name_and_is_counted() {
+        let ru = [target("A-Ru", "ruRU")];
+        assert!(texts(&["/cast Fireball(Rank 1)", "/cast Fireball (Racial)"], true, &ru, true).is_empty());
+        let fix = build(&mac(&["/cast Fireball(Rank 1)", "/cast Fireball"]), true, &ru, true, &names()).unwrap();
+        assert_eq!(
+            fix.variants[0].text,
+            "/cast Fireball(Rank 1)
+/cast Огненный шар"
+        );
+        assert_eq!(fix.variants[0].rest, 1);
+    }
+
+    #[test]
+    fn a_name_that_means_two_things_or_has_an_untranslated_row_is_not_guessed() {
+        let ru = [target("A-Ru", "ruRU")];
+        // deDE Sturmangriff = Charge: ruRU has only the untranslated English row
+        let n = Names::fake(&[
+            ("enUS", &[(3, "Charge")], &[]),
+            ("ruRU", &[(3, "Charge")], &[]),
+            ("deDE", &[(3, "Sturmangriff")], &[]),
+        ]);
+        assert!(build(&mac(&["/cast Sturmangriff"]), true, &ru, true, &n).is_none());
+        // the same text is a spell in deDE and in frFR with different Russian names: no guess
+        let n = Names::fake(&[
+            ("enUS", &[(1, "A"), (2, "B")], &[]),
+            ("ruRU", &[(1, "Один"), (2, "Два")], &[]),
+            ("deDE", &[(1, "Wort")], &[]),
+            ("frFR", &[(2, "Wort")], &[]),
+        ]);
+        assert!(build(&mac(&["/cast Wort"]), true, &ru, true, &n).is_none());
+        // a spell and an item of one name with different Russian names: no guess
+        let n = Names::fake(&[("enUS", &[(1, "Potion")], &[(5, "Potion")]), ("ruRU", &[(1, "Зелье")], &[(5, "Эликсир")])]);
+        assert!(build(&mac(&["/use Potion"]), true, &ru, true, &n).is_none());
     }
 
     #[test]
@@ -391,9 +450,17 @@ mod tests {
             "/run print(C_Item.GetItemCount(1), obj:GetItemCount(1))",
             "/run function GetItemCount(x) end",
             "/run local GetItemCount = GetItemCount",
+            "/run print(\"n: \"..C_Item.GetItemCount(1))",
         ] {
             assert_eq!(fixed(line), None, "{line}");
         }
+        // `..` is concatenation, not a field
+        assert_eq!(
+            fixed("/run print(\"n: \"..GetItemCount(5))").as_deref(),
+            Some("/run print(\"n: \"..C_Item.GetItemCount(5))")
+        );
+        // GetSpellTexture / IsUsableSpell took (slot, bookType) too: not a drop-in
+        assert_eq!(fixed("/run x = IsUsableSpell(1)"), None);
         // only Retail has removed functions
         assert!(texts(&["/run print(GetItemCount(5))"], false, &en, true).is_empty());
         // partly fixed: the table-returning call stays and is counted
