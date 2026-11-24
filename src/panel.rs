@@ -2019,15 +2019,6 @@ fn macro_hits(v: &View, f: &Formats, out: &mut Vec<(R, Hit)>) {
 }
 
 /// The text of the counts card: how many findings of each kind.
-/// "Checked macros: N · Checked: 24.11 14:05" for the line under a finished check's title.
-fn checked_line(m: &tray::MacroCheck, n: usize) -> String {
-    let count = tr!("macros.checked", n = n);
-    match m.checked_at() {
-        Some(at) => format!("{count} · {at}"),
-        None => count,
-    }
-}
-
 fn macro_counts_text(v: &View) -> String {
     match v.macros.scan.as_deref() {
         None => tr!("macros.counts_hint").to_string(),
@@ -2085,11 +2076,15 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
             tr!("macros.not_checked").to_string(),
             (tr!("macros.not_checked_sub").to_string(), t.text2),
         ),
-        (Some(s), None) if s.findings.is_empty() => (("\u{E930}", t.ok), tr!("macros.clean").to_string(), (checked_line(m, s.checked), t.text2)),
+        (Some(s), None) if s.findings.is_empty() => (
+            ("\u{E930}", t.ok),
+            tr!("macros.clean").to_string(),
+            (tr!("macros.checked", n = s.checked), t.text2),
+        ),
         (Some(s), None) => (
             ("\u{E7BA}", t.warn),
             tr!("macros.found", n = s.findings.len()),
-            (checked_line(m, s.checked), t.text2),
+            (tr!("macros.checked", n = s.checked), t.text2),
         ),
     };
     draw_status(p, t, f, (icon, icon_color), &line1, (&line2, line2_color));
@@ -2139,7 +2134,8 @@ fn draw_macros(p: &Painter, v: &View, t: &Theme, f: &Formats, hover: Option<Hit>
     p.fill(card, 6.0, t.card);
     p.stroke(card, 6.0, t.stroke, 1.0);
     let open = macro_report_rect(f);
-    row_texts(p, f, t, card, open.x, tr!("macros.report_title"), (tr!("macros.report_sub"), t.text2));
+    let sub = v.macros.checked_at().unwrap_or_else(|| tr!("macros.report_sub").to_string());
+    row_texts(p, f, t, card, open.x, tr!("macros.report_title"), (&sub, t.text2));
     let style = if has_findings(v) {
         Style::Plain {
             hover: hover == Some(Hit::MacroReport),
