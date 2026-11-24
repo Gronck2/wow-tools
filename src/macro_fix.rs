@@ -351,6 +351,23 @@ mod tests {
     }
 
     #[test]
+    fn ids_stay_and_every_name_command_is_fixed() {
+        let ru = [target("A-Ru", "ruRU")];
+        let body = [
+            "#show Fireball",
+            "/use item:10",
+            "/use [mod] item:10; Healing Potion",
+            "/castrandom Fireball, Death and Decay",
+            "/userandom Healing Potion",
+        ];
+        let fixed = &texts(&body, true, &ru, true)[0].1;
+        assert_eq!(
+            fixed.as_str(),
+            "#show Огненный шар\n/use item:10\n/use [mod] item:10; Лечебное зелье\n/castrandom Огненный шар, Смерть и разложение\n/userandom Лечебное зелье"
+        );
+    }
+
+    #[test]
     fn aliases_become_the_english_command() {
         let en = [target("A-En", "enUS")];
         assert_eq!(texts(&["/закл [@focus] Огненный шар"], true, &en, true)[0].1, "/cast [@focus] Fireball");
