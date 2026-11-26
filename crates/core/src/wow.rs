@@ -429,8 +429,12 @@ pub fn running_in(games: &[Running], fl: &Flavor) -> Option<String> {
 }
 
 fn same_dir(a: &Path, b: &Path) -> bool {
-    let norm = |p: &Path| p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase();
-    norm(a) == norm(b)
+    dir_key(a) == dir_key(b)
+}
+
+/// A folder path as one comparable text: backslashes, no trailing one, lowercase.
+pub(crate) fn dir_key(p: &Path) -> String {
+    p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase()
 }
 
 #[cfg(test)]

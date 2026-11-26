@@ -180,7 +180,20 @@ pub fn check_patches(ctx: &Ctx) -> Vec<Patch> {
         changed |= previous.as_deref() != Some(version.as_str());
         let Some(from) = previous.filter(|p| *p != version) else { continue };
         let mut saved = Vec::new();
-        if wow::running_in(&games, fl).is_none() {
+        let lock = if wow::running_in(&games, fl).is_none() {
+            match crate::lock::acquire(fl, "pre-patch snapshot") {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    // Keep the old version so the next round retries the snapshot.
+                    log::error!("{}: {e:#}", fl.title());
+                    known.insert(fl.name.clone(), from);
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
+        if lock.is_some() {
             let mut kinds = vec![Kind::Wtf];
             if ctx.cfg.include_addons {
                 kinds.push(Kind::Addons);
@@ -475,6 +488,7 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
     if closed.is_empty() {
         bail!(tr!("cleanup.game_running"));
     }
+    let _locks = closed.iter().map(|fl| crate::lock::acquire(fl, "clean")).collect::<Result<Vec<_>>>()?;
     let skipped = |s: &mut String| {
         if !running.is_empty() {
             let titles: Vec<String> = running.iter().map(Flavor::title).collect();
@@ -664,6 +678,35 @@ mod tests {
         toc("ClassicOnly", "ClassicOnly.toc", "## Interface: 11507\n");
         toc("Blizzard_Thing", "Blizzard_Thing.toc", "## Interface: 10000\n");
         assert_eq!(outdated(&fl), ["Old"]);
+    }
+
+    #[test]
+    fn clean_refuses_a_held_lock_and_snapshots_inside_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("wow");
+        let fl = Flavor::new("_retail_", root.join("_retail_"));
+        let gone = fl.wtf_dir().join(r"Account\ACC\SavedVariables\Gone.lua");
+        fs::create_dir_all(fl.dir.join(r"Interface\AddOns\Details")).unwrap();
+        touch(&gone, 100);
+        let ctx = Ctx {
+            cfg: Config {
+                wow_path: Some(root),
+                backup_dir: tmp.path().join("backups"),
+                ..Config::default()
+            },
+            config_path: tmp.path().join("config.toml"),
+            explicit_config: None,
+        };
+        let fl = ctx.flavors(Some("_retail_")).unwrap().remove(0);
+        let held = crate::lock::acquire(&fl, "backup").unwrap();
+        let err = clean(&ctx, Item::Orphans).unwrap_err();
+        assert!(format!("{err:#}").contains("backup"), "{err:#}");
+        assert!(gone.exists() && !tmp.path().join("backups").exists(), "nothing written");
+        drop(held);
+        // pre-cleanup snapshot inside the lock must not take it again.
+        clean(&ctx, Item::Orphans).unwrap();
+        assert!(!gone.exists());
+        assert_eq!(ctx.store().list(&fl, Kind::Wtf).unwrap().len(), 1);
     }
 
     #[test]

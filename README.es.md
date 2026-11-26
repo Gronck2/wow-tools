@@ -555,7 +555,7 @@ cargo build --release
 Rust stable, Windows. La CI (GitHub Actions) comprueba el formato, clippy, los tests y la compilación en cada push; una
 etiqueta `vX.Y.Z` que coincida con la versión de `Cargo.toml` compila el exe, el instalador (Inno Setup,
 `packaging/installer.iss`) y el zip portátil y crea un borrador de versión; al publicarla, la nueva versión se envía a
-winget. Los textos están en `locales/<idioma>.toml`.
+winget. Los textos están en `crates/core/locales/<idioma>.toml`.
 
 ## Comprobar las descargas
 

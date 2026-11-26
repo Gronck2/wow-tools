@@ -34,7 +34,7 @@ fn parse_latest(body: &[u8]) -> Result<Latest> {
 }
 
 fn fetch_latest() -> Result<Latest> {
-    let (status, body) = crate::selfupdate::http::get(API, Some("application/json"))?;
+    let (status, body) = crate::http::get(API, Some("application/json"))?;
     if status != 200 {
         bail!(tr!("elvui.http", status = status));
     }
@@ -95,12 +95,12 @@ pub fn update(flavors: &[Flavor]) -> Result<Option<String>> {
     for (fl, addons, versions) in targets {
         let current = &versions[0];
         let mixed = versions.len() > 1;
-        if !mixed && !crate::selfupdate::newer(&latest.version, current) {
+        if !mixed && !crate::version::newer(&latest.version, current) {
             log::info!("{}", tr!("elvui.fresh", version = current, flavor = fl.title()));
             continue;
         }
         if zip.is_none() {
-            let (status, bytes) = crate::selfupdate::http::get(&latest.url, None)?;
+            let (status, bytes) = crate::http::get(&latest.url, None)?;
             if status != 200 {
                 bail!(tr!("elvui.http", status = status));
             }
@@ -114,7 +114,7 @@ pub fn update(flavors: &[Flavor]) -> Result<Option<String>> {
         };
         log::info!("{line}");
         for v in &versions {
-            if oldest.as_ref().is_none_or(|o| crate::selfupdate::newer(o, v)) {
+            if oldest.as_ref().is_none_or(|o| crate::version::newer(o, v)) {
                 oldest = Some(v.clone());
             }
         }

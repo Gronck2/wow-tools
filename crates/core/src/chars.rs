@@ -33,6 +33,7 @@ pub enum Part {
 }
 
 /// By hand, so `--help` describes the parts in the interface language.
+#[cfg(feature = "clap")]
 impl clap::ValueEnum for Part {
     fn value_variants<'a>() -> &'a [Self] {
         &Part::ALL

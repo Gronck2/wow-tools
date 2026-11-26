@@ -2,6 +2,11 @@
 
 What changed in each version of WoW Tools. The release notes on GitHub are taken from here.
 
+## [Unreleased]
+
+- Two WoW Tools processes (the tray, `watch`, a scheduled run, the command line) no longer change the same game folder at
+  once: the second one stops with "another WoW Tools is already working on ..." and the automatic runs try again later.
+
 ## [0.8.0] - 2026-11-24
 
 - New command `wow-tools macros [--flavor F]`: reads the macros of every account and character and lists what is

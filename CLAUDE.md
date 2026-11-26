@@ -11,7 +11,7 @@ The owner speaks Russian. Talk to them in Russian. Code, comments and commit mes
 ## Interface languages
 
 Every user-facing string (windows, balloons, errors, log lines, CLI output, `--help`) lives in
-`locales/{ru,en,de,fr,es}.toml`, never in the code: `tr!("section.key")` (-> `&'static str`) or
+`crates/core/locales/{ru,en,de,fr,es}.toml`, never in the code: `tr!("section.key")` (-> `&'static str`) or
 `tr!("section.key", name = value)` (-> `String`, `{name}` in the text). `i18n.rs` embeds the files, falls back to
 English, then to the key. The language is `Config::language` (unset = the Windows display language), set by
 `i18n::set` at start (`main::early_language` reads `--config` before clap parses) and by the settings picker.
@@ -29,7 +29,7 @@ code; every visible command/argument has a help key. Tests assert Russian texts 
 - `cargo` is in `%USERPROFILE%\.cargo\bin` and is **not on PATH** in agent shells. Current `windows-*` crates
   need `dlltool`, which comes from WinLibs MinGW (installed via winget, on the user PATH but not in agent shells):
   `export PATH="$HOME/.cargo/bin:$LOCALAPPDATA/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin:$PATH"` (Bash).
-- Before committing, run what CI runs: `cargo fmt --check`, `cargo clippy --release --all-targets -- -D warnings`, `cargo test --release`.
+- Before committing, run what CI runs: `cargo fmt --all --check`, `cargo clippy --workspace --release --all-targets --locked -- -D warnings`, `cargo test --workspace --release --locked` (the core alone: `cargo test -p wow-tools-core --release --locked`).
   `rustfmt.toml` sets `max_width = 160`.
 - Tests live at the bottom of each module and use `tempfile` fake WoW trees. Never write to the real install
   (`C:\Games\World of Warcraft`) from tests or experiments: use `--config <scratch>.toml` with a scratch
@@ -85,6 +85,24 @@ The owner often plays WoW while we work: never screenshot the screen or bring wi
 
 ## Layout
 
+A cargo workspace: the root package `wow-tools` (`src/`: exe, CLI, tray, windows, self-update) on the library crate
+`wow-tools-core` (`crates/core/`, with `locales/` and `data/`). The core has no window, tray, installer or self-update
+and never imports them (`docs/arch/overview.md`: public API, the lock). The program re-exports the core's modules at its
+root (`main.rs`), so the window code still says `crate::config`. Below, paths are in `src/` unless a module is in the
+core: `i18n`, `config`, `wow`, `snapshot`, `chars`, `lua`, `editmode`, `profiles`, `maintenance`, `app`, `watch`,
+`updater`, `curseforge`, `wowup`, `wago`, `elvui`, `macros`, `macro_fix`, `macro_names`, `macro_store`, `http`, `version`
+and `lock` live in `crates/core/src/`. `Kind` (`snapshot`) and `chars::Part` implement `clap::ValueEnum` behind the core's
+optional `clap` feature (on in the program, off for other shells). Core tests: `cargo test -p wow-tools-core`.
+- `lock.rs`: one writer per WoW folder. `lock::acquire(&Flavor, what)` takes a fail-fast file lock
+  (`File::try_lock`) on `%LOCALAPPDATA%\WoW Tools\locks\<sha256(lowercased flavor folder)[..16]>.lock` (not the portable
+  dir: a portable and an installed copy exclude each other; Windows frees it when the process dies); busy = error
+  `app.busy` naming the holder (`<pid> <operation>` in `<hash>.info`: a locked file cannot be read by another handle).
+  Taken at the outermost entry only (a second handle in one process fails): `app::backup_all` (per flavor; a busy one is
+  a report error and the loop goes on), `app::restore_apply`, `app::update_addons` (all selected flavors, for the run),
+  `profiles::apply`, `maintenance::clean` (every item) and `check_patches` (snapshot), `main::cmd_copy_char` (not dry-run).
+  Callees (`safety_snapshot`, `Store::backup`) never take it. Tests use a temp dir for the lock folder.
+- `http.rs` / `version.rs`: the WinHTTP `get` (user agent from `http::set_user_agent`, called first in `main`) and
+  `newer`; `selfupdate` re-exports both.
 - `main.rs`: CLI (clap) and printing. No subcommand = `tray`. Runs `config::migrate_legacy` first. Logging goes to
   `%LOCALAPPDATA%\WoW Tools\data\wow-tools.log` (local time) for `--log-to-file` and the tray, to the console otherwise.
 - `app.rs`: `Ctx` (config + paths) and the operations shared by CLI, `watch` and tray: `backup_all` (returns a `Report`),
@@ -226,7 +244,7 @@ of the process while it runs. Only per-addon
   is respected and reported. Downloading `latestFile.downloadUrl` ourselves was rejected: authors of some addons
   forbid third-party downloads (`allowModDistribution: false`) and the app's records would go stale.
 - `chars.rs`: characters at `WTF/Account/<ACC>/<Realm>/<Name>`; names are often Cyrillic, so matching uses `to_lowercase`.
-- `macros.rs`: `wow-tools macros`, read-only check of every `macros-cache.txt` (parser, `check`, `scan`, `report`). Tables embedded from `data/`: `realms.tsv` (LibRealmInfo, zlib: `THIRD-PARTY.md`; realm folder matched by name, then realm id via `profiles::Roster`, Cyrillic = ruRU "from the name"), `deprecated-api.tsv` (Retail only), `slash-aliases.tsv` (hand table). Findings: `Target::valid` = a Russian realm accepts only ruRU, any other the realm's language or `Target::client` (`client_locale`: `Config.wtf` `textLocale`, else `locale`; + ruRU when the account has a ruRU-realm character); a failing ruRU realm is "bad" (firm in a character's own macro, else "may not work"), another realm "works only with the <lang> client", a realm of unknown language is never bad (`unknown`). `Finding::level` (`Level` Broken/Warn/Info: removed API, too long, brackets, unknown name, firm wrong language and firm alias = Broken; secret values, maybe/client wrong language and soft or maybe alias = Warn; realm-language-unknown ones = Info) and `sort_findings` (level, flavor, scope, macro, line) order `Scan::findings`; `report` marks each level group.
+- `macros.rs`: `wow-tools macros`, read-only check of every `macros-cache.txt` (parser, `check`, `scan`, `report`). Tables embedded from `crates/core/data/`: `realms.tsv` (LibRealmInfo, zlib: `THIRD-PARTY.md`; realm folder matched by name, then realm id via `profiles::Roster`, Cyrillic = ruRU "from the name"), `deprecated-api.tsv` (Retail only), `slash-aliases.tsv` (hand table). Findings: `Target::valid` = a Russian realm accepts only ruRU, any other the realm's language or `Target::client` (`client_locale`: `Config.wtf` `textLocale`, else `locale`; + ruRU when the account has a ruRU-realm character); a failing ruRU realm is "bad" (firm in a character's own macro, else "may not work"), another realm "works only with the <lang> client", a realm of unknown language is never bad (`unknown`). `Finding::level` (`Level` Broken/Warn/Info: removed API, too long, brackets, unknown name, firm wrong language and firm alias = Broken; secret values, maybe/client wrong language and soft or maybe alias = Warn; realm-language-unknown ones = Info) and `sort_findings` (level, flavor, scope, macro, line) order `Scan::findings`; `report` marks each level group.
 
 - `macro_fix.rs`: the fixed text of a macro for the report (pure, `build(macro, retail, targets, firm, names)` -> `MacroFix { variants }`; `Variant` = lang, text, chars, marks (byte ranges of what was replaced, highlighted by the report), check (a table function was replaced: "check in game" note), over (> 255 = no text, only the mark), rest (findings the text leaves, TooLong excluded)). Language per target (`target_lang`): ru realm = ruRU; own macro = realm language, account macro = `Target::client_main` (else realm). Targets of one language form a group; texts that come out equal merge; a language with no cached tables gives no variant. Per line (`fix_line`): `/run` `/script` -> `rewrite_code` (column 5 of `deprecated-api.tsv`: `drop-in` as is; `first:<field>:<min>-<max>` = table functions -> `(C_X.F(args) or {}).field` only when `single_value(before, after)` says one value is used: operand of an operator, condition, one-target assignment, parenthesised, non-last list element, sole argument of `tostring` (not `print`: it shows every return), and the argument count fits; `one-arg` = `GetSpellTexture`/`IsUsableSpell` with one argument; a call outside strings/comments, not a field or definition); lines with unbalanced `[ ]` stay; names via `Names::retarget` (needs `valid` of some target wrong, one unambiguous `translate_exact`, spans from `macro_names::name_spans`); an alias of a language the group lacks -> `canonical_command`. `Finding::fixed` is the same `Arc` on every finding of a macro; `macros::first_fixes` marks the first (the only one shown: `report.rs` block + Copy button -> `Action::CopyFix(Arc<str>)`, `macros::report` via `macro_fix::render`). Rows verified against warcraft.wiki.gg and Blizzard's API documentation (wow-ui-source `live`): `UseContainerItem` (3rd/4th arguments changed) is not rewritten. Names with an inline icon (`|A:..|a`) are skipped by the checks and counted in `rest` (`macro_names::marked`).
 - `macro_names.rs`: name data for `macros`: `--update-names` (only on request) downloads wago.tools `SpellName` / `ItemSparse` CSVs (item names = its `Display_lang` column; `ItemSearchName` lacks many consumables; ~50-60 MB per locale, so `selfupdate::http::get` caps at 128 MB; a cache without the `item-sparse` entry is not current) per product (`wow::product`) and realm locale (+ the client locales of `Target::valid`, + enUS) into `data\names\<product>-<locale>.zip` (+ `.meta` = `<build of /api/builds/<product>/latest>\titem-sparse`; current = no download; a meta without the tab part is stale); a table over 98% identical to enUS is rejected. `check` finds names (`/cast /use /castsequence /castrandom /userandom #showtooltip #show` + aliases) in the wrong language (with the realm-language name) or unknown; no cache = `Scan::missing` hint. `selfupdate::http::get` caps a body at 128 MB.
@@ -325,27 +343,27 @@ contract. Do not add same-named `.claude/agents/` copies unless a deliberate ove
 - **Branch naming:** task/NNNN-slug; docs-only work on docs/<slug>
 - **Docs layout:** tasks docs/tasks/, plans docs/plan/ (shared NNNN numbering), ADRs docs/adr/ (immutable), living
   docs: docs/arch/overview.md. docs/images/ stays as is (screenshots from `ui-snapshot`). Docs language: English.
-- **Test paths:** inline `#[cfg(test)]` modules at the bottom of src/*.rs (no tests/ dir); site/ has no tests
+- **Test paths:** inline `#[cfg(test)]` modules at the bottom of src/*.rs and crates/core/src/*.rs (no tests/ dir); site/ has no tests
   (build.py validates)
 - **Gate commands** (per part; run a part's commands when the diff touches files under it, from the repo root). The
   shell needs the PATH from "Build and check" (cargo + WinLibs `dlltool`):
-  - root (Rust; src/, locales/, build.rs, Cargo.*, assets/, packaging/):
-    - format: `cargo fmt --check`
-    - lint: `cargo clippy --release --all-targets --locked -- -D warnings`
-    - tests: `cargo test --release --locked`
+  - root (Rust workspace; src/, crates/, build.rs, Cargo.*, assets/, packaging/):
+    - format: `cargo fmt --all --check`
+    - lint: `cargo clippy --workspace --release --all-targets --locked -- -D warnings`
+    - tests: `cargo test --workspace --release --locked`
   - `site/` (also when docs/images/ or assets/wow-tools.ico change):
     - build: `uv run --no-project python site/build.py <scratchpad>/site` (`python3` here is only the Store alias)
   - No `cargo build --release --locked` gate: it fails while the tray runs from target\release, and clippy and the
     tests already build release. Never stop the tray to make a build pass.
-- **Security-shaped paths:** src/selfupdate.rs, src/elvui.rs, src/schedule.rs, src/config.rs, src/main.rs,
-  src/snapshot.rs, src/curseforge.rs, src/wowup.rs, src/wago.rs, build.rs, wow-tools.rc, .cargo/config.toml,
+- **Security-shaped paths:** src/selfupdate.rs, crates/core/src/lock.rs, crates/core/src/http.rs, crates/core/src/elvui.rs, src/schedule.rs, crates/core/src/config.rs, src/main.rs,
+  crates/core/src/snapshot.rs, crates/core/src/curseforge.rs, crates/core/src/wowup.rs, crates/core/src/wago.rs, build.rs, wow-tools.rc, .cargo/config.toml,
   packaging/installer.iss, packaging/winget/, .github/workflows/release.yml, .github/workflows/winget.yml,
   .github/workflows/pages.yml, site/site.js
 - **Merge/release policy:** PR opened without asking; only the owner merges (squash), only with green CI; direct
   pushes to main, version bumps, tags (`v1.2.3` = Cargo.toml version), publishing the draft release and force-push
   only on the owner's explicit request; never propose merging a PR whose CI is red or pending. Every user-visible
   change adds to the `## [x.y.z]` section of CHANGELOG.md (see "GitHub, CI and releases").
-- **Extra rules:** see "Interface languages" (every user-facing string in locales/{ru,en,de,fr,es}.toml via `tr!`,
+- **Extra rules:** see "Interface languages" (every user-facing string in crates/core/locales/{ru,en,de,fr,es}.toml via `tr!`,
   Russian is the source; site texts in site/locales/*.toml); "Build and check" (never touch the real WoW install from
   tests or experiments, `--config <scratch>.toml`; Edit tool for text with backslashes); "Seeing the UI without a
   screen" (UI is checked only via `wow-tools ui-snapshot`; never screenshot the screen or bring windows to the

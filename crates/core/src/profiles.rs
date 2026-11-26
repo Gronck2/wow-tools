@@ -346,6 +346,7 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         bail!(tr!("profiles.same", name = profile.title()));
     }
     app::ensure_game_closed(fl)?;
+    let _lock = crate::lock::acquire(fl, "profile-apply")?;
     let mut zip = ZipArchive::new(File::open(&profile.path).with_context(|| tr!("error.read", path = profile.path.display()))?)?;
     let mut text = String::new();
     zip.by_name(ADDONS)?.read_to_string(&mut text)?;
@@ -986,6 +987,30 @@ mod tests {
             config_path: backups.join("config.toml"),
             explicit_config: None,
         }
+    }
+
+    #[test]
+    fn apply_refuses_a_held_lock_and_writes_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let fl = Flavor::new("_retail_", tmp.path().join("_retail_"));
+        let acc = fl.wtf_dir().join("Account/ACC");
+        for c in ["Realm/Main", "Realm/Alt"] {
+            fs::create_dir_all(acc.join(c)).unwrap();
+        }
+        fs::create_dir_all(acc.join("SavedVariables")).unwrap();
+        fs::write(acc.join("Realm/Main/edit-mode-cache-character.txt"), "LAYOUT").unwrap();
+        let ctx = ctx(&tmp.path().join("backups"));
+        let all = chars::list(&fl.wtf_dir());
+        save(&ctx, &fl, chars::find(&all, "ACC/Realm/Main").unwrap()).unwrap();
+        let profile = list(&root(&ctx)).remove(0);
+        let alt = chars::find(&all, "Realm/Alt").unwrap();
+        let held = crate::lock::acquire(&fl, "backup").unwrap();
+        let err = apply(&ctx, &fl, &profile, alt).unwrap_err();
+        assert!(format!("{err:#}").contains("backup"), "{err:#}");
+        assert!(!alt.dir.join("edit-mode-cache-character.txt").exists() && !tmp.path().join("backups/_retail_/wtf").exists());
+        drop(held);
+        apply(&ctx, &fl, &profile, alt).unwrap();
+        assert!(alt.dir.join("edit-mode-cache-character.txt").exists());
     }
 
     #[test]

@@ -80,7 +80,7 @@ pub fn set(lang: Option<Lang>) {
 pub fn current() -> Lang {
     match CURRENT.load(Ordering::Relaxed) {
         // Tests assert Russian texts whatever the machine's language is.
-        UNSET if cfg!(test) => Lang::Ru,
+        UNSET if cfg!(any(test, feature = "test-ru")) => Lang::Ru,
         UNSET => Lang::system(),
         n => Lang::ALL[n as usize],
     }
@@ -151,6 +151,51 @@ macro_rules! tr {
     };
 }
 
+/// Every `tr!("...")` in the sources of `dir` (a crate's `src`) whose key is missing: the source-scanning tests of the
+/// core and of the program share it.
+#[doc(hidden)]
+pub fn unknown_keys(dir: &str) -> Vec<String> {
+    let mut unknown = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        let code = std::fs::read_to_string(&path).unwrap();
+        for (at, _) in code.match_indices("tr!(\"") {
+            // Not `include_str!("...")` and the like.
+            if code[..at].chars().next_back().is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                continue;
+            }
+            let part = &code[at + 5..];
+            let key = &part[..part.find('"').unwrap()];
+            if !key.contains("section.key") && key != "..." && !table(Lang::Ru).contains_key(key) {
+                unknown.push(format!("{}: {key}", path.display()));
+            }
+        }
+    }
+    unknown
+}
+
+/// Lines of Russian text in the non-test code of `dir` (a crate's `src`); the escapes keep this file clean of it.
+#[doc(hidden)]
+pub fn russian_in_code(dir: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        let code = std::fs::read_to_string(&path).unwrap();
+        let code = code.split(concat!("#[cfg(", "test)]")).next().unwrap();
+        for (i, line) in code.lines().enumerate() {
+            let line = line.trim_start();
+            // Comments are English; the language picker shows its own name.
+            if line.starts_with("//") || line.contains("\"\u{420}\u{443}\u{441}\u{441}\u{43a}\u{438}\u{439}\"") {
+                continue;
+            }
+            if line.chars().any(|c| ('\u{430}'..='\u{44f}').contains(&c.to_lowercase().next().unwrap_or(c))) {
+                found.push(format!("{}:{}: {line}", path.display(), i + 1));
+            }
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,46 +242,14 @@ mod tests {
     /// Every `tr!("...")` in the sources exists, so a typo cannot show a bare key.
     #[test]
     fn every_key_in_the_code_exists() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src");
-        let mut unknown = Vec::new();
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            let code = std::fs::read_to_string(&path).unwrap();
-            for (at, _) in code.match_indices("tr!(\"") {
-                // Not `include_str!("...")` and the like.
-                if code[..at].chars().next_back().is_some_and(|c| c.is_alphanumeric() || c == '_') {
-                    continue;
-                }
-                let part = &code[at + 5..];
-                let key = &part[..part.find('"').unwrap()];
-                if !key.contains("section.key") && key != "..." && !table(Lang::Ru).contains_key(key) {
-                    unknown.push(format!("{}: {key}", path.display()));
-                }
-            }
-        }
+        let unknown = unknown_keys(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         assert!(unknown.is_empty(), "unknown keys: {unknown:#?}");
     }
 
     /// User-facing text lives in `locales/`, not in the code (tests may still assert Russian).
     #[test]
     fn no_russian_left_in_the_code() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src");
-        let mut found = Vec::new();
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            let code = std::fs::read_to_string(&path).unwrap();
-            let code = code.split("#[cfg(test)]").next().unwrap();
-            for (i, line) in code.lines().enumerate() {
-                let line = line.trim_start();
-                // Comments are English; the language picker shows "Русский".
-                if line.starts_with("//") || line.contains("\"Русский\"") {
-                    continue;
-                }
-                if line.chars().any(|c| ('а'..='я').contains(&c.to_lowercase().next().unwrap_or(c))) {
-                    found.push(format!("{}:{}: {line}", path.display(), i + 1));
-                }
-            }
-        }
+        let found = russian_in_code(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         assert!(found.is_empty(), "Russian text in code: {found:#?}");
     }
 

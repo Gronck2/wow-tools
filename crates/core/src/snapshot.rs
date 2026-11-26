@@ -20,7 +20,8 @@ const ID_FORMAT: &str = "%Y%m%d-%H%M%S";
 const ID_TS_LEN: usize = 15;
 const FINGERPRINT_FILE: &str = "last.fingerprint";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
 pub enum Kind {
     Wtf,
     Addons,
