@@ -380,7 +380,7 @@ fn validate(locale: &str, spell: &Rows, item: &Rows, en: &Rows) -> Result<()> {
 }
 
 fn get(url: &str, accept: &str) -> Result<Vec<u8>> {
-    let (status, body) = crate::selfupdate::http::get(url, Some(accept))?;
+    let (status, body) = crate::http::get(url, Some(accept))?;
     if status != 200 {
         bail!(tr!("macros.names_http", url = url, status = status));
     }

@@ -9,6 +9,7 @@ mod editmode;
 mod elvui;
 #[cfg(windows)]
 mod gfx;
+mod http;
 mod lua;
 mod macro_fix;
 mod macro_names;
@@ -30,6 +31,7 @@ mod snapshot;
 #[cfg(windows)]
 mod tray;
 mod updater;
+mod version;
 mod wago;
 mod watch;
 mod wow;
@@ -313,6 +315,7 @@ fn localize(cmd: clap::Command, path: &str) -> clap::Command {
 }
 
 fn main() {
+    http::set_user_agent(&format!("wow-tools/{}", selfupdate::current()));
     i18n::set(early_language());
     let matches = localize(Cli::command(), "").get_matches();
     let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
