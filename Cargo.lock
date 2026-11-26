@@ -1217,9 +1217,29 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
- "directories",
  "embed-resource",
  "env_logger",
+ "log",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "toml",
+ "windows",
+ "windows-numerics",
+ "windows-sys",
+ "winreg",
+ "wow-tools-core",
+]
+
+[[package]]
+name = "wow-tools-core"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "directories",
  "log",
  "serde",
  "serde_json",
@@ -1228,8 +1248,6 @@ dependencies = [
  "tempfile",
  "toml",
  "walkdir",
- "windows",
- "windows-numerics",
  "windows-sys",
  "winreg",
  "zip",

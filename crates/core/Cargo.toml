@@ -1,0 +1,43 @@
+[package]
+name = "wow-tools-core"
+version = "0.0.0"
+edition = "2024"
+description = "WoW Tools core: snapshots, profiles, cleanup, macro check and addon updates without any window"
+repository = "https://github.com/Gronck2/wow-tools"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"], optional = true }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
+directories = "6.0.0"
+log = "0.4.34"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision"] }
+sha2 = "0.11.1"
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+toml = "1.1.8"
+walkdir = "2.5.0"
+zip = { version = "9.0.1", default-features = false, features = ["deflate"] }
+
+[features]
+# `Kind` and `Part` as command line values; the program turns it on, other shells do not need it.
+clap = ["dep:clap"]
+
+[dev-dependencies]
+tempfile = "3"
+
+[target."cfg(windows)".dependencies]
+winreg = "0.56.0"
+
+[target."cfg(windows)".dependencies.windows-sys]
+version = "0.61"
+features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Networking_WinHttp",
+    "Win32_System_Threading",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+]

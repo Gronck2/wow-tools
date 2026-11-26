@@ -2,7 +2,7 @@
 
 ## LibRealmInfo
 
-`data/realms.tsv` (realm names, languages, regions and ids; used by `wow-tools macros`) is generated from the realm
+`crates/core/data/realms.tsv` (realm names, languages, regions and ids; used by `wow-tools macros`) is generated from the realm
 table of [LibRealmInfo](https://github.com/phanx-wow/LibRealmInfo) (US, EU, KR and TW realms only).
 
 Copyright 2014-2019 Phanx <addons@phanx.net>

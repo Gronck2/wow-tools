@@ -1,42 +1,21 @@
 #[macro_use]
-mod i18n;
-mod app;
-mod chars;
-mod config;
-mod curseforge;
+extern crate wow_tools_core;
+
 mod diag;
-mod editmode;
-mod elvui;
 #[cfg(windows)]
 mod gfx;
-mod http;
-mod lock;
-mod lua;
-mod macro_fix;
-mod macro_names;
-mod macro_store;
-mod macros;
-mod maintenance;
 #[cfg(windows)]
 mod menu;
 #[cfg(windows)]
 mod panel;
-mod profiles;
 #[cfg(windows)]
 mod report;
 mod schedule;
 mod selfupdate;
 #[cfg(windows)]
 mod settings;
-mod snapshot;
 #[cfg(windows)]
 mod tray;
-mod updater;
-mod version;
-mod wago;
-mod watch;
-mod wow;
-mod wowup;
 
 use anyhow::{Context, Result, bail};
 use app::Ctx;
@@ -46,6 +25,10 @@ use snapshot::Kind;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+// The core's modules keep their `crate::x` paths in the program's own modules.
+pub(crate) use wow_tools_core::{
+    app, chars, config, http, i18n, lock, macro_fix, macro_names, macro_store, macros, maintenance, profiles, snapshot, updater, watch, wow,
+};
 
 /// `--help` texts come from `locales/` (`localize`); the English here is what clap gets first.
 #[derive(Parser)]
@@ -1417,6 +1400,19 @@ fn cmd_schedule(ctx: &Ctx, action: ScheduleCmd) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The core scans its own sources; these two scan the program's.
+    #[test]
+    fn every_key_in_the_program_exists() {
+        let unknown = i18n::unknown_keys(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+        assert!(unknown.is_empty(), "unknown keys: {unknown:#?}");
+    }
+
+    #[test]
+    fn no_russian_left_in_the_program() {
+        let found = i18n::russian_in_code(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+        assert!(found.is_empty(), "Russian text in code: {found:#?}");
+    }
 
     /// Every visible command and argument has its `--help` text in the locales.
     #[test]

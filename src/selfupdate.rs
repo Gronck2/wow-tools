@@ -16,8 +16,8 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(crate) use crate::http;
-pub use crate::version::newer;
+pub(crate) use wow_tools_core::http;
+pub use wow_tools_core::version::newer;
 
 /// How often the tray asks GitHub.
 pub const CHECK_EVERY: chrono::Duration = chrono::Duration::hours(24);
