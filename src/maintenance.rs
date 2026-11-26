@@ -180,7 +180,14 @@ pub fn check_patches(ctx: &Ctx) -> Vec<Patch> {
         changed |= previous.as_deref() != Some(version.as_str());
         let Some(from) = previous.filter(|p| *p != version) else { continue };
         let mut saved = Vec::new();
-        if wow::running_in(&games, fl).is_none() {
+        let lock = if wow::running_in(&games, fl).is_none() {
+            crate::lock::acquire(fl, "pre-patch snapshot")
+                .inspect_err(|e| log::error!("{}: {e:#}", fl.title()))
+                .ok()
+        } else {
+            None
+        };
+        if lock.is_some() {
             let mut kinds = vec![Kind::Wtf];
             if ctx.cfg.include_addons {
                 kinds.push(Kind::Addons);
@@ -475,6 +482,7 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
     if closed.is_empty() {
         bail!(tr!("cleanup.game_running"));
     }
+    let _locks = closed.iter().map(|fl| crate::lock::acquire(fl, "clean")).collect::<Result<Vec<_>>>()?;
     let skipped = |s: &mut String| {
         if !running.is_empty() {
             let titles: Vec<String> = running.iter().map(Flavor::title).collect();

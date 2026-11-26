@@ -346,6 +346,7 @@ pub fn apply(ctx: &Ctx, fl: &Flavor, profile: &Profile, target: &Character) -> R
         bail!(tr!("profiles.same", name = profile.title()));
     }
     app::ensure_game_closed(fl)?;
+    let _lock = crate::lock::acquire(fl, "profile-apply")?;
     let mut zip = ZipArchive::new(File::open(&profile.path).with_context(|| tr!("error.read", path = profile.path.display()))?)?;
     let mut text = String::new();
     zip.by_name(ADDONS)?.read_to_string(&mut text)?;

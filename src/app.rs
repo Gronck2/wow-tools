@@ -115,6 +115,14 @@ pub fn backup_all(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bo
             report.skipped_game = Some(p);
             continue;
         }
+        let _lock = match crate::lock::acquire(&fl, "backup") {
+            Ok(g) => g,
+            Err(e) => {
+                log::error!("{}: {e:#}", fl.name);
+                report.errors.push(format!("{}: {e:#}", fl.name));
+                continue;
+            }
+        };
         for k in ctx.kinds(kind) {
             let what = format!("{} {}", fl.name, k.source_rel());
             match store.backup(&fl, k, force, None) {
@@ -214,6 +222,7 @@ pub fn restore_plan(ctx: &Ctx, flavor: Option<&str>, spec: Option<&str>, kind: O
 /// Saves the current state as `pre-restore` snapshots, then restores the plan.
 pub fn restore_apply(ctx: &Ctx, fl: &Flavor, plan: &Plan) -> Result<()> {
     ensure_game_closed(fl)?;
+    let _lock = crate::lock::acquire(fl, "restore")?;
     let store = ctx.store();
     for (k, s) in plan {
         if let Outcome::Created(pre) = store.backup(fl, *k, true, Some("pre-restore"))? {
@@ -267,10 +276,12 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
             skipped,
         })
     };
+    // Held for the whole run: the manager and ElvUI change every selected flavor's AddOns.
+    let mut locks = Vec::new();
     let flavors = if app.is_none() && !ctx.cfg.update_elvui {
         Err(anyhow::anyhow!(tr!("app.no_addon_app")))
     } else {
-        pre_update_snapshots(ctx)
+        pre_update_snapshots(ctx, &mut locks)
     };
     let flavors = match flavors {
         Ok(f) => f,
@@ -318,11 +329,12 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
     result
 }
 
-/// Snapshots the addons of every selected flavor before an update; returns the flavors.
-fn pre_update_snapshots(ctx: &Ctx) -> Result<Vec<Flavor>> {
+/// Locks and snapshots the addons of every selected flavor before an update; returns the flavors.
+fn pre_update_snapshots(ctx: &Ctx, locks: &mut Vec<crate::lock::Guard>) -> Result<Vec<Flavor>> {
     let store = ctx.store();
     let flavors = ctx.flavors(None)?;
     for fl in &flavors {
+        locks.push(crate::lock::acquire(fl, "update-addons")?);
         if let Outcome::Created(s) = store
             .backup(fl, Kind::Addons, false, Some("pre-update"))
             .with_context(|| tr!("app.pre_update_failed", flavor = fl.name))?
@@ -331,4 +343,37 @@ fn pre_update_snapshots(ctx: &Ctx) -> Result<Vec<Flavor>> {
         }
     }
     Ok(flavors)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backup_of_a_locked_folder_reports_the_error_and_touches_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let wtf = tmp.path().join("wow/_retail_/WTF");
+        std::fs::create_dir_all(&wtf).unwrap();
+        std::fs::write(wtf.join("Config.wtf"), "x").unwrap();
+        let backups = tmp.path().join("backups");
+        let ctx = Ctx {
+            cfg: Config {
+                wow_path: Some(tmp.path().join("wow")),
+                backup_dir: backups.clone(),
+                ..Config::default()
+            },
+            config_path: tmp.path().join("config.toml"),
+            explicit_config: None,
+        };
+        let fl = ctx.flavors(Some("_retail_")).unwrap().remove(0);
+        let held = crate::lock::acquire(&fl, "restore").unwrap();
+        let report = backup_all(&ctx, Some("_retail_"), None, true, false).unwrap();
+        assert!(
+            report.created.is_empty() && report.errors.len() == 1 && report.errors[0].contains("restore"),
+            "{report:?}"
+        );
+        assert!(!backups.exists() || std::fs::read_dir(&backups).unwrap().next().is_none());
+        drop(held);
+        assert_eq!(backup_all(&ctx, Some("_retail_"), None, true, false).unwrap().created.len(), 1);
+    }
 }

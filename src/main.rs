@@ -10,6 +10,7 @@ mod elvui;
 #[cfg(windows)]
 mod gfx;
 mod http;
+mod lock;
 mod lua;
 mod macro_fix;
 mod macro_names;
@@ -1286,9 +1287,12 @@ fn cmd_chars(ctx: &Ctx, flavor: Option<&str>) -> Result<()> {
 
 fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], flavor: Option<&str>, dry_run: bool) -> Result<()> {
     let fl = ctx.single_flavor(flavor)?;
-    if !dry_run {
+    let _lock = if dry_run {
+        None
+    } else {
         app::ensure_game_closed(&fl)?;
-    }
+        Some(lock::acquire(&fl, "copy-char")?)
+    };
     let list = chars::list(&fl.wtf_dir());
     let src = chars::find(&list, from)?;
     let targets = to.iter().map(|t| chars::find(&list, t)).collect::<Result<Vec<_>>>()?;
