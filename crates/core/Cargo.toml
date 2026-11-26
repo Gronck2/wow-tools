@@ -24,6 +24,8 @@ zip = { version = "9.0.1", default-features = false, features = ["deflate"] }
 [features]
 # `Kind` and `Part` as command line values; the program turns it on, other shells do not need it.
 clap = ["dep:clap"]
+# `i18n::current()` is Russian until set; the program's own tests turn it on.
+test-ru = []
 
 [dev-dependencies]
 tempfile = "3"

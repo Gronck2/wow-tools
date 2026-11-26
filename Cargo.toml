@@ -23,6 +23,7 @@ toml = "1.1.8"
 
 [dev-dependencies]
 tempfile = "3"
+wow-tools-core = { path = "crates/core", features = ["clap", "test-ru"] }
 
 [profile.release]
 lto = true

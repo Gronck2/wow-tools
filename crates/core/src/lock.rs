@@ -1,7 +1,7 @@
 //! One writer per WoW folder: operations that change WTF or AddOns take a file lock named after the
 //! flavor folder, so the tray, `watch`, the CLI, a scheduled task and any other shell never overlap.
 //!
-//! `%LOCALAPPDATA%\WoW Tools\locks\<sha256(lowercased flavor folder)[..16]>.lock` is locked with
+//! `%LOCALAPPDATA%\WoW Tools\locks\<sha256(wow::dir_key(flavor folder))[..16]>.lock` is locked with
 //! `File::try_lock` (fail-fast; Windows drops it when the process dies, so a crash leaves nothing
 //! stale). The path ignores portable mode on purpose: a portable and an installed copy exclude each
 //! other. Locked bytes cannot be read by another handle on Windows, so the holder's `pid operation`
@@ -40,7 +40,7 @@ fn locks_dir() -> PathBuf {
 
 fn acquire_in(dir: &Path, fl: &Flavor, what: &str) -> Result<Guard> {
     fs::create_dir_all(dir).with_context(|| tr!("error.write", path = dir.display()))?;
-    let key = Sha256::digest(fl.dir.to_string_lossy().to_lowercase().as_bytes());
+    let key = Sha256::digest(crate::wow::dir_key(&fl.dir).as_bytes());
     let name: String = key.iter().take(8).map(|b| format!("{b:02x}")).collect();
     let path = dir.join(format!("{name}.lock"));
     let file = OpenOptions::new()
@@ -86,6 +86,8 @@ mod tests {
         let text = format!("{err:#}");
         assert!(text.contains("backup") && text.contains(&std::process::id().to_string()), "{text}");
         assert!(text.starts_with("другой WoW Tools"), "{text}");
+        // Slash style and a trailing separator do not matter either.
+        assert!(acquire_in(locks.path(), &flavor(Path::new("C:\\Games\\WoW\\_retail_\\")), "restore").is_err());
         let _other = acquire_in(locks.path(), &b, "backup").unwrap();
         drop(first);
         acquire_in(locks.path(), &a, "restore").unwrap();

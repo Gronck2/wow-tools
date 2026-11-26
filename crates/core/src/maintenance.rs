@@ -181,9 +181,15 @@ pub fn check_patches(ctx: &Ctx) -> Vec<Patch> {
         let Some(from) = previous.filter(|p| *p != version) else { continue };
         let mut saved = Vec::new();
         let lock = if wow::running_in(&games, fl).is_none() {
-            crate::lock::acquire(fl, "pre-patch snapshot")
-                .inspect_err(|e| log::error!("{}: {e:#}", fl.title()))
-                .ok()
+            match crate::lock::acquire(fl, "pre-patch snapshot") {
+                Ok(g) => Some(g),
+                Err(e) => {
+                    // Keep the old version so the next round retries the snapshot.
+                    log::error!("{}: {e:#}", fl.title());
+                    known.insert(fl.name.clone(), from);
+                    continue;
+                }
+            }
         } else {
             None
         };

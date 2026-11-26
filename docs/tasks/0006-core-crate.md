@@ -32,6 +32,8 @@ Only the core extraction now; nothing Overwolf or Electron.
 - **Shell API recommendation:** a second (Node/Electron) shell calls the **CLI with JSON output**, not a library:
   the CLI is already the stable contract, a process boundary keeps the lock and crashes contained, and no native
   addon (napi) build is needed. The Rust lib is for Rust consumers (our own exe). The JSON output itself is a later task.
+- **Busy lock during an addon update:** an update refused because another process holds a flavor is a normal failure
+  (history row with the busy error, retried like any failure); no special handling.
 
 ## Scope
 1. Workspace + `crates/core`; modules moved with `git mv` (history kept), paths and `use`s adjusted, no renames.

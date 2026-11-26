@@ -80,7 +80,7 @@ pub fn set(lang: Option<Lang>) {
 pub fn current() -> Lang {
     match CURRENT.load(Ordering::Relaxed) {
         // Tests assert Russian texts whatever the machine's language is.
-        UNSET if cfg!(test) => Lang::Ru,
+        UNSET if cfg!(any(test, feature = "test-ru")) => Lang::Ru,
         UNSET => Lang::system(),
         n => Lang::ALL[n as usize],
     }

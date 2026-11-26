@@ -1401,6 +1401,11 @@ fn cmd_schedule(ctx: &Ctx, action: ScheduleCmd) -> Result<()> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn tests_run_in_russian() {
+        assert_eq!(wow_tools_core::i18n::current(), wow_tools_core::i18n::Lang::Ru);
+    }
+
     /// The core scans its own sources; these two scan the program's.
     #[test]
     fn every_key_in_the_program_exists() {
