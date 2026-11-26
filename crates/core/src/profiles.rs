@@ -990,6 +990,30 @@ mod tests {
     }
 
     #[test]
+    fn apply_refuses_a_held_lock_and_writes_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let fl = Flavor::new("_retail_", tmp.path().join("_retail_"));
+        let acc = fl.wtf_dir().join("Account/ACC");
+        for c in ["Realm/Main", "Realm/Alt"] {
+            fs::create_dir_all(acc.join(c)).unwrap();
+        }
+        fs::create_dir_all(acc.join("SavedVariables")).unwrap();
+        fs::write(acc.join("Realm/Main/edit-mode-cache-character.txt"), "LAYOUT").unwrap();
+        let ctx = ctx(&tmp.path().join("backups"));
+        let all = chars::list(&fl.wtf_dir());
+        save(&ctx, &fl, chars::find(&all, "ACC/Realm/Main").unwrap()).unwrap();
+        let profile = list(&root(&ctx)).remove(0);
+        let alt = chars::find(&all, "Realm/Alt").unwrap();
+        let held = crate::lock::acquire(&fl, "backup").unwrap();
+        let err = apply(&ctx, &fl, &profile, alt).unwrap_err();
+        assert!(format!("{err:#}").contains("backup"), "{err:#}");
+        assert!(!alt.dir.join("edit-mode-cache-character.txt").exists() && !tmp.path().join("backups/_retail_/wtf").exists());
+        drop(held);
+        apply(&ctx, &fl, &profile, alt).unwrap();
+        assert!(alt.dir.join("edit-mode-cache-character.txt").exists());
+    }
+
+    #[test]
     fn save_and_apply() {
         let tmp = tempfile::tempdir().unwrap();
         let fl = Flavor::new("_retail_", tmp.path().join("_retail_"));

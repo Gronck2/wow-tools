@@ -675,6 +675,35 @@ mod tests {
     }
 
     #[test]
+    fn clean_refuses_a_held_lock_and_snapshots_inside_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("wow");
+        let fl = Flavor::new("_retail_", root.join("_retail_"));
+        let gone = fl.wtf_dir().join(r"Account\ACC\SavedVariables\Gone.lua");
+        fs::create_dir_all(fl.dir.join(r"Interface\AddOns\Details")).unwrap();
+        touch(&gone, 100);
+        let ctx = Ctx {
+            cfg: Config {
+                wow_path: Some(root),
+                backup_dir: tmp.path().join("backups"),
+                ..Config::default()
+            },
+            config_path: tmp.path().join("config.toml"),
+            explicit_config: None,
+        };
+        let fl = ctx.flavors(Some("_retail_")).unwrap().remove(0);
+        let held = crate::lock::acquire(&fl, "backup").unwrap();
+        let err = clean(&ctx, Item::Orphans).unwrap_err();
+        assert!(format!("{err:#}").contains("backup"), "{err:#}");
+        assert!(gone.exists() && !tmp.path().join("backups").exists(), "nothing written");
+        drop(held);
+        // pre-cleanup snapshot inside the lock must not take it again.
+        clean(&ctx, Item::Orphans).unwrap();
+        assert!(!gone.exists());
+        assert_eq!(ctx.store().list(&fl, Kind::Wtf).unwrap().len(), 1);
+    }
+
+    #[test]
     fn scan_finds_what_can_go_and_clean_takes_it() {
         let dir = tempfile::tempdir().unwrap();
         let fl = Flavor::new("_retail_", dir.path().join("_retail_"));

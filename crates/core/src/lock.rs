@@ -90,4 +90,53 @@ mod tests {
         drop(first);
         acquire_in(locks.path(), &a, "restore").unwrap();
     }
+
+    #[test]
+    fn locks_dir_that_cannot_be_made_is_an_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("file");
+        fs::write(&file, "x").unwrap();
+        assert!(acquire_in(&file.join("locks"), &flavor(Path::new("C:/WoW/_retail_")), "backup").is_err());
+    }
+
+    /// The holder side of `other_process_holds_the_lock`: does nothing unless started by it.
+    #[test]
+    #[ignore]
+    fn child_holds_lock() {
+        let Ok(dir) = std::env::var("WT_LOCK_TEST_DIR") else { return };
+        let dir = PathBuf::from(dir);
+        let _guard = acquire_in(&dir.join("locks"), &flavor(Path::new("C:/WoW/_retail_")), "child-op").unwrap();
+        fs::write(dir.join("ready"), "").unwrap();
+        for _ in 0..300 {
+            if dir.join("stop").exists() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+
+    #[test]
+    fn other_process_holds_the_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "lock::tests::child_holds_lock", "--ignored", "--nocapture"])
+            .env("WT_LOCK_TEST_DIR", tmp.path())
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        for _ in 0..100 {
+            if tmp.path().join("ready").exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let fl = flavor(Path::new("c:/wow/_RETAIL_"));
+        let busy = acquire_in(&tmp.path().join("locks"), &fl, "backup");
+        fs::write(tmp.path().join("stop"), "").unwrap();
+        child.wait().unwrap();
+        let text = format!("{:#}", busy.unwrap_err());
+        assert!(text.contains(&child.id().to_string()) && text.contains("child-op"), "{text}");
+        // The child is gone, so the lock is free (Windows drops it with the process).
+        acquire_in(&tmp.path().join("locks"), &fl, "backup").unwrap();
+    }
 }

@@ -376,4 +376,34 @@ mod tests {
         drop(held);
         assert_eq!(backup_all(&ctx, Some("_retail_"), None, true, false).unwrap().created.len(), 1);
     }
+
+    #[test]
+    fn restore_apply_takes_the_lock_once_and_refuses_a_held_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let wtf = tmp.path().join("wow/_retail_/WTF");
+        std::fs::create_dir_all(&wtf).unwrap();
+        std::fs::write(wtf.join("Config.wtf"), "old").unwrap();
+        let ctx = Ctx {
+            cfg: Config {
+                wow_path: Some(tmp.path().join("wow")),
+                backup_dir: tmp.path().join("backups"),
+                ..Config::default()
+            },
+            config_path: tmp.path().join("config.toml"),
+            explicit_config: None,
+        };
+        backup_all(&ctx, Some("_retail_"), Some(Kind::Wtf), true, false).unwrap();
+        std::fs::write(wtf.join("Config.wtf"), "new").unwrap();
+        let (fl, plan) = restore_plan(&ctx, Some("_retail_"), None, Some(Kind::Wtf)).unwrap();
+        let held = crate::lock::acquire(&fl, "backup").unwrap();
+        let err = restore_apply(&ctx, &fl, &plan).unwrap_err();
+        assert!(format!("{err:#}").contains("backup"), "{err:#}");
+        assert_eq!(std::fs::read_to_string(wtf.join("Config.wtf")).unwrap(), "new", "nothing written");
+        assert_eq!(ctx.store().list(&fl, Kind::Wtf).unwrap().len(), 1, "no pre-restore snapshot");
+        drop(held);
+        // The pre-restore snapshot inside must not take the lock again.
+        restore_apply(&ctx, &fl, &plan).unwrap();
+        assert_eq!(std::fs::read_to_string(wtf.join("Config.wtf")).unwrap(), "old");
+        assert_eq!(ctx.store().list(&fl, Kind::Wtf).unwrap().len(), 2);
+    }
 }
