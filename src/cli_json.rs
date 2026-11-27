@@ -1108,6 +1108,45 @@ mod tests {
         assert!(v["error"]["detail"].as_str().unwrap().contains("--bogus"));
     }
 
+    /// Every object is one line with `v` and `type`, and while the interface language is Russian (as in these tests)
+    /// no Cyrillic reaches it: `detail` is the one free text field and `main` forces it to English.
+    #[test]
+    fn every_object_has_v_and_type_and_no_localized_text() {
+        assert_eq!(wow_tools_core::i18n::current(), wow_tools_core::i18n::Lang::Ru);
+        fn cyrillic(v: &Value) -> bool {
+            match v {
+                Value::String(s) => s.chars().any(|c| ('\u{400}'..='\u{4ff}').contains(&c)),
+                Value::Array(a) => a.iter().any(cyrillic),
+                Value::Object(o) => o.iter().any(|(k, v)| k != "detail" && cyrillic(v)),
+                _ => false,
+            }
+        }
+        let f = fixture();
+        f.ok(&["backup", "--kind", "wtf"]);
+        let runs: &[&[&str]] = &[
+            &["status"],
+            &["backup"],
+            &["list"],
+            &["chars"],
+            &["macros"],
+            &["clean"],
+            &["clean", "orphans"],
+            &["outdated"],
+            &["profile", "list"],
+            &["restore", "--kind", "wtf"],
+            &["restore", "--yes", "--kind", "wtf", "19990101"],
+            &["list", "--flavor", "_nothing_"],
+            &["copy-char", "--from", "Realm/Nobody", "--to", "Realm/Name", "--dry-run"],
+            &["tray"],
+        ];
+        for args in runs {
+            let (v, _) = f.raw(args);
+            assert_eq!(v["v"], 1, "{args:?}");
+            assert!(matches!(v["type"].as_str(), Some("result" | "error")), "{args:?}");
+            assert!(!cyrillic(&v), "{args:?}: {v}");
+        }
+    }
+
     #[test]
     fn the_envelope_is_one_line_with_the_version() {
         let (ok, code) = envelope(Some("status"), Ok(json!({ "text": "a\nb" })));
