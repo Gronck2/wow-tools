@@ -12,7 +12,7 @@ commands print text as before; nothing about the text changed.
   Pass `--config <file>` to use another config.
 - Read all of stdout, parse it as one JSON value. **No JSON on stdout means a crash** (a panic prints to stderr and
   exits 101).
-- stderr carries the log lines (English under `--json`). Ignore them or keep them for diagnostics; never parse them.
+- stderr carries the log lines (English under `--json`; the config's language for `update-addons` and `watch`). Ignore them or keep them for diagnostics; never parse them.
 - The process language is forced to English under `--json`; the language setting of the config is not used, except by
   `update-addons` and `watch`, which write the addon history the tray shows: their `error.detail` and stderr are in the
   config's language.
@@ -39,7 +39,8 @@ commands print text as before; nothing about the text changed.
   `progress`, see below). `command` is the command name (`profile list`, `copy-char`, ...), `null` when the command line
   did not parse.
 - `error.code` is stable and listed below; `error.params` are the values that go with it. `error.detail` is the error
-  chain as English text: **diagnostic only, never show it to the user and never parse it**.
+  chain as English text (the config's language for `update-addons` and `watch`): **diagnostic only, never show it to
+  the user and never parse it**.
 - An error may also carry `data` beside `error`: a run that did part of its work (`backup`, `macros`, `copy-char`, `clean`, `update-addons`).
 
 ### Versioning
