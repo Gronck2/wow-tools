@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::updater::{NotRun, Outcome, close, modified, quiet_command, running};
+use crate::updater::{Change, ChangeKind, NotRun, Outcome, close, modified, quiet_command, running};
 
 pub const EXE: &str = "CurseForge.exe";
 /// Log lines that mean the app is still working on updates.
@@ -42,13 +42,20 @@ pub fn exe() -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-/// One WoW flavor CurseForge manages, with its addons: project id -> (name, installed file id).
+/// An installed file: its id and what to call it (`displayName`, else `fileName`, else the id).
+#[derive(Debug, Clone, PartialEq)]
+pub struct File {
+    pub id: u64,
+    pub label: String,
+}
+
+/// One WoW flavor CurseForge manages, with its addons: project id -> (name, installed file).
 #[derive(Debug, Default)]
 pub struct Instance {
     pub path: PathBuf,
     pub name: String,
     pub auto_update: bool,
-    pub addons: HashMap<u64, (String, u64)>,
+    pub addons: HashMap<u64, (String, File)>,
     /// Addons whose newest file is not installed.
     pub outdated: Vec<String>,
     /// Addons set to "update manually" in the app; they are left as they are.
@@ -83,7 +90,10 @@ fn parse_instances(text: &str) -> Result<Vec<Instance>> {
                 if a["latestFile"]["id"].as_u64().is_some_and(|latest| latest != file) {
                     inst.outdated.push(name.clone());
                 }
-                inst.addons.insert(id, (name, file));
+                let f = &a["installedFile"];
+                let label = ["displayName", "fileName"].iter().find_map(|k| f[k].as_str().filter(|s| !s.is_empty()));
+                let label = label.map_or_else(|| file.to_string(), str::to_string);
+                inst.addons.insert(id, (name, File { id: file, label }));
             }
             inst
         })
@@ -96,18 +106,30 @@ pub fn instances() -> Result<Vec<Instance>> {
     parse_instances(&text)
 }
 
-/// Addons whose installed file changed between two reads, as "Name" per line.
-fn updated(before: &[Instance], after: &[Instance]) -> Vec<String> {
+/// The `_name_` folder of an instance's install path (`...\_retail_\`), if it is one.
+fn flavor_of(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_str()?;
+    (name.len() > 2 && name.starts_with('_') && name.ends_with('_')).then(|| name.to_string())
+}
+
+/// Addons whose installed file changed between two reads, sorted by name.
+fn changes(before: &[Instance], after: &[Instance]) -> Vec<Change> {
     let mut out = Vec::new();
     for inst in after {
         let old = before.iter().find(|b| b.path == inst.path);
         for (id, (name, file)) in &inst.addons {
-            if old.and_then(|o| o.addons.get(id)).is_some_and(|(_, f)| f != file) {
-                out.push(name.clone());
+            if let Some((_, was)) = old.and_then(|o| o.addons.get(id)).filter(|(_, f)| f.id != file.id) {
+                out.push(Change {
+                    name: name.clone(),
+                    kind: ChangeKind::Addon,
+                    from: Some(was.label.clone()),
+                    to: Some(file.label.clone()),
+                    flavor: flavor_of(&inst.path),
+                });
             }
         }
     }
-    out.sort();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
     out
 }
 
@@ -217,10 +239,14 @@ fn run_app(exe: &Path, before: Vec<Instance>) -> Result<Outcome> {
     if !manual.is_empty() {
         note.push(tr!("curseforge.manual", names = manual.join(", ")));
     }
+    let changes = changes(&before, &after);
     Ok(Outcome {
-        updated: updated(&before, &after),
+        updated: changes.iter().map(|c| c.name.clone()).collect(),
         outdated: after.iter().flat_map(|i| i.outdated.iter().cloned()).collect(),
         note: (!note.is_empty()).then(|| note.join("\n")),
+        changes,
+        manual,
+        ..Default::default()
     })
 }
 
@@ -308,6 +334,7 @@ mod tests {
         assert_eq!(list[0].name, "Retail");
         assert!(list[0].auto_update);
         assert_eq!(list[0].addons[&1].0, "BigWigs");
+        assert_eq!(list[0].addons[&1].1.id, 10);
         assert!(list[0].outdated.is_empty());
         let stale = parse_instances(&instance(10, 101)).unwrap();
         assert_eq!(stale[0].outdated, ["Details! Damage Meter"]);
@@ -317,8 +344,36 @@ mod tests {
     fn finds_what_was_updated() {
         let before = parse_instances(&instance(10, 100)).unwrap();
         let after = parse_instances(&instance(11, 100)).unwrap();
-        assert_eq!(updated(&before, &after), ["BigWigs"]);
-        assert!(updated(&before, &before).is_empty());
+        let found = changes(&before, &after);
+        assert_eq!(found.len(), 1);
+        assert_eq!((found[0].name.as_str(), found[0].kind), ("BigWigs", ChangeKind::Addon));
+        // No display name in the fixture: the file id stands in; the flavor is the install folder.
+        assert_eq!(
+            (found[0].from.as_deref(), found[0].to.as_deref(), found[0].flavor.as_deref()),
+            (Some("10"), Some("11"), Some("_retail_"))
+        );
+        assert!(changes(&before, &before).is_empty());
+    }
+
+    #[test]
+    fn versions_are_the_file_names_when_there_are_any() {
+        let text = |name: &str, id: u64| {
+            format!(
+                r#"[{{"gameTypeID":1,"name":"Retail","installPath":"C:/WoW/Odd Folder","installedAddons":[
+                {{"addonID":1,"name":"Plater","installedFile":{{"id":{id},"fileName":"{name}"}}}},
+                {{"addonID":2,"name":"Named","installedFile":{{"id":{id},"displayName":"Named {id}","fileName":"x.zip"}}}}]}}]"#
+            )
+        };
+        let (before, after) = (
+            parse_instances(&text("Plater-1.zip", 1)).unwrap(),
+            parse_instances(&text("Plater-2.zip", 2)).unwrap(),
+        );
+        let found = changes(&before, &after);
+        assert_eq!(found[0].name, "Named");
+        assert_eq!(found[0].to.as_deref(), Some("Named 2"));
+        assert_eq!((found[1].from.as_deref(), found[1].to.as_deref()), (Some("Plater-1.zip"), Some("Plater-2.zip")));
+        // Not a `_name_` folder: no flavor.
+        assert_eq!(found[1].flavor, None);
     }
 
     #[test]

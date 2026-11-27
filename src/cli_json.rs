@@ -370,11 +370,17 @@ fn update_addons(ctx: &Ctx) -> Res {
 }
 
 /// `entries`: the history rows this run wrote, without their text (it is in the language of the user).
+/// The lists come from `details` (`null` each for a row without them); `manual` is the run, `by_hand` the addons.
 fn update_data(entries: &[updater::Entry]) -> Value {
-    json!({
-        "ran": !entries.is_empty(),
-        "entries": entries.iter().map(|e| json!({ "time": ts(e.time), "app": e.app, "ok": e.ok, "manual": e.manual, "skipped": e.skipped })).collect::<Vec<_>>(),
-    })
+    let row = |e: &updater::Entry| {
+        let d = e.details.as_ref();
+        json!({
+            "time": ts(e.time), "app": e.app, "ok": e.ok, "manual": e.manual, "skipped": e.skipped,
+            "updated": d.map(|d| &d.updated), "failed": d.map(|d| &d.failed), "outdated": d.map(|d| &d.outdated), "by_hand": d.map(|d| &d.by_hand),
+            "error": d.map(|d| &d.error),
+        })
+    };
+    json!({ "ran": !entries.is_empty(), "entries": entries.iter().map(row).collect::<Vec<_>>() })
 }
 
 fn clean(ctx: &Ctx, items: &[String]) -> Res {
@@ -1189,6 +1195,7 @@ mod tests {
             text: "Обновлено: X".into(),
             manual: true,
             skipped: false,
+            details: None,
         };
         let data = update_data(&[row("ElvUI", false), row("CurseForge", true)]);
         assert_eq!(data["ran"], true);
@@ -1199,6 +1206,66 @@ mod tests {
             (json!(false), json!(true))
         );
         assert!(!data.to_string().contains("Обновлено"));
+        // A row without details says "unknown" (null), not "none" ([]).
+        assert_eq!(
+            data["entries"][0],
+            json!({ "time": data["entries"][0]["time"], "app": "ElvUI", "ok": false, "manual": true, "skipped": false,
+                    "updated": null, "failed": null, "outdated": null, "by_hand": null, "error": null })
+        );
+    }
+
+    #[test]
+    fn update_data_carries_the_details_as_codes_and_data() {
+        let time = chrono::NaiveDate::from_ymd_opt(2026, 11, 27).unwrap().and_hms_opt(10, 0, 0).unwrap();
+        let change = |name: &str, kind| updater::Change {
+            name: name.into(),
+            kind,
+            from: Some("1.0".into()),
+            to: None,
+            flavor: Some("_retail_".into()),
+        };
+        let row = |app: &str, ok, skipped, details| updater::Entry {
+            time,
+            app: app.into(),
+            ok,
+            text: "Обновлено 1: BigWigs".into(),
+            manual: false,
+            skipped,
+            details: Some(details),
+        };
+        let done = updater::RunDetails {
+            updated: vec![
+                change("BigWigs", updater::ChangeKind::Addon),
+                change("WagoUI_Storage", updater::ChangeKind::UiPacks),
+            ],
+            failed: vec![updater::Failed {
+                name: "BugSack".into(),
+                from: Some("v1".into()),
+                to: Some("v2".into()),
+                flavor: None,
+                reason: updater::FailReason::NoToken,
+            }],
+            outdated: vec!["Plater".into()],
+            by_hand: vec!["WeakAuras".into()],
+            error: None,
+        };
+        let skipped = updater::RunDetails::of_error(&updater::NotRun("Русский текст".into()).into());
+        let data = update_data(&[row("WowUp", true, false, done), row("CurseForge", false, true, skipped)]);
+        assert_eq!(
+            data["entries"][0],
+            json!({
+                "time": data["entries"][0]["time"], "app": "WowUp", "ok": true, "manual": false, "skipped": false,
+                "updated": [
+                    { "name": "BigWigs", "kind": "addon", "from": "1.0", "to": null, "flavor": "_retail_" },
+                    { "name": "WagoUI_Storage", "kind": "ui_packs", "from": "1.0", "to": null, "flavor": "_retail_" }
+                ],
+                "failed": [{ "name": "BugSack", "from": "v1", "to": "v2", "flavor": null, "reason": "no_token" }],
+                "outdated": ["Plater"], "by_hand": ["WeakAuras"], "error": null
+            })
+        );
+        assert_eq!(data["entries"][1]["error"], json!({ "code": "not_run", "params": {} }));
+        assert_eq!(data["entries"][1]["updated"], json!([]));
+        assert!(!data.to_string().contains("Русский"));
     }
 
     #[test]

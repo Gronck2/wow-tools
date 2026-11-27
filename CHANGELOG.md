@@ -4,6 +4,11 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
 
 ## [Unreleased]
 
+- `update-addons --json` now lists what the run did: the addons updated (name, from and to version, flavor where known),
+  the updates that failed and why (for example WowUp without a Wago token), the addons still outdated and the ones left
+  to the user (`docs/cli-json.md`). A manager that could not run (open with auto-update off) is the new error code
+  `not_run`. The update history file (`addon-updates.json`) keeps the same data in an optional `details` field of each
+  row; older rows stay readable. The tray and the panel look the same.
 - New command `wow-tools config get [key]`, `config set <key> <value>` and `config unset <key>`: read, change and reset
   the settings from the command line (names as in `config.toml`, the value is JSON or plain text; a wrong value is
   refused and nothing is written). Works with `--json` too (`docs/cli-json.md`). The config file is now replaced whole

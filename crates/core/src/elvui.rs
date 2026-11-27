@@ -9,6 +9,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::updater::{Change, ChangeKind};
 use crate::wow::Flavor;
 
 const API: &str = "https://api.tukui.org/v1/addon/elvui";
@@ -71,11 +72,28 @@ fn installed(addons: &Path) -> Vec<String> {
     versions
 }
 
+/// What reinstalling ElvUI in a flavor changes, or `None` when it is fresh and not mixed. `from` is
+/// the oldest version found (equal to `to` = a mixed install reinstalled clean).
+fn plan(flavor: &str, versions: &[String], latest: &str) -> Option<Change> {
+    let mixed = versions.len() > 1;
+    if versions.is_empty() || (!mixed && !crate::version::newer(latest, &versions[0])) {
+        return None;
+    }
+    let oldest = versions.iter().fold(&versions[0], |o, v| if crate::version::newer(o, v) { v } else { o });
+    Some(Change {
+        name: MAIN.into(),
+        kind: ChangeKind::Addon,
+        from: Some(oldest.clone()),
+        to: Some(latest.into()),
+        flavor: Some(flavor.into()),
+    })
+}
+
 /// Updates ElvUI in every flavor that has it, when tukui.org has a newer version or the install
 /// mixes versions. Flavors without ElvUI are left alone. Returns the history text: "Обновлён:
 /// 15.26 → 16.00" (the oldest version replaced), or "reinstalled clean" when only a mixed install
-/// was redone.
-pub fn update(flavors: &[Flavor]) -> Result<Option<String>> {
+/// was redone, and what changed per flavor.
+pub fn update(flavors: &[Flavor]) -> Result<Option<(String, Vec<Change>)>> {
     let targets: Vec<(&Flavor, PathBuf, Vec<String>)> = flavors
         .iter()
         .map(|fl| {
@@ -92,13 +110,14 @@ pub fn update(flavors: &[Flavor]) -> Result<Option<String>> {
     let latest = fetch_latest()?;
     let mut zip: Option<Vec<u8>> = None;
     let mut oldest: Option<String> = None;
+    let mut changes = Vec::new();
     for (fl, addons, versions) in targets {
         let current = &versions[0];
         let mixed = versions.len() > 1;
-        if !mixed && !crate::version::newer(&latest.version, current) {
+        let Some(change) = plan(&fl.name, &versions, &latest.version) else {
             log::info!("{}", tr!("elvui.fresh", version = current, flavor = fl.title()));
             continue;
-        }
+        };
         if zip.is_none() {
             let (status, bytes) = crate::http::get(&latest.url, None)?;
             if status != 200 {
@@ -113,6 +132,7 @@ pub fn update(flavors: &[Flavor]) -> Result<Option<String>> {
             tr!("elvui.updated", from = current, to = &latest.version, flavor = fl.title())
         };
         log::info!("{line}");
+        changes.push(change);
         for v in &versions {
             if oldest.as_ref().is_none_or(|o| crate::version::newer(o, v)) {
                 oldest = Some(v.clone());
@@ -120,11 +140,12 @@ pub fn update(flavors: &[Flavor]) -> Result<Option<String>> {
         }
     }
     Ok(oldest.map(|from| {
-        if from == latest.version {
+        let text = if from == latest.version {
             tr!("elvui.history_redone", version = &latest.version)
         } else {
             tr!("elvui.history_updated", from = from, to = &latest.version)
-        }
+        };
+        (text, changes)
     }))
 }
 
@@ -226,6 +247,19 @@ mod tests {
     }
 
     #[test]
+    fn a_change_per_flavor_from_the_oldest_version() {
+        let v = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let c = plan("_retail_", &v(&["15.26"]), "16.00").unwrap();
+        assert_eq!(
+            (c.name.as_str(), c.from.as_deref(), c.to.as_deref(), c.flavor.as_deref()),
+            ("ElvUI", Some("15.26"), Some("16.00"), Some("_retail_"))
+        );
+        assert!(plan("_retail_", &v(&["16.00"]), "16.00").is_none());
+        // Mixed: the oldest leftover is `from`; the newest alone would not be redone.
+        assert_eq!(plan("_classic_", &v(&["16.00", "15.26"]), "16.00").unwrap().from.as_deref(), Some("15.26"));
+    }
+
+    #[test]
     fn versions_of_an_install() {
         let tmp = tempfile::tempdir().unwrap();
         let addons = tmp.path();
@@ -295,7 +329,8 @@ mod tests {
         let addons = fl.dir.join("Interface").join("AddOns");
         toc(&addons.join("ElvUI"), "ElvUI.toc", "1.0");
         toc(&addons.join("ElvUI"), "ElvUI_Mainline.toc", "1.0");
-        let name = update(&[fl]).unwrap().unwrap();
+        let (name, changes) = update(&[fl]).unwrap().unwrap();
+        assert_eq!(changes.len(), 1);
         let versions = installed(&addons);
         assert_eq!(versions.len(), 1);
         assert_eq!(name, format!("Обновлён: 1.0 → {}", versions[0]));

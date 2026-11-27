@@ -12,7 +12,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::updater::{Outcome, close_within, modified, quiet_command, running};
+use crate::updater::{Change, ChangeKind, Outcome, close_within, modified, quiet_command, running};
 
 pub const EXE: &str = "Wago App.exe";
 const WEAKAURAS: &str = "weakauras";
@@ -133,19 +133,43 @@ pub fn update(exe: &Path, weakauras: bool, ui_packs: bool) -> Result<Outcome> {
     restore_kept(&kept_dir());
     let (last, timed_out) = result?;
 
-    let mut updated: Vec<String> = Vec::new();
-    for ((what, dir), (old, new)) in dirs.iter().zip(before.iter().zip(&last)) {
-        let text = tr!("wago.apply_in_game", what = label(what));
-        if wanted(what) && old != new && dir.is_dir() && !updated.contains(&text) {
-            updated.push(text);
-        }
-    }
+    let changes = changes(&dirs, &before, &last, wanted);
+    let updated = changes
+        .iter()
+        .map(|c| {
+            tr!(
+                "wago.apply_in_game",
+                what = label(if c.kind == ChangeKind::Weakauras { WEAKAURAS } else { "ui_packs" })
+            )
+        })
+        .collect();
     let note = timed_out.then(|| tr!("addons.timeout", app = "Wago App", min = TIMEOUT.as_secs() / 60));
     Ok(Outcome {
         updated,
-        outdated: Vec::new(),
         note,
+        changes,
+        ..Default::default()
     })
+}
+
+/// What the app rewrote: one item per kind (it cannot name addons; the folder it writes stands in),
+/// from the states before and after.
+fn changes(dirs: &[(&str, PathBuf)], before: &[u64], after: &[u64], wanted: impl Fn(&str) -> bool) -> Vec<Change> {
+    let mut out: Vec<Change> = Vec::new();
+    for ((what, dir), (old, new)) in dirs.iter().zip(before.iter().zip(after)) {
+        let kind = if *what == WEAKAURAS { ChangeKind::Weakauras } else { ChangeKind::UiPacks };
+        if wanted(what) && old != new && dir.is_dir() && !out.iter().any(|c| c.kind == kind) {
+            let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            out.push(Change {
+                name,
+                kind,
+                from: None,
+                to: None,
+                flavor: None,
+            });
+        }
+    }
+    out
 }
 
 /// Runs the app until it has written the companion folders and then left them alone for a while;
@@ -283,6 +307,29 @@ mod tests {
         let before = state(&dirs);
         fs::write(addons.join(r"WagoAppCompanion\data.lua"), "x").unwrap();
         assert_ne!(state(&dirs), before);
+    }
+
+    #[test]
+    fn rewritten_folders_become_one_change_per_kind() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut dirs = Vec::new();
+        for fl in ["_retail_", "_classic_"] {
+            for (what, name) in [(WEAKAURAS, "WagoAppCompanion"), ("ui_packs", "WagoUI_Storage")] {
+                let d = tmp.path().join(fl).join(name);
+                fs::create_dir_all(&d).unwrap();
+                dirs.push((what, d));
+            }
+        }
+        // Both flavors' WeakAuras and the retail UI pack changed; UI packs are switched off.
+        let found = changes(&dirs, &[1, 1, 1, 1], &[2, 1, 2, 2], |what| what == WEAKAURAS);
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            (found[0].name.as_str(), found[0].kind, found[0].from.as_deref()),
+            ("WagoAppCompanion", ChangeKind::Weakauras, None)
+        );
+        let both = changes(&dirs, &[1, 1, 1, 1], &[2, 2, 1, 1], |_| true);
+        assert_eq!(both.iter().map(|c| c.kind).collect::<Vec<_>>(), [ChangeKind::Weakauras, ChangeKind::UiPacks]);
+        assert!(changes(&dirs, &[1; 4], &[1; 4], |_| true).is_empty());
     }
 
     #[test]
