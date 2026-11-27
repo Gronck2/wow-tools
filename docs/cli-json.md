@@ -186,8 +186,8 @@ in `data`.
 when it updated or failed (`[]` and `ran:false` if none). They carry no text: the summary of a run is stored for the
 tray in the language of the user, and the list of updated addons is not available as data yet. The error `partial`
 (exit 1, the rows in `data`) means a part failed while another did not (ElvUI failed, the manager did not); when the
-manager failed the answer is its error with the rows in `data`. A refusal (a game runs, no addon app) is an error without
-`data`. This command starts the chosen addon manager. The history is written in the interface language from the config
+manager failed the answer is its error with the rows in `data`. Only the refusal while a game runs (`game_running`) comes
+without `data`; other errors before the update (no addon app, a busy folder) carry the history row they wrote. This command starts the chosen addon manager. The history is written in the interface language from the config
 (or Windows), not in English, so `error.detail` of this command is in that language too.
 
 ### `clean`
@@ -199,7 +199,8 @@ Without items, what could be tidied up (read-only):
 ```
 
 `key` is `orphans`, `backups`, `logs`, `screenshots` or `cache` (all five are listed). `names` are addon names (orphans).
-`big` are the biggest addon settings files. With items (`clean orphans cache`) they are tidied up:
+`big` are the biggest addon settings files. With items (`clean orphans cache`) they are tidied up; an unknown item is
+`invalid_args` (kind `invalid_value`, `detail` = the item) before anything is touched:
 
 ```json
 {"v":1,"type":"result","command":"clean","data":{"results":[{"key":"orphans","files":41,"bytes":9800000,"failed":0,"skipped_flavors":[]}]}}

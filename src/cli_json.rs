@@ -384,19 +384,23 @@ fn clean(ctx: &Ctx, items: &[String]) -> Res {
         let big: Vec<Value> = scan.big.iter().map(|(name, bytes)| json!({ "name": name, "bytes": bytes })).collect();
         return Ok(json!({ "items": items, "big": big }));
     }
-    let mut results = Vec::new();
+    // Every key is checked before anything is cleaned: wrong use (exit 2) means nothing ran.
+    let mut chosen = Vec::new();
     for key in items {
-        // What the items before it did stays in `data`.
-        let fail = |err: anyhow::Error, results: &[Value]| Failure {
-            err,
-            data: (!results.is_empty()).then(|| json!({ "results": results })),
-        };
         let Some(item) = maintenance::Item::from_key(key) else {
-            return Err(fail(Coded::invalid_args("InvalidValue", key.clone()).into(), &results));
+            return Err(anyhow::Error::new(Coded::invalid_args("InvalidValue", key.clone())).into());
         };
+        chosen.push(item);
+    }
+    let mut results = Vec::new();
+    for item in chosen {
         let c = match maintenance::clean_item(ctx, item) {
             Ok(c) => c,
-            Err(err) => return Err(fail(err, &results)),
+            // What the items before it did stays in `data`.
+            Err(err) => {
+                let data = (!results.is_empty()).then(|| json!({ "results": results }));
+                return Err(Failure { err, data });
+            }
         };
         let skipped: Vec<&str> = c.skipped.iter().map(|f| f.name.as_str()).collect();
         results.push(json!({ "key": item.key(), "files": c.files, "bytes": c.bytes, "failed": c.failed, "skipped_flavors": skipped }));
