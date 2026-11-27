@@ -189,8 +189,8 @@ tray in the language of the user. What the run did is data, from what the manage
 
 | key | meaning |
 | --- | --- |
-| `updated` | addons that got a new version: `name`, `kind` (`addon`, `weakauras`, `ui_packs`), `from`, `to` (the manager's own version or file strings, `null` when it has none), `flavor` (`_retail_`, ... or `null` when unknown) |
-| `failed` | updates the manager tried and did not finish: `name`, `from`, `to`, `flavor`, `reason` (`no_token`: WowUp got no Wago token; `unknown`); filled also when the row is `ok` and other addons were updated |
+| `updated` | addons that got a new version: `name`, `kind` (`addon`, `weakauras`, `ui_packs`; `other` for a kind written by a newer version), `from`, `to` (the manager's own version or file strings, `null` when it has none), `flavor` (`_retail_`, ... or `null` when unknown) |
+| `failed` | updates the manager tried and did not finish: `name`, `from`, `to`, `flavor`, `reason` (`no_token`: WowUp got no Wago token; `unknown`, also for a reason written by a newer version); filled also when the row is `ok` and other addons were updated |
 | `outdated` | names of addons still behind after the run |
 | `by_hand` | names of addons the user updates by hand in the manager; left alone (CurseForge) |
 | `error` | `{code, params}` as in the error table when the row failed or was skipped (`skipped:true` has `not_run`), else `null` |
