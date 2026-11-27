@@ -70,6 +70,7 @@ Version 1 prints the final object only; an operation takes seconds to a minute. 
 | `config_exists` | `path` | `init` over an existing config without `--force` |
 | `io` | `kind` (`std::io::ErrorKind`, snake_case), `os_code` | a file operation failed |
 | `network` | `host` | an HTTPS request failed |
+| `not_run` | none | an addon manager could not run its update (it is open with auto-update off); nothing was checked |
 | `partial` | none | a run did part of its work; what it did is in `data` |
 | `json_unsupported` | `command` | the command has no JSON form |
 | `failed` | none | anything else; read `detail` |
@@ -179,12 +180,26 @@ in `data`.
 ### `update-addons`
 
 ```json
-{"v":1,"type":"result","command":"update-addons","data":{"ran":true,"entries":[{"time":"2026-11-27T13:20:00+04:00","app":"ElvUI","ok":true,"manual":true,"skipped":false},{"time":"2026-11-27T13:20:00+04:00","app":"CurseForge","ok":true,"manual":true,"skipped":false}]}}
+{"v":1,"type":"result","command":"update-addons","data":{"ran":true,"entries":[{"time":"2026-11-27T13:20:00+04:00","app":"ElvUI","ok":true,"manual":true,"skipped":false,"updated":[{"name":"ElvUI","kind":"addon","from":"15.26","to":"16.00","flavor":"_retail_"}],"failed":[],"outdated":[],"by_hand":[],"error":null},{"time":"2026-11-27T13:20:00+04:00","app":"CurseForge","ok":true,"manual":true,"skipped":false,"updated":[{"name":"BigWigs","kind":"addon","from":"BigWigs-v400.zip","to":"BigWigs-v401.zip","flavor":"_retail_"}],"failed":[],"outdated":["Plater"],"by_hand":["WeakAuras"],"error":null}]}}
 ```
 
 `entries` are the rows this run wrote to the update history, newest first: one for the addon manager and one for ElvUI
 when it updated or failed (`[]` and `ran:false` if none). They carry no text: the summary of a run is stored for the
-tray in the language of the user, and the list of updated addons is not available as data yet. The error `partial`
+tray in the language of the user. What the run did is data, from what the manager itself knows:
+
+| key | meaning |
+| --- | --- |
+| `updated` | addons that got a new version: `name`, `kind` (`addon`, `weakauras`, `ui_packs`), `from`, `to` (the manager's own version or file strings, `null` when it has none), `flavor` (`_retail_`, ... or `null` when unknown) |
+| `failed` | updates the manager tried and did not finish: `name`, `from`, `to`, `flavor`, `reason` (`no_token`: WowUp got no Wago token; `unknown`); filled also when the row is `ok` and other addons were updated |
+| `outdated` | names of addons still behind after the run |
+| `by_hand` | names of addons the user updates by hand in the manager; left alone (CurseForge) |
+| `error` | `{code, params}` as in the error table when the row failed or was skipped (`skipped:true` has `not_run`), else `null` |
+
+CurseForge names a file by its file name (it has no version field); WowUp gives its `installedVersion`; ElvUI gives the
+installed and the site's version per flavor (`from` equal to `to` = reinstalled clean); the Wago App cannot name addons,
+so it gives at most two items with `kind` `weakauras` / `ui_packs`, `name` the folder it wrote (`WagoAppCompanion`,
+`WagoUI_Storage`) and no versions. The five keys are all `null` for a row that has no details (rows are written with them;
+`null` means "unknown", `[]` "none"). The error `partial`
 (exit 1, the rows in `data`) means a part failed while another did not (ElvUI failed, the manager did not); when the
 manager failed the answer is its error with the rows in `data`. Only the refusal while a game runs (`game_running`) comes
 without `data`; other errors before the update (no addon app, a busy folder) carry the history row they wrote. This command starts the chosen addon manager. The history is written in the interface language from the config

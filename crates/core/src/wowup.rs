@@ -10,7 +10,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::updater::{NotRun, Outcome, close, hide_windows, modified, quiet_command, running, to_tab_json};
+use crate::updater::{
+    AddonsFailed, Change, ChangeKind, FailReason, Failed, NotRun, Outcome, close, hide_windows, modified, quiet_command, running, to_tab_json,
+};
 
 /// The log line of the auto-update run.
 const STARTED_MARK: &str = "onAutoUpdateInterval";
@@ -172,24 +174,42 @@ impl WowUp {
         if !ignored.is_empty() {
             note.push(tr!("wowup.ignored", app = self.title, names = ignored.join(", ")));
         }
-        let updated = updated(&before, &after);
+        let installs = installations(&fs::read_to_string(self.data().join("preferences.json")).unwrap_or_default());
+        let changes = changes(&before, &after, &installs);
+        let updated: Vec<String> = changes.iter().map(|c| c.name.clone()).collect();
         let log = log_since(&self.log_file(), log_from);
-        let failed: Vec<String> = attempted(&log).into_iter().filter(|n| !updated.contains(n)).collect();
+        let no_token = log.contains(NO_TOKEN_MARK);
+        let failed: Vec<Failed> = attempted_full(&log)
+            .into_iter()
+            .filter(|(name, ..)| !updated.contains(name))
+            .map(|(name, from, to)| Failed {
+                flavor: flavor_of_addon(&name, &after, &installs),
+                name,
+                from: Some(from),
+                to: Some(to),
+                reason: if no_token { FailReason::NoToken } else { FailReason::Unknown },
+            })
+            .collect();
         if !failed.is_empty() {
-            let why = if log.contains(NO_TOKEN_MARK) {
+            let why = if no_token {
                 tr!("wowup.wago_denied", app = self.title)
             } else {
                 String::new()
             };
+            let names = failed.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
             if updated.is_empty() {
-                bail!(tr!("wowup.failed_all", app = self.title, names = failed.join(", "), why = why));
+                let text = tr!("wowup.failed_all", app = self.title, names = names, why = why);
+                return Err(AddonsFailed { failed, text }.into());
             }
-            note.push(tr!("wowup.failed_some", names = failed.join(", "), why = why));
+            note.push(tr!("wowup.failed_some", names = names, why = why));
         }
         Ok(Outcome {
             updated,
             outdated: after.iter().filter(|a| a.outdated()).map(|a| a.name.clone()).collect(),
             note: (!note.is_empty()).then(|| note.join("\n")),
+            changes,
+            failed,
+            ..Default::default()
         })
     }
 
@@ -227,16 +247,18 @@ impl WowUp {
     }
 }
 
-/// Names of the addons it tried to update: `[AddonUpdate] Wago rkGrrgGy BugSack 'v1' -> 'v2'`.
-fn attempted(log: &str) -> Vec<String> {
+/// (name, from, to) of the addons it tried to update: `[AddonUpdate] Wago rkGrrgGy BugSack 'v1' -> 'v2'`.
+fn attempted_full(log: &str) -> Vec<(String, String, String)> {
     log.lines()
         .filter_map(|l| l.split_once("[AddonUpdate] ").map(|(_, rest)| rest))
         // Provider, id, then the name up to the quoted versions.
         .filter_map(|rest| rest.splitn(3, ' ').nth(2))
         .filter_map(|rest| {
-            rest.rsplit_once(" '")
-                .and_then(|(head, _)| head.rsplit_once(" '"))
-                .map(|(name, _)| name.trim().to_string())
+            let (head, to) = rest.rsplit_once(" '")?;
+            let (name, from) = head.rsplit_once(" '")?;
+            // `'v1' -> 'v2'`: cut the closing quote and the arrow off.
+            let from = from.split_once('\'').map_or(from, |(v, _)| v);
+            Some((name.trim().to_string(), from.to_string(), to.trim_end().trim_end_matches('\'').to_string()))
         })
         .collect()
 }
@@ -258,6 +280,8 @@ struct Addon {
     /// The installed release (`installedExternalReleaseId`, else `installedVersion`).
     installed: String,
     latest: String,
+    /// `installedVersion`: the human one, unlike the release id in `installed`.
+    version: String,
     auto_update: bool,
     ignored: bool,
     /// Matched to a site (`providerName` other than "Unknown").
@@ -291,6 +315,7 @@ fn parse_addons(text: &str) -> Result<Vec<Addon>> {
                 installation: s(&a["installationId"]),
                 installed,
                 latest,
+                version: s(&a["installedVersion"]),
                 auto_update: a[AUTO_KEY].as_bool().unwrap_or(false),
                 ignored: a["isIgnored"].as_bool().unwrap_or(false),
                 known: !matches!(a["providerName"].as_str(), None | Some("" | "Unknown")),
@@ -313,14 +338,36 @@ fn installations(text: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The `_name_` folder of an installation's `Wow.exe` location; none for an odd place.
+fn flavor_of_installation(installs: &[(String, String)], id: &str) -> Option<String> {
+    let location = installs.iter().find(|(i, _)| i == id).map(|(_, l)| l)?;
+    let name = Path::new(&location.replace('\\', "/")).parent()?.file_name()?.to_str()?.to_string();
+    (name.len() > 2 && name.starts_with('_') && name.ends_with('_')).then_some(name)
+}
+
+fn flavor_of_addon(name: &str, addons: &[Addon], installs: &[(String, String)]) -> Option<String> {
+    let a = addons.iter().find(|a| a.name == name)?;
+    flavor_of_installation(installs, &a.installation)
+}
+
 /// Addons whose installed release changed between two reads (ignored ones are never updated).
-fn updated(before: &[Addon], after: &[Addon]) -> Vec<String> {
-    let old: HashMap<&str, &str> = before.iter().map(|a| (a.key.as_str(), a.installed.as_str())).collect();
+/// Release ids are opaque, so `from`/`to` are the human versions (`None` when the app has none).
+fn changes(before: &[Addon], after: &[Addon], installs: &[(String, String)]) -> Vec<Change> {
+    let old: HashMap<&str, &Addon> = before.iter().map(|a| (a.key.as_str(), a)).collect();
+    let version = |v: &str| Some(v.to_string()).filter(|v| !v.is_empty());
     after
         .iter()
         .filter(|a| !a.ignored)
-        .filter(|a| old.get(a.key.as_str()).is_some_and(|i| *i != a.installed))
-        .map(|a| a.name.clone())
+        .filter_map(|a| {
+            let was = old.get(a.key.as_str()).filter(|o| o.installed != a.installed)?;
+            Some(Change {
+                name: a.name.clone(),
+                kind: ChangeKind::Addon,
+                from: version(&was.version),
+                to: version(&a.version),
+                flavor: flavor_of_installation(installs, &a.installation),
+            })
+        })
         .collect()
 }
 
@@ -372,7 +419,15 @@ mod tests {
     fn finds_what_was_updated() {
         let before = parse_addons(&addons("r1")).unwrap();
         let after = parse_addons(&addons("r2")).unwrap();
-        assert_eq!(updated(&before, &after), ["Details"]);
+        let installs = [("i1".to_string(), r"C:\WoW\_classic_\WowClassic.exe".to_string())];
+        let found = changes(&before, &after, &installs);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].name, "Details");
+        // The fixture has no `installedVersion`: unknown, not an empty string.
+        assert_eq!((found[0].from.as_deref(), found[0].to.as_deref()), (None, None));
+        assert_eq!(found[0].flavor.as_deref(), Some("_classic_"));
+        // An installation somewhere odd has no flavor.
+        assert_eq!(changes(&before, &after, &[("i1".to_string(), r"D:\Games\Wow.exe".to_string())])[0].flavor, None);
         assert!(!after.iter().any(Addon::outdated));
     }
 
@@ -398,7 +453,7 @@ mod tests {
             )
         };
         let (before, after) = (parse_addons(&list("4.0", "1.0")).unwrap(), parse_addons(&list("4.0", "1.0")).unwrap());
-        assert!(updated(&before, &after).is_empty());
+        assert!(changes(&before, &after, &[]).is_empty());
         assert!(!before[0].known);
         assert!(!before.iter().any(Addon::outdated));
     }
@@ -408,7 +463,36 @@ mod tests {
         let log = "[2026-10-12 22:17:26.967] [info]  [AddonUpdate] Wago rkGrrgGy BugSack 'v12.1.6' -> 'v12.1.7'\n\
                    [2026-10-12 22:17:26.968] [info]  [AddonUpdate] Curse 1234 Details! Damage Meter '1' -> '2'\n\
                    [2026-10-12 22:17:27.086] [info]  [download] response 401, content-length 0";
-        assert_eq!(attempted(log), ["BugSack", "Details! Damage Meter"]);
+        let names: Vec<String> = attempted_full(log).into_iter().map(|(name, ..)| name).collect();
+        assert_eq!(names, ["BugSack", "Details! Damage Meter"]);
+    }
+
+    #[test]
+    fn versions_come_from_installed_version() {
+        let one = |release: &str, version: &str| {
+            format!(
+                r#"{{"a":{{"name":"Details","providerName":"Wago","externalId":"e","installationId":"i","installedExternalReleaseId":"{release}","installedVersion":"{version}"}}}}"#
+            )
+        };
+        let (b, a) = (parse_addons(&one("r1", "v1.0")).unwrap(), parse_addons(&one("r2", "v1.1")).unwrap());
+        let found = changes(&b, &a, &[]);
+        assert_eq!(
+            (found[0].from.as_deref(), found[0].to.as_deref(), found[0].flavor.as_deref()),
+            (Some("v1.0"), Some("v1.1"), None)
+        );
+    }
+
+    #[test]
+    fn attempted_updates_keep_their_versions() {
+        let log =
+            "[x] [info]  [AddonUpdate] Wago rkGrrgGy BugSack 'v12.1.6' -> 'v12.1.7'\n[x] [info]  [AddonUpdate] Curse 12 Details! Damage Meter 'a b' -> 'c'";
+        assert_eq!(
+            attempted_full(log),
+            [
+                ("BugSack".to_string(), "v12.1.6".to_string(), "v12.1.7".to_string()),
+                ("Details! Damage Meter".to_string(), "a b".to_string(), "c".to_string())
+            ]
+        );
     }
 
     #[test]

@@ -972,6 +972,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             text,
             manual,
             skipped: false,
+            details: None,
         })
         .to_vec(),
         self_update: if view.starts_with("update") { new_release() } else { Default::default() },
@@ -1144,6 +1145,7 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
                     text,
                     manual: true,
                     skipped: true,
+                    details: None,
                 },
             );
         }

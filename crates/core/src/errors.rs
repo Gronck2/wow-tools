@@ -18,6 +18,8 @@ pub const NETWORK: &str = "network";
 pub const PARTIAL: &str = "partial";
 pub const JSON_UNSUPPORTED: &str = "json_unsupported";
 pub const FAILED: &str = "failed";
+/// An addon manager could not run its update (it is open with auto-update off): nothing was checked.
+pub const NOT_RUN: &str = "not_run";
 
 /// An error with a code. Raise it as the error itself (`Err(Coded::..().into())`) or as the context of
 /// another one (`.with_context(|| Coded::..)`): the text is the message either way.
@@ -116,6 +118,9 @@ pub fn classify(err: &anyhow::Error) -> (&'static str, Value) {
     if let Some(c) = err.downcast_ref::<Coded>() {
         return (c.code, c.params.clone());
     }
+    if err.is::<crate::updater::NotRun>() {
+        return (NOT_RUN, json!({}));
+    }
     if let Some(e) = err.chain().find_map(|e| e.downcast_ref::<std::io::Error>()) {
         return (IO, json!({ "kind": snake(&format!("{:?}", e.kind())), "os_code": e.raw_os_error() }));
     }
@@ -153,5 +158,8 @@ mod tests {
         let io: anyhow::Error = std::io::Error::from_raw_os_error(5).into();
         assert_eq!(classify(&io.context("writing")), (IO, json!({ "kind": "permission_denied", "os_code": 5 })));
         assert_eq!(classify(&anyhow::anyhow!("plain")), (FAILED, json!({})));
+        // The skipped addon run: the text is Russian here, the code is not.
+        let skipped: anyhow::Error = crate::updater::NotRun(tr!("curseforge.open_manual").into()).into();
+        assert_eq!(classify(&skipped), (NOT_RUN, json!({})));
     }
 }

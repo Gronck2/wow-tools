@@ -85,6 +85,7 @@ pub fn pick(configured: Option<AddonApp>, installed: &[AddonApp]) -> Option<Addo
     configured.filter(|a| installed.contains(a)).or_else(|| installed.first().copied())
 }
 
+#[derive(Default)]
 pub struct Outcome {
     /// Names of the addons that got a new version.
     pub updated: Vec<String>,
@@ -92,7 +93,107 @@ pub struct Outcome {
     pub outdated: Vec<String>,
     /// Something worth telling: the app was already open, the wait timed out, ...
     pub note: Option<String>,
+    /// The same as `updated`, as data (versions, flavor).
+    pub changes: Vec<Change>,
+    /// Updates the app tried and did not finish (some other addons did get through).
+    pub failed: Vec<Failed>,
+    /// Addons left to the user ("update by hand" in the app).
+    pub manual: Vec<String>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChangeKind {
+    Addon,
+    Weakauras,
+    UiPacks,
+}
+
+/// One addon that got a new version. `from`/`to` are the manager's own strings; `flavor` is the
+/// `_name_` folder when known.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Change {
+    pub name: String,
+    pub kind: ChangeKind,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub flavor: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FailReason {
+    /// WowUp got no Wago token (its free Wago access needs the ad window).
+    NoToken,
+    Unknown,
+}
+
+/// An update the app tried and that did not end up installed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Failed {
+    pub name: String,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub flavor: Option<String>,
+    pub reason: FailReason,
+}
+
+/// Why a run failed or was skipped: `errors::classify` without the text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CodedError {
+    pub code: String,
+    pub params: serde_json::Value,
+}
+
+/// What a history row says as data. `Entry::details` is `None` for rows written before it existed.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RunDetails {
+    pub updated: Vec<Change>,
+    pub failed: Vec<Failed>,
+    pub outdated: Vec<String>,
+    pub by_hand: Vec<String>,
+    pub error: Option<CodedError>,
+}
+
+impl RunDetails {
+    /// For a run that ended in `e`; an all-failed run keeps its list.
+    pub fn of_error(e: &anyhow::Error) -> RunDetails {
+        let (code, params) = crate::errors::classify(e);
+        RunDetails {
+            failed: e.downcast_ref::<AddonsFailed>().map(|f| f.failed.clone()).unwrap_or_default(),
+            error: Some(CodedError { code: code.into(), params }),
+            ..Default::default()
+        }
+    }
+}
+
+impl From<&Outcome> for RunDetails {
+    fn from(o: &Outcome) -> RunDetails {
+        RunDetails {
+            updated: o.changes.clone(),
+            failed: o.failed.clone(),
+            outdated: o.outdated.clone(),
+            by_hand: o.manual.clone(),
+            error: None,
+        }
+    }
+}
+
+/// Every update the app tried failed: an error with the list, so it is not lost with the text.
+#[derive(Debug)]
+pub struct AddonsFailed {
+    pub failed: Vec<Failed>,
+    pub text: String,
+}
+
+impl std::fmt::Display for AddonsFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
+
+impl std::error::Error for AddonsFailed {}
 
 /// The app could not run its update (it is open with auto-update off): nothing was checked. Not
 /// counted as a run, so the schedule tries again; the history shows it as a warning, not an error.
@@ -110,9 +211,8 @@ impl std::error::Error for NotRun {}
 impl Outcome {
     pub fn note(text: impl Into<String>) -> Outcome {
         Outcome {
-            updated: Vec::new(),
-            outdated: Vec::new(),
             note: Some(text.into()),
+            ..Default::default()
         }
     }
 
@@ -288,6 +388,9 @@ pub struct Entry {
     /// Not run (`NotRun`): `ok` is false, shown as a warning.
     #[serde(default)]
     pub skipped: bool,
+    /// The run as data; absent in rows written by older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<RunDetails>,
 }
 
 fn history_file() -> PathBuf {
@@ -380,6 +483,7 @@ mod tests {
                 text: format!("run {m}"),
                 manual: false,
                 skipped: false,
+                details: None,
             };
             append_history(&path, entry).unwrap();
         }
@@ -390,11 +494,61 @@ mod tests {
     }
 
     #[test]
+    fn old_rows_load_without_details_and_are_written_back_without_them() {
+        // The exact shapes older versions wrote: with and without `skipped`.
+        let old = r#"[{"time":"2026-10-12T10:00:00","app":"WowUp","ok":true,"text":"t","manual":false,"skipped":false},
+                       {"time":"2026-10-11T10:00:00","app":"CurseForge","ok":true,"text":"u","manual":true}]"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("h.json");
+        fs::write(&path, old).unwrap();
+        let list = read_history(&path);
+        assert_eq!(list.len(), 2);
+        assert!(list.iter().all(|e| e.details.is_none()));
+        assert!(!serde_json::to_string(&list).unwrap().contains("details"));
+        // A row with details survives a round trip, and so does one with a partial object.
+        let mut e = list[0].clone();
+        e.details = Some(RunDetails {
+            failed: vec![Failed {
+                name: "BugSack".into(),
+                from: Some("1".into()),
+                to: None,
+                flavor: None,
+                reason: FailReason::NoToken,
+            }],
+            ..Default::default()
+        });
+        assert_eq!(serde_json::from_str::<Entry>(&serde_json::to_string(&e).unwrap()).unwrap(), e);
+        let partial: Entry =
+            serde_json::from_str(r#"{"time":"2026-10-12T10:00:00","app":"A","ok":true,"text":"","manual":false,"details":{"by_hand":["X"]}}"#).unwrap();
+        assert_eq!(partial.details.unwrap().by_hand, ["X"]);
+    }
+
+    #[test]
+    fn an_error_becomes_details_and_keeps_the_failed_list() {
+        let failed = Failed {
+            name: "BugSack".into(),
+            from: None,
+            to: None,
+            flavor: None,
+            reason: FailReason::Unknown,
+        };
+        let e = anyhow::Error::new(AddonsFailed {
+            failed: vec![failed.clone()],
+            text: "all failed".into(),
+        });
+        let d = RunDetails::of_error(&e);
+        assert_eq!(d.failed, [failed]);
+        assert_eq!(d.error.unwrap().code, "failed");
+        let d = RunDetails::of_error(&NotRun("open".into()).into());
+        assert!(d.failed.is_empty());
+        assert_eq!(d.error.unwrap().code, "not_run");
+    }
+
+    #[test]
     fn summary_text() {
         let o = Outcome {
             updated: vec!["BigWigs".into(), "Details!".into()],
-            outdated: Vec::new(),
-            note: None,
+            ..Default::default()
         };
         assert_eq!(o.summary(), "Обновлено 2: BigWigs, Details!");
     }
