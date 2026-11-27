@@ -63,6 +63,12 @@ impl Profile {
     pub fn title(&self) -> String {
         format!("{} ({})", self.meta.name, self.meta.realm)
     }
+
+    /// The stable name of a profile, `<flavor>/<zip file>` below `root` (its number in `list` shifts when one is deleted).
+    pub fn id(&self, root: &Path) -> String {
+        let rel = self.path.strip_prefix(root).unwrap_or(&self.path);
+        rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/")
+    }
 }
 
 /// The AceDB profile of one database (`ElvDB`, `ElvPrivateDB`...) a character used.
@@ -228,6 +234,8 @@ fn read_ace(c: &Character) -> Vec<AceProfile> {
 pub struct Saved {
     pub summary: String,
     pub new: bool,
+    /// The new profile, or the earlier one that holds the same.
+    pub profile: Profile,
 }
 
 pub fn save(ctx: &Ctx, fl: &Flavor, c: &Character) -> Result<Saved> {
@@ -247,7 +255,11 @@ pub fn save(ctx: &Ctx, fl: &Flavor, c: &Character) -> Result<Saved> {
     }) {
         let summary = tr!("profiles.unchanged", time = short_time(same.meta.created));
         log::info!("{}: {}", same.title(), summary);
-        return Ok(Saved { summary, new: false });
+        return Ok(Saved {
+            summary,
+            new: false,
+            profile: same,
+        });
     }
     let meta = Meta {
         flavor: fl.name.clone(),
@@ -305,7 +317,7 @@ pub fn save(ctx: &Ctx, fl: &Flavor, c: &Character) -> Result<Saved> {
         addons = profile.meta.addons.len()
     );
     log::info!("{}", summary);
-    Ok(Saved { summary, new: true })
+    Ok(Saved { summary, new: true, profile })
 }
 
 /// "23:38" today, else the day ("13.10.2026"): short enough for a panel row.

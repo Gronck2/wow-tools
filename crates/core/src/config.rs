@@ -1,3 +1,4 @@
+use crate::errors::Coded;
 use anyhow::{Context, Result};
 use chrono::{Datelike, Days, NaiveDate, NaiveDateTime, NaiveTime};
 use directories::ProjectDirs;
@@ -355,7 +356,7 @@ impl Config {
             return Ok(Self::default());
         }
         let text = fs::read_to_string(path).with_context(|| tr!("error.read", path = path.display()))?;
-        toml::from_str(&text).with_context(|| tr!("config.bad", path = path.display()))
+        toml::from_str(&text).with_context(|| Coded::config_invalid(path, tr!("config.bad", path = path.display())))
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {

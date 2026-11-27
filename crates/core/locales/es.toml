@@ -401,6 +401,8 @@ off = "desactivada"
 last = ", la última {time}"
 updates = "Actualización de accesorios: {update}{last}"
 some_failed = "no se crearon algunas instantáneas"
+json_unsupported = "el comando {command} no tiene salida --json"
+json_needs_yes = "restore con --json necesita --yes"
 list_header = "{flavor} / {what}: {n}"
 # Palabras para "sí" en las confirmaciones de la consola, separadas por espacios (y y yes siempre funcionan).
 yes_words = "s si sí"
@@ -441,6 +443,7 @@ version = "Muestra la versión"
 config = "Ruta de la configuración (por defecto %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Escribe el registro en un archivo (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), no en la consola"
 verbose = "Salida detallada"
+json = "Un solo objeto JSON, para otras interfaces"
 
 [cli.tray]
 about = "Icono de la bandeja: copias en segundo plano, restauración, configuración"
@@ -789,9 +792,9 @@ about = "Listar los perfiles guardados"
 
 [cli.profile.apply]
 about = "Aplicar un perfil a un personaje (juego cerrado; antes se guarda WTF)"
-profile = "Número de perfil de `profile list`"
+profile = "Número o id de perfil de `profile list`"
 to = "Personaje: Reino/Nombre o CUENTA/Reino/Nombre"
 
 [cli.profile.delete]
 about = "Eliminar un perfil"
-profile = "Número de perfil de `profile list`"
+profile = "Número o id de perfil de `profile list`"

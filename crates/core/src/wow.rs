@@ -1,4 +1,5 @@
-use anyhow::{Result, bail};
+use crate::errors::Coded;
+use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
 use sysinfo::{ProcessesToUpdate, System};
@@ -248,13 +249,13 @@ fn from_registry() -> Option<PathBuf> {
 pub fn resolve_root(configured: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = configured {
         if flavors(p).is_empty() {
-            bail!(tr!("wow.no_flavors", path = p.display()));
+            return Err(Coded::no_wow(tr!("wow.no_flavors", path = p.display())).into());
         }
         return Ok(p.to_path_buf());
     }
     match detect_root() {
         Some(p) => Ok(p),
-        None => bail!(tr!("wow.not_found_cli")),
+        None => Err(Coded::no_wow(tr!("wow.not_found_cli")).into()),
     }
 }
 

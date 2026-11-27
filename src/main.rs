@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate wow_tools_core;
 
+mod cli_json;
 mod diag;
 #[cfg(windows)]
 mod gfx;
@@ -25,6 +26,7 @@ use snapshot::Kind;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use wow_tools_core::errors::Coded;
 // The core's modules keep their `crate::x` paths in the program's own modules.
 pub(crate) use wow_tools_core::{
     app, chars, config, http, i18n, lock, macro_fix, macro_names, macro_store, macros, maintenance, profiles, snapshot, updater, watch, wow,
@@ -43,6 +45,9 @@ struct Cli {
     /// Verbose output
     #[arg(short, long, global = true)]
     verbose: bool,
+    /// Print one JSON object on stdout instead of text (docs/cli-json.md)
+    #[arg(long, global = true)]
+    json: bool,
     #[command(subcommand)]
     cmd: Option<Cmd>,
 }
@@ -201,16 +206,16 @@ enum ProfileCmd {
     List,
     /// Put a profile on a character (game closed; WTF is saved first)
     Apply {
-        /// Profile number from `profile list`
-        profile: usize,
+        /// Profile number or id from `profile list`
+        profile: String,
         /// Character: Realm/Name or ACCOUNT/Realm/Name
         #[arg(long)]
         to: String,
     },
     /// Delete a profile
     Delete {
-        /// Profile number from `profile list`
-        profile: usize,
+        /// Profile number or id from `profile list`
+        profile: String,
     },
 }
 
@@ -241,6 +246,11 @@ fn early_language() -> Option<i18n::Lang> {
     let explicit = explicit.or_else(|| args.iter().find_map(|a| a.strip_prefix("--config=")).map(PathBuf::from));
     let path = explicit.unwrap_or_else(config::default_config_path);
     Config::load(&path).ok().and_then(|c| c.language)
+}
+
+/// `--json` anywhere before clap parses: the language and the errors of the parse itself depend on it.
+fn early_json() -> bool {
+    std::env::args().skip(1).take_while(|a| a != "--").any(|a| a == "--json")
 }
 
 /// Puts the interface language into `--help`: `cli.<command path>.about` for commands,
@@ -300,8 +310,15 @@ fn localize(cmd: clap::Command, path: &str) -> clap::Command {
 
 fn main() {
     http::set_user_agent(&format!("wow-tools/{}", selfupdate::current()));
-    i18n::set(early_language());
-    let matches = localize(Cli::command(), "").get_matches();
+    let json = early_json();
+    // JSON output is English: the one free-text field, `error.detail`, must not change with the machine.
+    i18n::set(if json { Some(i18n::Lang::En) } else { early_language() });
+    let matches = match localize(Cli::command(), "").try_get_matches() {
+        Ok(m) => m,
+        // Help and version go out as usual; a wrong command line is an object in JSON mode.
+        Err(e) if json && e.use_stderr() => std::process::exit(cli_json::invalid_args(&e)),
+        Err(e) => e.exit(),
+    };
     let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
     // Before logging: the log file lives in the folder that may be moved.
     let migrated = config::migrate_legacy();
@@ -311,7 +328,12 @@ fn main() {
     if let Err(e) = migrated {
         log::warn!("{}", tr!("out.migrate_failed", error = format!("{e:#}")));
     }
-    if let Err(e) = run(cli) {
+    if cli.json {
+        match cli_json::main(cli) {
+            0 => {}
+            code => std::process::exit(code),
+        }
+    } else if let Err(e) = run(cli) {
         log::error!("{e:#}");
         std::process::exit(1);
     }
@@ -321,7 +343,7 @@ fn init_logging(cli: &Cli) -> Result<()> {
     let level = if cli.verbose { "debug" } else { "info" };
     let mut builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(level));
     // The tray has no console to write to.
-    let to_file = cli.log_to_file || matches!(cli.cmd, None | Some(Cmd::Tray { .. }));
+    let to_file = cli.log_to_file || (!cli.json && matches!(cli.cmd, None | Some(Cmd::Tray { .. })));
     if to_file {
         let path = config::default_log_path();
         if let Some(dir) = path.parent() {
@@ -498,6 +520,7 @@ fn demo_macros(view: &str) -> tray::MacroCheck {
         name: name.into(),
         line,
         kind,
+        owner: Default::default(),
         fixed: None,
     };
     let gronckk = "Gronckk-Tarren Mill";
@@ -1269,6 +1292,29 @@ fn cmd_chars(ctx: &Ctx, flavor: Option<&str>) -> Result<()> {
 }
 
 fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], flavor: Option<&str>, dry_run: bool) -> Result<()> {
+    copy_char(ctx, from, to, parts, flavor, dry_run, |src, dst, done| {
+        let line = if dry_run {
+            tr!("out.will_copy", n = done.len())
+        } else {
+            tr!("out.copied", n = done.len())
+        };
+        println!("{src} → {dst}: {line}");
+        for f in done {
+            println!("  {f}");
+        }
+    })
+}
+
+/// `copy-char`: calls `each(source, target, files)` after every target is done (or, with `dry_run`, checked).
+fn copy_char(
+    ctx: &Ctx,
+    from: &str,
+    to: &[String],
+    parts: &[chars::Part],
+    flavor: Option<&str>,
+    dry_run: bool,
+    mut each: impl FnMut(&chars::Character, &chars::Character, &[String]),
+) -> Result<()> {
     let fl = ctx.single_flavor(flavor)?;
     let _lock = if dry_run {
         None
@@ -1286,15 +1332,7 @@ fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], fl
     }
     for dst in targets {
         let done = chars::copy(src, dst, parts, dry_run)?;
-        let line = if dry_run {
-            tr!("out.will_copy", n = done.len())
-        } else {
-            tr!("out.copied", n = done.len())
-        };
-        println!("{src} → {dst}: {line}");
-        for f in done {
-            println!("  {f}");
-        }
+        each(src, dst, &done);
     }
     if !dry_run {
         app::safety_done(ctx, &fl);
@@ -1302,13 +1340,22 @@ fn cmd_copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], fl
     Ok(())
 }
 
-fn cmd_profile(ctx: &Ctx, action: ProfileCmd) -> Result<()> {
-    let pick = |n: usize| -> Result<profiles::Profile> {
-        let list = profiles::list(&profiles::root(ctx));
-        n.checked_sub(1)
-            .and_then(|i| list.get(i).cloned())
-            .with_context(|| tr!("profiles.no_such", n = n, count = list.len()))
+/// A profile by its number in `profile list` or by its id.
+fn pick_profile(ctx: &Ctx, spec: &str) -> Result<profiles::Profile> {
+    let list = profiles::list(&profiles::root(ctx));
+    let number = spec.parse::<usize>().ok();
+    let found = match number {
+        Some(n) => n.checked_sub(1).and_then(|i| list.get(i)),
+        None => list.iter().find(|p| p.id(&profiles::root(ctx)) == spec),
     };
+    let shown = number.map_or(spec.to_string(), |n| n.to_string());
+    found
+        .cloned()
+        .with_context(|| Coded::not_found("profile", spec, tr!("profiles.no_such", n = shown, count = list.len())))
+}
+
+fn cmd_profile(ctx: &Ctx, action: ProfileCmd) -> Result<()> {
+    let pick = |spec: &str| pick_profile(ctx, spec);
     match action {
         ProfileCmd::Save { character, flavor } => {
             let fl = ctx.single_flavor(flavor.as_deref())?;
@@ -1337,12 +1384,12 @@ fn cmd_profile(ctx: &Ctx, action: ProfileCmd) -> Result<()> {
             }
         }
         ProfileCmd::Apply { profile, to } => {
-            let profile = pick(profile)?;
+            let profile = pick(&profile)?;
             let fl = ctx.single_flavor(Some(&profile.meta.flavor))?;
             let list = chars::list(&fl.wtf_dir());
             println!("{}", profiles::apply(ctx, &fl, &profile, chars::find(&list, &to)?)?);
         }
-        ProfileCmd::Delete { profile } => profiles::delete(&pick(profile)?)?,
+        ProfileCmd::Delete { profile } => profiles::delete(&pick(&profile)?)?,
     }
     Ok(())
 }

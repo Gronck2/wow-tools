@@ -1,6 +1,7 @@
 //! Characters in `WTF/Account/<ACCOUNT>/<Realm>/<Character>` and copying
 //! settings from one to another.
 
+use crate::errors::Coded;
 use anyhow::{Result, bail};
 use std::fmt;
 use std::fs;
@@ -124,7 +125,7 @@ pub fn find<'a>(chars: &'a [Character], spec: &str) -> Result<&'a Character> {
         .collect();
     match matches.as_slice() {
         [one] => Ok(one),
-        [] => bail!(tr!("chars.not_found", spec = spec)),
+        [] => Err(Coded::not_found("character", spec, tr!("chars.not_found", spec = spec)).into()),
         many => {
             let names: Vec<String> = many.iter().map(|c| c.to_string()).collect();
             bail!(tr!("chars.ambiguous", spec = spec, names = names.join(", ")))

@@ -10,6 +10,7 @@ pub mod config;
 pub mod curseforge;
 pub mod editmode;
 pub mod elvui;
+pub mod errors;
 pub mod http;
 pub mod lock;
 pub mod lua;
