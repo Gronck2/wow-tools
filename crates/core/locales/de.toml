@@ -34,6 +34,12 @@ write = "{path} konnte nicht geschrieben werden"
 [config]
 bad = "Fehler in der Konfiguration {path}"
 migrate_failed = "{from} konnte nicht nach {to} verschoben werden"
+unknown_key = "keine solche Einstellung: {key}"
+bad_type = "{key}: der Wert hat den falschen Typ oder ist unbekannt ({detail})"
+bad_range = "{key}: der Wert liegt außerhalb des Bereichs"
+bad_format = "{key}: der Wert hat das falsche Format"
+unknown_value = "unbekannter Wert"
+set_line = "{key} = {value}"
 
 [addons]
 app_not_found = "{app} ist nicht installiert"
@@ -440,7 +446,7 @@ options = "Optionen"
 arguments = "Argumente"
 help = "Hilfe anzeigen"
 version = "Version anzeigen"
-config = "Pfad der Konfiguration (Standard: %APPDATA%\\WoW Tools\\config\\config.toml)"
+config_file = "Pfad der Konfiguration (Standard: %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Protokoll in eine Datei schreiben (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log) statt in die Konsole"
 verbose = "Ausführliche Ausgabe"
 json = "Ein JSON-Objekt ausgeben, für andere Oberflächen"
@@ -676,6 +682,22 @@ in_zhTW = "auf Chinesisch (traditionell)"
 
 [cli.outdated]
 about = "Addons, die nicht für die installierte Spielversion gemacht sind"
+
+[cli.config]
+about = "Einstellungen: lesen, ändern, zurücksetzen"
+
+[cli.config.get]
+about = "Die Einstellungen oder eine davon zeigen (Namen wie in config.toml)"
+key = "Name der Einstellung"
+
+[cli.config.set]
+about = "Eine Einstellung ändern (der Wert ist JSON oder einfacher Text)"
+key = "Name der Einstellung"
+value = "Neuer Wert: 10, true, game_exit, '[\"mon\",\"fri\"]', null"
+
+[cli.config.unset]
+about = "Eine Einstellung auf den Standardwert zurücksetzen"
+key = "Name der Einstellung"
 
 [patch]
 title = "Das Spiel wurde aktualisiert"

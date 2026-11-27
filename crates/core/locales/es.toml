@@ -34,6 +34,12 @@ write = "no se pudo escribir {path}"
 [config]
 bad = "error en la configuración {path}"
 migrate_failed = "no se pudo mover {from} a {to}"
+unknown_key = "no existe ese ajuste: {key}"
+bad_type = "{key}: el valor es de un tipo incorrecto o desconocido ({detail})"
+bad_range = "{key}: el valor está fuera de rango"
+bad_format = "{key}: el valor tiene un formato incorrecto"
+unknown_value = "valor desconocido"
+set_line = "{key} = {value}"
 
 [addons]
 app_not_found = "{app} no está instalado"
@@ -440,7 +446,7 @@ options = "Opciones"
 arguments = "Argumentos"
 help = "Muestra la ayuda"
 version = "Muestra la versión"
-config = "Ruta de la configuración (por defecto %APPDATA%\\WoW Tools\\config\\config.toml)"
+config_file = "Ruta de la configuración (por defecto %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Escribe el registro en un archivo (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), no en la consola"
 verbose = "Salida detallada"
 json = "Un solo objeto JSON, para otras interfaces"
@@ -676,6 +682,22 @@ in_zhTW = "en chino (tradicional)"
 
 [cli.outdated]
 about = "Accesorios que no están hechos para la versión instalada del juego"
+
+[cli.config]
+about = "Ajustes: leer, cambiar, restablecer"
+
+[cli.config.get]
+about = "Mostrar los ajustes o uno de ellos (nombres como en config.toml)"
+key = "Nombre del ajuste"
+
+[cli.config.set]
+about = "Cambiar un ajuste (el valor es JSON o texto simple)"
+key = "Nombre del ajuste"
+value = "Valor nuevo: 10, true, game_exit, '[\"mon\",\"fri\"]', null"
+
+[cli.config.unset]
+about = "Volver un ajuste a su valor por defecto"
+key = "Nombre del ajuste"
 
 [patch]
 title = "El juego se actualizó"

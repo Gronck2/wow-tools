@@ -2,7 +2,7 @@
 //! `main.rs` are not touched; this is a thin layer over the same core calls. Nothing here is localized: the only
 //! free text is `error.detail`, the English error chain, for logs.
 
-use crate::{Cli, Cmd, ProfileCmd};
+use crate::{Cli, Cmd, ConfigCmd, ProfileCmd};
 use anyhow::Result;
 use chrono::{Local, NaiveDateTime, SecondsFormat, TimeZone};
 use serde_json::{Value, json};
@@ -110,6 +110,11 @@ fn command_name(cmd: Option<&Cmd>) -> String {
             ProfileCmd::Apply { .. } => "profile apply",
             ProfileCmd::Delete { .. } => "profile delete",
         },
+        Some(Cmd::Config { action }) => match action {
+            ConfigCmd::Get { .. } => "config get",
+            ConfigCmd::Set { .. } => "config set",
+            ConfigCmd::Unset { .. } => "config unset",
+        },
         Some(Cmd::Schedule { .. }) => "schedule",
         Some(Cmd::Quit) => "quit",
         Some(Cmd::UiSnapshot { .. }) => "ui-snapshot",
@@ -150,6 +155,7 @@ fn dispatch(ctx: &Ctx, cmd: Cmd) -> Res {
         Cmd::Clean { items } => return clean(ctx, &items),
         Cmd::Outdated => outdated(ctx)?,
         Cmd::Profile { action } => profile(ctx, action)?,
+        Cmd::Config { action } => config_cmd(ctx, action)?,
         Cmd::Tray { .. } | Cmd::Watch { .. } | Cmd::SelfUpdate { .. } | Cmd::Schedule { .. } | Cmd::Quit | Cmd::UiSnapshot { .. } => {
             unreachable!("refused in run")
         }
@@ -469,6 +475,28 @@ fn profile(ctx: &Ctx, action: ProfileCmd) -> Result<Value> {
             json!({ "deleted": profile.id(&profiles::root(ctx)) })
         }
     })
+}
+
+// ---------------------------------------------------------------- config
+
+fn config_cmd(ctx: &Ctx, action: ConfigCmd) -> Result<Value> {
+    let defaults = config::Config::default();
+    Ok(match action {
+        ConfigCmd::Get { key: None } => json!({
+            "path": ctx.config_path.display().to_string(),
+            "exists": ctx.config_path.exists(),
+            "config": ctx.cfg.image(),
+            "defaults": defaults.image(),
+        }),
+        ConfigCmd::Get { key: Some(key) } => json!({ "key": key, "value": ctx.cfg.get_key(&key)?, "default": defaults.get_key(&key)? }),
+        ConfigCmd::Set { key, value } => changed(ctx, &key, Some(config::parse_value(&value)))?,
+        ConfigCmd::Unset { key } => changed(ctx, &key, None)?,
+    })
+}
+
+fn changed(ctx: &Ctx, key: &str, value: Option<Value>) -> Result<Value> {
+    let (old, new) = crate::config_change(ctx, key, value)?;
+    Ok(json!({ "key": key, "value": new, "changed": old != new }))
 }
 
 // ---------------------------------------------------------------- macros
@@ -1016,6 +1044,96 @@ mod tests {
         );
         assert!(!f.root.join("_retail_/WTF/Account/ACC/SavedVariables/Orphan.lua").exists());
         assert_eq!(f.ok(&["clean", "orphans"])["results"][0]["files"], 0);
+    }
+
+    #[test]
+    fn config_get_set_unset_through_the_file() {
+        let f = fixture();
+        let defaults = config::Config::default();
+        let data = f.ok(&["config", "get"]);
+        assert_eq!((data["path"].clone(), data["exists"].clone()), (json!("<root>/config.toml"), json!(true)));
+        // `backup_dir` is a machine path; the rest of the defaults are as they are.
+        let mut want = json!(defaults.image());
+        f.normalize(&mut want);
+        assert_eq!(data["defaults"], want);
+        assert_eq!(data["config"]["flavors"], json!(["_retail_"]));
+        assert_eq!(data["config"]["update_app"], Value::Null);
+        assert_eq!(f.ok(&["config", "get", "keep"]), json!({ "key": "keep", "value": 30, "default": 30 }));
+
+        assert_eq!(f.ok(&["config", "set", "keep", "10"]), json!({ "key": "keep", "value": 10, "changed": true }));
+        assert_eq!(f.ok(&["config", "set", "keep", "10"])["changed"], false);
+        assert_eq!(f.ok(&["config", "set", "backup_time", "07:30"])["value"], "07:30");
+        assert_eq!(f.ok(&["config", "set", "backup_days", r#"["mon","fri"]"#])["value"], json!(["mon", "fri"]));
+        f.ok(&["config", "set", "update_app", "curseforge"]);
+        let cfg = config::Config::load(&f.config).unwrap();
+        assert_eq!((cfg.keep, cfg.backup_time.as_str(), cfg.backup_days.len()), (10, "07:30", 2));
+        assert!(cfg.update_app.is_some() && !cfg.skip_while_running, "other keys stay as they were");
+
+        assert_eq!(
+            f.ok(&["config", "unset", "update_app"]),
+            json!({ "key": "update_app", "value": null, "changed": true })
+        );
+        assert!(config::Config::load(&f.config).unwrap().update_app.is_none());
+    }
+
+    #[test]
+    fn config_errors_leave_the_file_alone() {
+        let f = fixture();
+        let before = fs::read(&f.config).unwrap();
+        for (args, code, params) in [
+            (
+                &["config", "set", "keep", "0"][..],
+                2,
+                json!({ "kind": "invalid_value", "key": "keep", "reason": "range" }),
+            ),
+            (
+                &["config", "set", "keep", "lots"],
+                2,
+                json!({ "kind": "invalid_value", "key": "keep", "reason": "type" }),
+            ),
+            (
+                &["config", "set", "backup_time", "25:00"],
+                2,
+                json!({ "kind": "invalid_value", "key": "backup_time", "reason": "format" }),
+            ),
+            (&["config", "set", "nope", "1"], 1, json!({ "what": "config_key", "key": "nope" })),
+            (&["config", "get", "nope"], 1, json!({ "what": "config_key", "key": "nope" })),
+            (&["config", "unset", "nope"], 1, json!({ "what": "config_key", "key": "nope" })),
+        ] {
+            let (v, c) = f.err(args);
+            assert_eq!((c, v["error"]["params"].clone()), (code, params), "{args:?}");
+            assert!(v["command"].as_str().unwrap().starts_with("config "));
+            assert_eq!(fs::read(&f.config).unwrap(), before, "{args:?}");
+        }
+        assert_eq!(f.err(&["config", "set", "keep", "0"]).0["error"]["code"], "invalid_args");
+        assert_eq!(f.err(&["config", "get", "nope"]).0["error"]["code"], "not_found");
+    }
+
+    #[test]
+    fn config_set_creates_a_missing_file_from_the_defaults() {
+        let f = fixture();
+        fs::remove_file(&f.config).unwrap();
+        assert_eq!(f.ok(&["config", "get"])["exists"], false);
+        f.ok(&["config", "set", "keep", "3"]);
+        let expect = config::Config {
+            keep: 3,
+            ..config::Config::default()
+        };
+        assert_eq!(config::Config::load(&f.config).unwrap().image(), expect.image());
+    }
+
+    /// The console form: `get` prints the file as `init` does, one value or the new line for `set`.
+    #[test]
+    fn config_text_output_is_the_file_text() {
+        let f = fixture();
+        let cfg = config::Config::load(&f.config).unwrap();
+        let ctx = Ctx::load(&f.config, Some(&f.config)).unwrap();
+        assert!(toml::to_string_pretty(&cfg).unwrap().contains("keep = 30"));
+        assert_eq!(crate::value_text(&json!("game_exit")), "game_exit");
+        assert_eq!(crate::value_text(&json!(["mon"])), r#"["mon"]"#);
+        let (old, new) = crate::config_change(&ctx, "keep", Some(json!(4))).unwrap();
+        assert_eq!((old, new), (json!(30), json!(4)));
+        assert_eq!(config::Config::load(&f.config).unwrap().keep, 4);
     }
 
     #[test]

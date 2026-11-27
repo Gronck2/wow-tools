@@ -34,6 +34,12 @@ write = "impossible d'écrire {path}"
 [config]
 bad = "erreur dans la configuration {path}"
 migrate_failed = "impossible de déplacer {from} vers {to}"
+unknown_key = "aucun réglage de ce nom : {key}"
+bad_type = "{key} : la valeur est d'un mauvais type ou inconnue ({detail})"
+bad_range = "{key} : la valeur est hors limites"
+bad_format = "{key} : la valeur a un format incorrect"
+unknown_value = "valeur inconnue"
+set_line = "{key} = {value}"
 
 [addons]
 app_not_found = "{app} n'est pas installé"
@@ -440,7 +446,7 @@ options = "Options"
 arguments = "Arguments"
 help = "Afficher l'aide"
 version = "Afficher la version"
-config = "Chemin de la configuration (par défaut %APPDATA%\\WoW Tools\\config\\config.toml)"
+config_file = "Chemin de la configuration (par défaut %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Écrire le journal dans un fichier (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), pas dans la console"
 verbose = "Sortie détaillée"
 json = "Un seul objet JSON, pour d'autres interfaces"
@@ -676,6 +682,22 @@ in_zhTW = "en chinois (traditionnel)"
 
 [cli.outdated]
 about = "Addons qui ne sont pas faits pour la version installée du jeu"
+
+[cli.config]
+about = "Réglages : lire, modifier, réinitialiser"
+
+[cli.config.get]
+about = "Afficher les réglages ou l'un d'eux (noms comme dans config.toml)"
+key = "Nom du réglage"
+
+[cli.config.set]
+about = "Modifier un réglage (la valeur est du JSON ou du texte simple)"
+key = "Nom du réglage"
+value = "Nouvelle valeur : 10, true, game_exit, '[\"mon\",\"fri\"]', null"
+
+[cli.config.unset]
+about = "Remettre un réglage à sa valeur par défaut"
+key = "Nom du réglage"
 
 [patch]
 title = "Le jeu a été mis à jour"

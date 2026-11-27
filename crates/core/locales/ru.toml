@@ -34,6 +34,12 @@ write = "не удалось записать {path}"
 [config]
 bad = "ошибка в конфиге {path}"
 migrate_failed = "не удалось перенести {from} в {to}"
+unknown_key = "нет такой настройки: {key}"
+bad_type = "{key}: значение неподходящего типа или неизвестное ({detail})"
+bad_range = "{key}: значение вне допустимых пределов"
+bad_format = "{key}: неверный формат значения"
+unknown_value = "неизвестное значение"
+set_line = "{key} = {value}"
 
 [addons]
 app_not_found = "приложение {app} не найдено"
@@ -440,7 +446,7 @@ options = "Параметры"
 arguments = "Аргументы"
 help = "Показать справку"
 version = "Показать версию"
-config = "Путь к конфигу (по умолчанию %APPDATA%\\WoW Tools\\config\\config.toml)"
+config_file = "Путь к конфигу (по умолчанию %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Писать лог в файл (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), а не в консоль"
 verbose = "Подробный вывод"
 json = "Вывести один JSON-объект, для других оболочек"
@@ -676,6 +682,22 @@ in_zhTW = "на китайском (традиционном)"
 
 [cli.outdated]
 about = "Аддоны, сделанные не под установленную версию игры"
+
+[cli.config]
+about = "Настройки: прочитать, изменить, сбросить"
+
+[cli.config.get]
+about = "Показать настройки или одну (имена как в config.toml)"
+key = "Имя настройки"
+
+[cli.config.set]
+about = "Изменить настройку (значение — JSON или просто текст)"
+key = "Имя настройки"
+value = "Новое значение: 10, true, game_exit, '[\"mon\",\"fri\"]', null"
+
+[cli.config.unset]
+about = "Вернуть настройку к значению по умолчанию"
+key = "Имя настройки"
 
 [patch]
 title = "Игра обновилась"
