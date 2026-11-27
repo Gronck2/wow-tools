@@ -3,12 +3,13 @@
 //! free text is `error.detail`, the English error chain, for logs.
 
 use crate::{Cli, Cmd, ProfileCmd};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{Local, NaiveDateTime, SecondsFormat, TimeZone};
 use serde_json::{Value, json};
 use std::io::Write;
 use wow_tools_core::app::{self, Ctx};
 use wow_tools_core::errors::{self, Coded};
+use wow_tools_core::i18n;
 use wow_tools_core::snapshot::{Kind, Snapshot};
 use wow_tools_core::wow::Flavor;
 use wow_tools_core::{chars, config, macro_names, macros, maintenance, profiles, updater, wow};
@@ -144,9 +145,9 @@ fn dispatch(ctx: &Ctx, cmd: Cmd) -> Res {
             parts,
             flavor,
             dry_run,
-        } => copy_char(ctx, &from, &to, &parts, flavor.as_deref(), dry_run)?,
-        Cmd::UpdateAddons => update_addons(ctx)?,
-        Cmd::Clean { items } => clean(ctx, &items)?,
+        } => return copy_char(ctx, &from, &to, &parts, flavor.as_deref(), dry_run),
+        Cmd::UpdateAddons => return update_addons(ctx),
+        Cmd::Clean { items } => return clean(ctx, &items),
         Cmd::Outdated => outdated(ctx)?,
         Cmd::Profile { action } => profile(ctx, action)?,
         Cmd::Tray { .. } | Cmd::Watch { .. } | Cmd::SelfUpdate { .. } | Cmd::Schedule { .. } | Cmd::Quit | Cmd::UiSnapshot { .. } => {
@@ -320,31 +321,57 @@ fn chars_list(ctx: &Ctx, flavor: Option<&str>) -> Result<Value> {
     Ok(json!({ "flavors": flavors }))
 }
 
-fn copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], flavor: Option<&str>, dry_run: bool) -> Result<Value> {
+fn copy_char(ctx: &Ctx, from: &str, to: &[String], parts: &[chars::Part], flavor: Option<&str>, dry_run: bool) -> Res {
     let mut source = String::new();
     let mut targets = Vec::new();
-    crate::copy_char(ctx, from, to, parts, flavor, dry_run, |src, dst, files| {
+    let done = crate::copy_char(ctx, from, to, parts, flavor, dry_run, |src, dst, files| {
         source = src.to_string();
         targets.push(json!({ "character": dst.to_string(), "files": files }));
-    })?;
-    Ok(json!({ "dry_run": dry_run, "source": source, "targets": targets }))
+    });
+    let data = json!({ "dry_run": dry_run, "source": source, "targets": targets });
+    match done {
+        Ok(()) => Ok(data),
+        // The targets done before the error stay in `data`.
+        Err(err) => Err(Failure {
+            err,
+            data: (!targets.is_empty()).then_some(data),
+        }),
+    }
 }
 
-fn update_addons(ctx: &Ctx) -> Result<Value> {
+fn update_addons(ctx: &Ctx) -> Res {
     let started = Local::now().naive_local();
-    app::update_addons(ctx, true)?;
-    Ok(update_data(updater::history().into_iter().next().filter(|e| e.time >= started)))
+    // The history rows are stored for the tray: they are written in the user's language, not in the English of the envelope.
+    let json_lang = i18n::current();
+    i18n::set(ctx.cfg.language);
+    let result = app::update_addons(ctx, true);
+    i18n::set(Some(json_lang));
+    // The manager and ElvUI each write a row, both with the time the run started.
+    let entries: Vec<updater::Entry> = updater::history().into_iter().take_while(|e| e.time >= started).collect();
+    let data = update_data(&entries);
+    match result {
+        Err(err) => Err(Failure {
+            err,
+            data: (!entries.is_empty()).then_some(data),
+        }),
+        // ElvUI failed beside a manager that did not.
+        Ok(_) if entries.iter().any(|e| !e.ok) => Err(Failure {
+            err: Coded::partial(tr!("out.some_failed")).into(),
+            data: Some(data),
+        }),
+        Ok(_) => Ok(data),
+    }
 }
 
-/// `entry`: the history row this run wrote; its text is the run's summary in the language of the process.
-fn update_data(entry: Option<updater::Entry>) -> Value {
+/// `entries`: the history rows this run wrote, without their text (it is in the language of the user).
+fn update_data(entries: &[updater::Entry]) -> Value {
     json!({
-        "ran": entry.is_some(),
-        "entry": entry.map(|e| json!({ "time": ts(e.time), "app": e.app, "ok": e.ok, "manual": e.manual, "skipped": e.skipped, "detail": e.text })),
+        "ran": !entries.is_empty(),
+        "entries": entries.iter().map(|e| json!({ "time": ts(e.time), "app": e.app, "ok": e.ok, "manual": e.manual, "skipped": e.skipped })).collect::<Vec<_>>(),
     })
 }
 
-fn clean(ctx: &Ctx, items: &[String]) -> Result<Value> {
+fn clean(ctx: &Ctx, items: &[String]) -> Res {
     if items.is_empty() {
         let scan = maintenance::scan(&ctx.flavors(None)?);
         let items: Vec<Value> = maintenance::Item::ALL
@@ -359,8 +386,18 @@ fn clean(ctx: &Ctx, items: &[String]) -> Result<Value> {
     }
     let mut results = Vec::new();
     for key in items {
-        let item = maintenance::Item::from_key(key).with_context(|| key.clone())?;
-        let c = maintenance::clean_item(ctx, item)?;
+        // What the items before it did stays in `data`.
+        let fail = |err: anyhow::Error, results: &[Value]| Failure {
+            err,
+            data: (!results.is_empty()).then(|| json!({ "results": results })),
+        };
+        let Some(item) = maintenance::Item::from_key(key) else {
+            return Err(fail(Coded::invalid_args("InvalidValue", key.clone()).into(), &results));
+        };
+        let c = match maintenance::clean_item(ctx, item) {
+            Ok(c) => c,
+            Err(err) => return Err(fail(err, &results)),
+        };
         let skipped: Vec<&str> = c.skipped.iter().map(|f| f.name.as_str()).collect();
         results.push(json!({ "key": item.key(), "files": c.files, "bytes": c.bytes, "failed": c.failed, "skipped_flavors": skipped }));
     }
@@ -554,8 +591,7 @@ mod tests {
     use wow_tools_core::{lock, macro_fix};
 
     /// A fake WoW tree with one flavor and two characters, a scratch config and a scratch backup folder.
-    /// The lock files of the writing commands land in the real `%LOCALAPPDATA%\WoW Tools\locks` under a hash of
-    /// this temp path (the core's own tests use a temp folder, the program cannot redirect it): empty files.
+    /// The lock files go to one scratch folder for the whole test run (`WOW_TOOLS_LOCKS_DIR`).
     struct Fixture {
         tmp: tempfile::TempDir,
         root: PathBuf,
@@ -568,6 +604,13 @@ mod tests {
     }
 
     fn fixture() -> Fixture {
+        static LOCKS: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        LOCKS.get_or_init(|| {
+            let dir = tempfile::tempdir().unwrap();
+            // Before any lock is taken; only the core built with `test-ru` (our dev-dependency) reads it.
+            unsafe { std::env::set_var("WOW_TOOLS_LOCKS_DIR", dir.path()) };
+            dir
+        });
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("wow");
         let fl = root.join("_retail_");
@@ -1014,21 +1057,48 @@ mod tests {
     }
 
     #[test]
-    fn update_data_is_the_history_row_or_nothing() {
-        assert_eq!(update_data(None), json!({ "ran": false, "entry": null }));
+    fn update_data_lists_every_row_of_the_run_without_text() {
+        assert_eq!(update_data(&[]), json!({ "ran": false, "entries": [] }));
         let time = chrono::NaiveDate::from_ymd_opt(2026, 11, 27).unwrap().and_hms_opt(10, 0, 0).unwrap();
-        let entry = updater::Entry {
+        let row = |app: &str, ok| updater::Entry {
             time,
-            app: "CurseForge".into(),
-            ok: true,
-            text: "Updated 1: X".into(),
+            app: app.into(),
+            ok,
+            text: "Обновлено: X".into(),
             manual: true,
             skipped: false,
         };
-        let data = update_data(Some(entry));
+        let data = update_data(&[row("ElvUI", false), row("CurseForge", true)]);
         assert_eq!(data["ran"], true);
-        assert!(data["entry"]["time"].as_str().unwrap().starts_with("2026-11-27T10:00:00"));
-        assert_eq!(data["entry"]["detail"], "Updated 1: X");
+        assert!(data["entries"][0]["time"].as_str().unwrap().starts_with("2026-11-27T10:00:00"));
+        assert_eq!(data["entries"][0]["app"], "ElvUI");
+        assert_eq!(
+            (data["entries"][0]["ok"].clone(), data["entries"][1]["ok"].clone()),
+            (json!(false), json!(true))
+        );
+        assert!(!data.to_string().contains("Обновлено"));
+    }
+
+    #[test]
+    fn copy_char_keeps_the_targets_done_before_the_error() {
+        let f = fixture();
+        // The second target is the source itself: the first one was copied.
+        let (v, code) = f.err(&[
+            "copy-char",
+            "--from",
+            "Realm/Name",
+            "--to",
+            "Realm/Other",
+            "--to",
+            "Realm/Name",
+            "--parts",
+            "layout",
+        ]);
+        assert_eq!((code, coded(&v).0), (1, json!("failed")));
+        assert_eq!(
+            v["data"],
+            json!({ "dry_run": false, "source": "ACC/Realm/Name", "targets": [{ "character": "ACC/Realm/Other", "files": ["layout-local.txt"] }] })
+        );
     }
 
     #[test]

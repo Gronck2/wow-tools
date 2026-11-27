@@ -16,7 +16,7 @@ use crate::app::{self, Ctx};
 use crate::config::{Config, ShotsBy};
 use crate::snapshot::{self, Kind, Outcome};
 use crate::wow::{self, Flavor};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -521,7 +521,8 @@ pub fn clean_item(ctx: &Ctx, item: Item) -> Result<Cleaned> {
         .into_iter()
         .partition(|fl| !item.needs_closed_game() || wow::running_in(&games, fl).is_none());
     if closed.is_empty() {
-        bail!(tr!("cleanup.game_running"));
+        let game = games.first().map_or("", |g| g.name.as_str());
+        return Err(crate::errors::Coded::game_running(game, None, tr!("cleanup.game_running")).into());
     }
     let _locks = closed.iter().map(|fl| crate::lock::acquire(fl, "clean")).collect::<Result<Vec<_>>>()?;
     let found = scan(&closed).get(item);

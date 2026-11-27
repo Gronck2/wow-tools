@@ -37,7 +37,7 @@ commands print text as before; nothing about the text changed.
   did not parse.
 - `error.code` is stable and listed below; `error.params` are the values that go with it. `error.detail` is the error
   chain as English text: **diagnostic only, never show it to the user and never parse it**.
-- An error may also carry `data` beside `error`: a run that did part of its work (`backup`, `macros`).
+- An error may also carry `data` beside `error`: a run that did part of its work (`backup`, `macros`, `copy-char`, `clean`, `update-addons`).
 
 ### Versioning
 
@@ -173,17 +173,22 @@ The current state is saved first as a `pre-restore` snapshot, as in text mode.
 {"v":1,"type":"result","command":"copy-char","data":{"dry_run":true,"source":"ACC/Realm/Name","targets":[{"character":"ACC/Realm/Other","files":["layout-local.txt"]}]}}
 ```
 
-`files` are the files copied (or, with `dry_run`, that would be), relative to the character folder.
+`files` are the files copied (or, with `dry_run`, that would be), relative to the character folder. With several `--to` a failure on one target is an error with the targets done before it
+in `data`.
 
 ### `update-addons`
 
 ```json
-{"v":1,"type":"result","command":"update-addons","data":{"ran":true,"entry":{"time":"2026-11-27T13:20:00+04:00","app":"CurseForge","ok":true,"manual":true,"skipped":false,"detail":"Updated 2: BigWigs, Plater"}}}
+{"v":1,"type":"result","command":"update-addons","data":{"ran":true,"entries":[{"time":"2026-11-27T13:20:00+04:00","app":"ElvUI","ok":true,"manual":true,"skipped":false},{"time":"2026-11-27T13:20:00+04:00","app":"CurseForge","ok":true,"manual":true,"skipped":false}]}}
 ```
 
-`entry` is the row this run wrote to the update history (`null` and `ran:false` if none). `detail` is the summary
-**text** of the run (English): diagnostic, like `error.detail`; the list of updated addons is not available as data yet.
-A refusal (a game runs, no addon app) is an error. This command starts the chosen addon manager.
+`entries` are the rows this run wrote to the update history, newest first: one for the addon manager and one for ElvUI
+when it updated or failed (`[]` and `ran:false` if none). They carry no text: the summary of a run is stored for the
+tray in the language of the user, and the list of updated addons is not available as data yet. The error `partial`
+(exit 1, the rows in `data`) means a part failed while another did not (ElvUI failed, the manager did not); when the
+manager failed the answer is its error with the rows in `data`. A refusal (a game runs, no addon app) is an error without
+`data`. This command starts the chosen addon manager. The history is written in the interface language from the config
+(or Windows), not in English, so `error.detail` of this command is in that language too.
 
 ### `clean`
 
@@ -201,7 +206,8 @@ Without items, what could be tidied up (read-only):
 ```
 
 `files` and `bytes` are what was removed or moved, `failed` the files that could not be, `skipped_flavors` the flavors
-left alone because their game runs.
+left alone because their game runs. If an item fails, the answer is its error with the items done before it in `data`
+(`results`); when every flavor's game runs the error is `game_running`.
 
 ### `outdated`
 

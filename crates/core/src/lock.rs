@@ -28,6 +28,12 @@ pub fn acquire(fl: &Flavor, what: &str) -> Result<Guard> {
 
 #[cfg(not(test))]
 fn locks_dir() -> PathBuf {
+    // Only the program's tests (dev-dependency feature `test-ru`) can redirect it; a release build ignores the variable.
+    if cfg!(feature = "test-ru")
+        && let Some(dir) = std::env::var_os("WOW_TOOLS_LOCKS_DIR")
+    {
+        return dir.into();
+    }
     let root = directories::ProjectDirs::from("", "", crate::config::APP_NAME).and_then(|d| d.data_local_dir().parent().map(Path::to_path_buf));
     root.unwrap_or_else(|| PathBuf::from(".")).join("locks")
 }
