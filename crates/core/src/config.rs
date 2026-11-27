@@ -750,6 +750,8 @@ mod tests {
             ("screenshots_dirs", json!({ "_retail_": r"D:\Retail" })),
             ("hidden_tabs", json!(["macros"])),
             ("language", json!("de")),
+            ("update_when", json!("interval")),
+            ("flavors", json!(["_classic_era_", "_retail_"])),
         ];
         for (key, value) in cases {
             let before = cfg.image();
@@ -779,6 +781,10 @@ mod tests {
             ("update_time", json!("9"), "format"),
             ("flavors", json!(["retail"]), "format"),
             ("update_addons", json!("yes"), "type"),
+            ("language", json!("xx"), "type"),
+            ("update_when", json!("sometimes"), "type"),
+            ("screenshots_dir", json!(5), "type"),
+            ("backup_time", json!(null), "type"),
         ];
         for (key, value, reason) in bad {
             let e = cfg.set_key(key, value.clone()).unwrap_err();
@@ -793,6 +799,14 @@ mod tests {
         let e = cfg.set_key("nope", json!(1)).unwrap_err();
         assert_eq!(code(&e), ("not_found", json!({ "what": "config_key", "key": "nope" })));
         assert!(cfg.get_key("nope").is_err() && cfg.unset_key("nope").is_err());
+    }
+
+    #[test]
+    fn an_option_setting_can_be_set_to_null_and_back() {
+        let mut cfg = Config::default();
+        cfg.set_key("update_app", json!("curseforge")).unwrap();
+        cfg.set_key("update_app", Value::Null).unwrap();
+        assert!(cfg.update_app.is_none());
     }
 
     #[test]

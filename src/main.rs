@@ -1563,4 +1563,11 @@ mod tests {
         // And the localized command still parses.
         localize(Cli::command(), "").debug_assert();
     }
+
+    #[test]
+    fn config_option_and_command_help_render() {
+        let mut top = localize(Cli::command(), "");
+        let help = top.render_long_help().to_string();
+        assert!(help.contains(tr!("cli.config_file")) && help.contains(tr!("cli.config.about")), "{help}");
+    }
 }
