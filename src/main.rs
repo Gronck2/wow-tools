@@ -394,6 +394,10 @@ fn main() {
         log::warn!("{}", tr!("out.migrate_failed", error = format!("{e:#}")));
     }
     if cli.json {
+        // A stream of lines, not one object: its own entry (ADR 0004).
+        if let Some(Cmd::Watch { interval }) = cli.cmd {
+            std::process::exit(cli_json::watch(cli.config.as_deref(), interval));
+        }
         match cli_json::main(cli) {
             0 => {}
             code => std::process::exit(code),
@@ -1112,6 +1116,8 @@ fn cmd_ui_snapshot(out: &std::path::Path, view: &str, dark: bool) -> Result<()> 
             demo.status.phase = Phase::Busy;
             demo.status.progress = Some(snapshot::Progress {
                 what: "Retail · AddOns".into(),
+                flavor: "_retail_".into(),
+                kind: snapshot::Kind::Addons,
                 done: 45,
                 total: 100,
             });

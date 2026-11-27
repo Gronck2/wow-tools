@@ -436,7 +436,7 @@ offered, only a note. `wow-tools macros` and the copied report print the same te
 
 Common options: `--config FILE` (another config), `--log-to-file`, `-v`. `wow-tools <command> --help` explains the
 rest in the chosen language. `--json` prints one JSON object instead of text, for other programs: see
-[docs/cli-json.md](docs/cli-json.md).
+[docs/cli-json.md](docs/cli-json.md). `--json watch` prints one JSON line per event (backups, game, patches, addon updates, progress) until its stdin is closed.
 
 ## Files and folders
 

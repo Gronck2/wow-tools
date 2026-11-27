@@ -125,6 +125,8 @@ fn save_versions(v: &BTreeMap<String, String>) {
 /// A flavor Battle.net patched.
 #[derive(Debug, Clone)]
 pub struct Patch {
+    /// The folder name (`_retail_`); `title` is text for the tray.
+    pub flavor: String,
     pub title: String,
     pub from: String,
     pub to: String,
@@ -207,6 +209,7 @@ pub fn check_patches(ctx: &Ctx) -> Vec<Patch> {
             }
         }
         let patch = Patch {
+            flavor: fl.name.clone(),
             title: fl.title(),
             from,
             to: version,

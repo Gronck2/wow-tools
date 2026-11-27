@@ -429,6 +429,15 @@ pub fn running_in(games: &[Running], fl: &Flavor) -> Option<String> {
         .map(|g| g.name.clone())
 }
 
+/// The folders of `flavors` a game with a known path runs from (a client with no path is in none).
+pub fn flavors_running(games: &[Running], flavors: &[Flavor]) -> Vec<String> {
+    flavors
+        .iter()
+        .filter(|fl| games.iter().any(|g| g.dir.as_ref().is_some_and(|d| same_dir(d, &fl.dir))))
+        .map(|fl| fl.name.clone())
+        .collect()
+}
+
 fn same_dir(a: &Path, b: &Path) -> bool {
     dir_key(a) == dir_key(b)
 }
@@ -553,6 +562,20 @@ mod tests {
             dir: None,
         }];
         assert!(running_in(&unknown, &era).is_some());
+    }
+
+    #[test]
+    fn flavors_running_lists_only_folders_with_a_known_client() {
+        let retail = Flavor::new("_retail_", r"C:\Games\World of Warcraft\_retail_");
+        let era = Flavor::new("_classic_era_", r"C:\Games\World of Warcraft\_classic_era_");
+        let at = |dir: Option<&str>| Running {
+            name: "Wow.exe".into(),
+            dir: dir.map(PathBuf::from),
+        };
+        let both = [retail.clone(), era.clone()];
+        assert_eq!(flavors_running(&[at(Some(r"c:\games\world of warcraft\_retail_\"))], &both), ["_retail_"]);
+        assert!(flavors_running(&[at(None)], &both).is_empty());
+        assert!(flavors_running(&[], &both).is_empty());
     }
 
     #[test]

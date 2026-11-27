@@ -10,7 +10,8 @@ use std::io::Write;
 use wow_tools_core::app::{self, Ctx};
 use wow_tools_core::errors::{self, Coded};
 use wow_tools_core::i18n;
-use wow_tools_core::snapshot::{Kind, Snapshot};
+use wow_tools_core::snapshot::{self, Kind, Snapshot};
+use wow_tools_core::watch::{self, Work};
 use wow_tools_core::wow::Flavor;
 use wow_tools_core::{chars, config, macro_names, macros, maintenance, profiles, updater, wow};
 
@@ -272,7 +273,20 @@ fn status(ctx: &Ctx) -> Result<Value> {
 
 fn backup(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bool) -> Res {
     let report = app::backup_all(ctx, flavor, kind, force, false)?;
-    let data = json!({
+    let data = backup_data(&report);
+    if report.failures.is_empty() {
+        Ok(data)
+    } else {
+        Err(Failure {
+            err: Coded::partial(tr!("out.some_failed")).into(),
+            data: Some(data),
+        })
+    }
+}
+
+/// The data of a backup run: the `backup` command's result and the stream's `backup` event.
+fn backup_data(report: &app::Report) -> Value {
+    json!({
         "created": report.snapshots.iter().map(|(fl, k, s)| json!({
             "flavor": fl, "kind": k.series_name(), "id": s.id, "size": s.size, "created": ts(s.created),
         })).collect::<Vec<_>>(),
@@ -283,15 +297,7 @@ fn backup(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bool) -> R
             "kind": f.kind.map(Kind::series_name),
             "error": { "code": f.code, "params": f.params, "detail": f.detail },
         })).collect::<Vec<_>>(),
-    });
-    if report.failures.is_empty() {
-        Ok(data)
-    } else {
-        Err(Failure {
-            err: Coded::partial(tr!("out.some_failed")).into(),
-            data: Some(data),
-        })
-    }
+    })
 }
 
 fn list(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>) -> Result<Value> {
@@ -381,6 +387,167 @@ fn update_data(entries: &[updater::Entry]) -> Value {
         })
     };
     json!({ "ran": !entries.is_empty(), "entries": entries.iter().map(row).collect::<Vec<_>>() })
+}
+
+// ---------------------------------------------------------------- watch --json (ADR 0004)
+
+/// Turns the loop's events into the lines of the stream. Pure but for the clock the caller passes in.
+struct Stream {
+    flavors: Vec<Flavor>,
+    /// The history rows of the run in progress are those written since its `busy` line.
+    history: fn() -> Vec<updater::Entry>,
+    busy_since: Option<NaiveDateTime>,
+    /// The client of the last `game started`, for the `closed` line.
+    last_game: (String, Vec<String>),
+}
+
+fn work_name(w: Work) -> &'static str {
+    match w {
+        Work::Backup => "backup",
+        Work::Addons => "addons",
+        Work::Restore => "restore",
+        Work::Cleanup => "cleanup",
+        Work::Profile => "profile",
+        Work::Names => "names",
+    }
+}
+
+fn event_line(name: &str, now: NaiveDateTime, data: Value) -> Value {
+    json!({ "v": V, "type": "event", "event": name, "time": ts(now), "data": data })
+}
+
+fn error_event(now: NaiveDateTime, source: &str, e: &anyhow::Error) -> Value {
+    event_line("error", now, json!({ "source": source, "error": error_object(e) }))
+}
+
+fn progress_line(p: &snapshot::Progress, now: NaiveDateTime) -> Value {
+    json!({
+        "v": V, "type": "progress", "time": ts(now),
+        "data": { "flavor": p.flavor, "kind": p.kind.series_name(), "done": p.done, "total": p.total, "percent": p.percent() },
+    })
+}
+
+impl Stream {
+    fn lines(&mut self, event: &watch::Event, now: NaiveDateTime) -> Vec<Value> {
+        use watch::Event as E;
+        let one = |v| vec![v];
+        match event {
+            E::Busy(w) => {
+                self.busy_since = Some(now);
+                one(event_line("busy", now, json!({ "work": work_name(*w), "manual": null })))
+            }
+            E::Backup { manual, result: Ok(r) } => {
+                let mut data = backup_data(r);
+                data["manual"] = json!(manual);
+                one(event_line("backup", now, data))
+            }
+            E::Backup { result: Err(e), .. } => one(error_event(now, "backup", e)),
+            E::Addons { manual, result } => {
+                let since = self.busy_since.unwrap_or(now);
+                let entries: Vec<_> = (self.history)().into_iter().take_while(|e| e.time >= since).collect();
+                let ok = result.is_ok() && entries.iter().all(|e| e.ok);
+                match result {
+                    // A failed run with no row of its own (no manager, a refusal) is only an error.
+                    Err(e) if entries.is_empty() => one(error_event(now, "addons", e)),
+                    _ => {
+                        let mut data = update_data(&entries);
+                        data["manual"] = json!(manual);
+                        data["ok"] = json!(ok);
+                        if let Err(e) = result {
+                            data["error"] = error_object(e);
+                        }
+                        one(event_line("addons", now, data))
+                    }
+                }
+            }
+            E::Game(Some(name)) => {
+                let flavors = wow::flavors_running(&wow::running_games(), &self.flavors);
+                self.last_game = (name.clone(), flavors.clone());
+                one(event_line("game", now, json!({ "state": "started", "game": name, "flavors": flavors })))
+            }
+            E::Game(None) => {
+                let (game, flavors) = &self.last_game;
+                one(event_line("game", now, json!({ "state": "closed", "game": game, "flavors": flavors })))
+            }
+            E::Patch(list) => list
+                .iter()
+                .map(|p| {
+                    event_line(
+                        "patch",
+                        now,
+                        json!({ "flavor": p.flavor, "from": p.from, "to": p.to, "saved": p.saved, "outdated": p.outdated }),
+                    )
+                })
+                .collect(),
+            // The jobs only the tray asks for: `watch` never runs them, their failures are still errors.
+            E::Restore(Err(e)) => one(error_event(now, "restore", e)),
+            E::Cleanup(Err(e)) => one(error_event(now, "cleanup", e)),
+            E::Profile { result: Err(e), .. } => one(error_event(now, "profile", e)),
+            E::Names(Err(e)) => one(error_event(now, "names", e)),
+            E::Restore(Ok(_)) | E::Cleanup(Ok(_)) | E::Profile { .. } | E::Names(Ok(_)) => Vec::new(),
+        }
+    }
+}
+
+/// One line, flushed. The reader being gone ends the process, as a kill would.
+fn emit_line(value: &Value) {
+    let mut out = std::io::stdout().lock();
+    if writeln!(out, "{value}").and_then(|()| out.flush()).is_err() {
+        // shortcut: no cleanup beyond what a kill gets (locks are OS locks, forced switches recover), fine while the loop holds no state.
+        std::process::exit(0);
+    }
+}
+
+fn on_progress_line() {
+    if let Some(p) = snapshot::progress() {
+        emit_line(&progress_line(&p, Local::now().naive_local()));
+    }
+}
+
+/// Reads and ignores `input` to its end, then drops `tx`: the loop returns when its request channel is gone.
+fn stop_on_eof(mut input: impl std::io::Read, tx: std::sync::mpsc::Sender<watch::Request>) {
+    let _ = std::io::copy(&mut input, &mut std::io::sink());
+    drop(tx);
+}
+
+/// `--json watch`: the loop of `watch` with its events as NDJSON on stdout; stdin EOF stops it. Returns the exit code.
+pub fn watch(explicit_config: Option<&std::path::Path>, interval: Option<u64>) -> i32 {
+    let config_path = explicit_config.map(std::path::Path::to_path_buf).unwrap_or_else(config::default_config_path);
+    let ctx = match Ctx::load(&config_path, explicit_config) {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            let (value, code) = envelope(Some("watch"), Err(e.into()));
+            print(&value);
+            return code;
+        }
+    };
+    // The loop writes the addon history the tray shows: in the user's language, like `update-addons`. The lines carry no
+    // text apart from `error.detail`, which then follows it too.
+    i18n::set(ctx.cfg.language);
+    snapshot::on_progress(on_progress_line);
+    // No WoW found is an `error` event of the first round, not a refusal; the flavors are read once (shortcut: a game of a
+    // flavor added later has `flavors: []` until the next start).
+    let mut stream = Stream {
+        flavors: ctx.flavors(None).unwrap_or_default(),
+        history: updater::history,
+        busy_since: None,
+        last_game: Default::default(),
+    };
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || stop_on_eof(std::io::stdin(), tx));
+    let now = || Local::now().naive_local();
+    emit_line(&event_line(
+        "started",
+        now(),
+        json!({ "pid": std::process::id(), "version": crate::selfupdate::current(), "interval_minutes": interval }),
+    ));
+    watch::run(&ctx.config_path, ctx.explicit_config.as_deref(), interval, &rx, |e| {
+        for line in stream.lines(&e, now()) {
+            emit_line(&line);
+        }
+    });
+    emit_line(&event_line("stopped", now(), json!({ "reason": "stdin_closed" })));
+    0
 }
 
 fn clean(ctx: &Ctx, items: &[String]) -> Res {
@@ -1418,6 +1585,245 @@ mod tests {
         assert_eq!(
             err.to_string(),
             r#"{"v":1,"type":"error","command":"x","error":{"code":"failed","params":{},"detail":"one\ntwo"}}"#
+        );
+    }
+
+    // ---- watch --json
+
+    fn t0() -> NaiveDateTime {
+        chrono::NaiveDate::from_ymd_opt(2026, 11, 27).unwrap().and_hms_opt(10, 0, 0).unwrap()
+    }
+
+    fn stream(f: &Fixture) -> Stream {
+        Stream {
+            flavors: Ctx::load(&f.config, Some(&f.config)).unwrap().flavors(None).unwrap(),
+            history: Vec::new,
+            busy_since: None,
+            last_game: Default::default(),
+        }
+    }
+
+    /// Every line is one value without a newline, versioned, typed, and has no Russian in it (the tests run in Russian).
+    fn check_line(v: &Value) {
+        let text = v.to_string();
+        assert!(!text.contains('\n') && !text.chars().any(|c| ('\u{400}'..='\u{4ff}').contains(&c)), "{text}");
+        assert_eq!(v["v"], 1);
+        assert!(["event", "progress"].contains(&v["type"].as_str().unwrap()));
+        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), *v);
+    }
+
+    /// The only line the event makes: its name and data.
+    fn one(s: &mut Stream, e: watch::Event) -> (String, Value) {
+        let lines = s.lines(&e, t0());
+        assert_eq!(lines.len(), 1);
+        check_line(&lines[0]);
+        (lines[0]["event"].as_str().unwrap().to_string(), lines[0]["data"].clone())
+    }
+
+    #[test]
+    fn each_event_becomes_its_line() {
+        let f = fixture();
+        let mut s = stream(&f);
+        assert_eq!(
+            one(&mut s, watch::Event::Busy(Work::Addons)),
+            ("busy".into(), json!({ "work": "addons", "manual": null }))
+        );
+
+        let report = app::Report {
+            skipped_game: Some("Wow.exe".into()),
+            unchanged: vec![("_retail_".into(), Kind::Wtf)],
+            failures: vec![app::Failure {
+                flavor: "_retail_".into(),
+                kind: Some(Kind::Addons),
+                code: "io",
+                params: json!({}),
+                detail: "boom".into(),
+            }],
+            ..Default::default()
+        };
+        let (name, d) = one(
+            &mut s,
+            watch::Event::Backup {
+                manual: false,
+                result: Ok(report),
+            },
+        );
+        assert_eq!(name, "backup");
+        assert_eq!(
+            d,
+            json!({
+                "created": [], "unchanged": [{ "flavor": "_retail_", "kind": "wtf" }], "skipped_game": "Wow.exe", "manual": false,
+                "failures": [{ "flavor": "_retail_", "kind": "addons", "error": { "code": "io", "params": {}, "detail": "boom" } }],
+            })
+        );
+        let (name, d) = one(
+            &mut s,
+            watch::Event::Backup {
+                manual: false,
+                result: Err(anyhow::anyhow!("no wow")),
+            },
+        );
+        assert_eq!(
+            (name.as_str(), d["source"].clone(), d["error"]["code"].clone()),
+            ("error", json!("backup"), json!("failed"))
+        );
+
+        let patch = maintenance::Patch {
+            flavor: "_retail_".into(),
+            title: "Ретейл".into(),
+            from: "1".into(),
+            to: "2".into(),
+            saved: vec!["a".into()],
+            outdated: vec!["X".into()],
+        };
+        assert_eq!(
+            one(&mut s, watch::Event::Patch(vec![patch])),
+            (
+                "patch".into(),
+                json!({ "flavor": "_retail_", "from": "1", "to": "2", "saved": ["a"], "outdated": ["X"] })
+            )
+        );
+
+        // `closed` repeats the client of the `started` before it.
+        s.last_game = ("Wow.exe".into(), vec!["_retail_".into()]);
+        assert_eq!(
+            one(&mut s, watch::Event::Game(None)),
+            ("game".into(), json!({ "state": "closed", "game": "Wow.exe", "flavors": ["_retail_"] }))
+        );
+        let (name, d) = one(&mut s, watch::Event::Game(Some("Wow.exe".into())));
+        assert_eq!(
+            (name.as_str(), d["state"].clone(), d["game"].clone()),
+            ("game", json!("started"), json!("Wow.exe"))
+        );
+        assert_eq!(one(&mut s, watch::Event::Cleanup(Err(anyhow::anyhow!("x")))).1["source"], "cleanup");
+        assert!(s.lines(&watch::Event::Names(Ok(String::new())), t0()).is_empty());
+    }
+
+    #[test]
+    fn addon_runs_are_one_line_with_the_rows_since_busy() {
+        let f = fixture();
+        let mut s = stream(&f);
+        s.history = || {
+            vec![updater::Entry {
+                time: chrono::NaiveDate::from_ymd_opt(2100, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(),
+                app: "CurseForge".into(),
+                ok: true,
+                text: "Обновлено".into(),
+                manual: false,
+                skipped: false,
+                details: None,
+            }]
+        };
+        s.lines(&watch::Event::Busy(Work::Addons), t0());
+        let (name, d) = one(
+            &mut s,
+            watch::Event::Addons {
+                manual: false,
+                result: Ok("x".into()),
+            },
+        );
+        assert_eq!(
+            (name.as_str(), d["ok"].clone(), d["ran"].clone(), d["manual"].clone()),
+            ("addons", json!(true), json!(true), json!(false))
+        );
+        assert_eq!(d["entries"][0]["app"], "CurseForge");
+        // A failure that left a row is the `addons` line with its error.
+        let err = anyhow::Error::new(updater::NotRun("x".into()));
+        let (name, d) = one(
+            &mut s,
+            watch::Event::Addons {
+                manual: false,
+                result: Err(err),
+            },
+        );
+        assert_eq!(
+            (name.as_str(), d["ok"].clone(), d["error"]["code"].clone()),
+            ("addons", json!(false), json!("not_run"))
+        );
+        // Without a row it is an `error` line.
+        s.history = Vec::new;
+        let err = anyhow::Error::new(Coded::game_running("Wow.exe", None, "x"));
+        let (name, d) = one(
+            &mut s,
+            watch::Event::Addons {
+                manual: true,
+                result: Err(err),
+            },
+        );
+        assert_eq!(
+            (name.as_str(), d["source"].clone(), d["error"]["code"].clone()),
+            ("error", json!("addons"), json!("game_running"))
+        );
+    }
+
+    #[test]
+    fn progress_line_has_codes_and_numbers() {
+        let p = snapshot::Progress {
+            what: "Ретейл · Аддоны".into(),
+            flavor: "_retail_".into(),
+            kind: Kind::Addons,
+            done: 50,
+            total: 200,
+        };
+        let v = progress_line(&p, t0());
+        check_line(&v);
+        assert_eq!(v["type"], "progress");
+        assert_eq!(
+            v["data"],
+            json!({ "flavor": "_retail_", "kind": "addons", "done": 50, "total": 200, "percent": 25 })
+        );
+    }
+
+    #[test]
+    fn an_empty_snapshot_reports_percent_zero() {
+        let p = snapshot::Progress {
+            what: String::new(),
+            flavor: "_retail_".into(),
+            kind: Kind::Wtf,
+            done: 0,
+            total: 0,
+        };
+        assert_eq!(progress_line(&p, t0())["data"]["percent"], 0);
+    }
+
+    #[test]
+    fn closing_stdin_drops_the_sender() {
+        let (tx, rx) = std::sync::mpsc::channel::<watch::Request>();
+        stop_on_eof(std::io::Cursor::new(b"ignored input".to_vec()), tx);
+        assert!(matches!(rx.try_recv(), Err(std::sync::mpsc::TryRecvError::Disconnected)));
+    }
+
+    /// One real round of the loop on the fake tree, twice: the lines of the stream.
+    #[test]
+    fn a_watch_round_streams_busy_and_backup() {
+        let f = fixture();
+        let round = || {
+            let (tx, rx) = std::sync::mpsc::channel::<watch::Request>();
+            drop(tx);
+            let mut events = Vec::new();
+            watch::run(&f.config, Some(&f.config), Some(1), &rx, |e| events.push(e));
+            let mut s = stream(&f);
+            let mut lines: Vec<Value> = events.iter().flat_map(|e| s.lines(e, t0())).collect();
+            // Whether a game runs depends on the machine.
+            lines.retain(|l| l["event"] != "game");
+            lines.iter().for_each(check_line);
+            for l in &mut lines {
+                f.normalize(l);
+            }
+            lines
+        };
+        let first = round();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0]["data"], json!({ "work": "backup", "manual": null }));
+        assert_eq!(first[1]["event"], "backup");
+        let made = |i: usize, kind: &str| json!({ "flavor": "_retail_", "kind": kind, "id": "<id>", "size": first[1]["data"]["created"][i]["size"], "created": "<ts>" });
+        assert_eq!(first[1]["data"]["created"], json!([made(0, "wtf"), made(1, "addons")]));
+        assert_eq!(first[1]["data"]["manual"], false);
+        let again = round();
+        assert_eq!(again[1]["data"]["created"], json!([]));
+        assert_eq!(
+            again[1]["data"]["unchanged"],
+            json!([{ "flavor": "_retail_", "kind": "wtf" }, { "flavor": "_retail_", "kind": "addons" }])
         );
     }
 }

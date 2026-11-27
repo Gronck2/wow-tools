@@ -4,6 +4,9 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
 
 ## [Unreleased]
 
+- `wow-tools --json watch [--interval N]` runs the background loop and prints one JSON line per event on stdout: `started`, `busy`,
+  `backup`, `game`, `patch`, `addons`, `error`, `stopped`, plus `progress` lines while a snapshot is written (`docs/cli-json.md`).
+  It stops when its stdin is closed. Without `--json`, `watch` and the tray are unchanged.
 - `update-addons --json` now lists what the run did: the addons updated (name, from and to version, flavor where known),
   the updates that failed and why (for example WowUp without a Wago token), the addons still outdated and the ones left
   to the user (`docs/cli-json.md`). A manager that could not run (open with auto-update off) is the new error code
