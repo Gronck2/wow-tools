@@ -90,8 +90,8 @@ A cargo workspace: the root package `wow-tools` (`src/`: exe, CLI, tray, windows
 and never imports them (`docs/arch/overview.md`: public API, the lock). The program re-exports the core's modules at its
 root (`main.rs`), so the window code still says `crate::config`. Below, paths are in `src/` unless a module is in the
 core: `i18n`, `config`, `wow`, `snapshot`, `chars`, `lua`, `editmode`, `profiles`, `maintenance`, `app`, `watch`,
-`updater`, `curseforge`, `wowup`, `wago`, `elvui`, `macros`, `macro_fix`, `macro_names`, `macro_store`, `http`, `version`
-and `lock` live in `crates/core/src/`. `Kind` (`snapshot`) and `chars::Part` implement `clap::ValueEnum` behind the core's
+`updater`, `curseforge`, `wowup`, `wago`, `elvui`, `macros`, `macro_fix`, `macro_names`, `macro_store`, `http`, `version`,
+`errors` and `lock` live in `crates/core/src/`. `Kind` (`snapshot`) and `chars::Part` implement `clap::ValueEnum` behind the core's
 optional `clap` feature (on in the program, off for other shells). Core tests: `cargo test -p wow-tools-core`.
 - `lock.rs`: one writer per WoW folder. `lock::acquire(&Flavor, what)` takes a fail-fast file lock
   (`File::try_lock`) on `%LOCALAPPDATA%\WoW Tools\locks\<sha256(lowercased flavor folder)[..16]>.lock` (not the portable
@@ -99,8 +99,20 @@ optional `clap` feature (on in the program, off for other shells). Core tests: `
   `app.busy` naming the holder (`<pid> <operation>` in `<hash>.info`: a locked file cannot be read by another handle).
   Taken at the outermost entry only (a second handle in one process fails): `app::backup_all` (per flavor; a busy one is
   a report error and the loop goes on), `app::restore_apply`, `app::update_addons` (all selected flavors, for the run),
-  `profiles::apply`, `maintenance::clean` (every item) and `check_patches` (snapshot), `main::cmd_copy_char` (not dry-run).
+  `profiles::apply`, `maintenance::clean` (every item) and `check_patches` (snapshot), `main::copy_char` (not dry-run).
   Callees (`safety_snapshot`, `Store::backup`) never take it. Tests use a temp dir for the lock folder.
+- `errors.rs` (core): `Coded` = an error with a stable `code` + `params` next to its text (`Display` is the old text, so
+  the console and the tray print the same; raised as the error or as a `.with_context(|| Coded::..)`), `classify(&anyhow::Error)`
+  -> (code, params) (the first `Coded`, else an `io::Error` -> `io`, else `failed`; never reads text). Raised by the lock
+  (`busy`), `ensure_game_closed`/`update_addons` (`game_running`), the lookups (`not_found`), `Config::load`
+  (`config_invalid`), `wow::resolve_root` (`no_wow`), `http::get` (`network`). `app::Report` also carries `snapshots`,
+  `unchanged` and `failures` without text; `maintenance::clean_item` returns `Cleaned` (`clean` formats it);
+  `macros::Finding::owner` (flavor folder, account, realm, character; `serde(skip)`, so `macro-report.json` is unchanged).
+- `cli_json.rs`: `--json` (global flag, `main::early_json` reads it before clap; the language is forced to English): one
+  `{"v":1,"type":"result"|"error",...}` line on stdout, built from the same core calls as the `cmd_*` text functions,
+  never by serializing the core's stored types; `json_unsupported` for `tray`/`watch`/`quit`/`ui-snapshot`/`self-update`/
+  `schedule`; `restore` needs `--yes` (stdin is never read); exit 0/1/2. The contract is `docs/cli-json.md` and ADR 0003:
+  a changed field needs a changelog line, a breaking one a new `v`. Tests: a fake tree + scratch config, `json!` expectations.
 - `http.rs` / `version.rs`: the WinHTTP `get` (user agent from `http::set_user_agent`, called first in `main`) and
   `newer`; `selfupdate` re-exports both.
 - `main.rs`: CLI (clap) and printing. No subcommand = `tray`. Runs `config::migrate_legacy` first. Logging goes to

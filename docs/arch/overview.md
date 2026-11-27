@@ -75,5 +75,6 @@ take it. A shell that cannot call the core (CLI) may take the same lock itself b
 
 ### Shells
 
-A Rust shell links the library. A shell in another language runs the `wow-tools` CLI and reads JSON (not built yet,
-its own task). The tray's single-instance mutex (`Local\wow-tools-tray`) is separate and stays in the program.
+A Rust shell links the library. A shell in another language runs the `wow-tools` CLI with `--json` and reads one JSON object
+per call (`src/cli_json.rs`; the contract is `docs/cli-json.md`, `docs/adr/0003-cli-json-contract.md`; the error codes come from
+`errors::classify` in the core, so a Rust shell gets the same ones). The tray's single-instance mutex (`Local\wow-tools-tray`) is separate and stays in the program.

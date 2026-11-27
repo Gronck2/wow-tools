@@ -458,7 +458,8 @@ nota. `wow-tools macros` y el informe copiado imprimen los mismos textos.
 | `self-update [--check]` | busca en GitHub una nueva versión de WoW Tools y la instala |
 
 Opciones comunes: `--config FILE` (otra configuración), `--log-to-file`, `-v`. `wow-tools <comando> --help` explica el
-resto en el idioma elegido.
+resto en el idioma elegido. `--json` muestra un objeto JSON en lugar de texto, para otros programas: véase
+[docs/cli-json.md](docs/cli-json.md) (en inglés).
 
 ## Archivos y carpetas
 
