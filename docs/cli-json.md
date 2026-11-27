@@ -278,9 +278,11 @@ yet and the values are the defaults.
 The value argument is read as JSON; if that is not JSON it is a plain string. So `10`, `true`, `null`,
 `'["mon","fri"]'`, `'{"_retail_":"D:\\Shots"}'` are JSON and `game_exit`, `10:00`, `D:\Shots` are strings. A number
 for a string setting (`config set backup_time 1000`) is refused as `type`: write it with quotes (`'"1000"'`).
-The whole config is checked before it is written: a wrong type or unknown enum name is `reason` `type`, `keep`,
-`backup_every_days` and `update_every` below 1 are `range`, `backup_time` / `update_time` not `HH:MM` and `flavors`
-not like `_retail_` are `format`; the file is untouched then. `unset` sets the default (`null` for `wow_path`,
+The whole config is checked before it is written: a wrong type or unknown enum name is `reason` `type`, as is
+a list with a tab name the app does not know (`hidden_tabs`, `panel_tabs`); `keep` (1-10000), `backup_every_days`
+(1-365) and `update_every` (1-525600 minutes) outside their bounds are `range`; `backup_time` / `update_time` not
+`HH:MM`, `flavors` not like `_retail_`, and an empty or relative path in `backup_dir`, `wow_path`, `screenshots_dir`
+or `screenshots_dirs` (existence is not checked) are `format`; the file is untouched then. `unset` sets the default (`null` for `wow_path`,
 `update_app`, `language`, `screenshots_dir`). `changed` is false when the value was already that.
 
 Only the file is written: the tray reads it again on its next round. The settings window keeps its own copy and writes it

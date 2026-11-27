@@ -86,6 +86,10 @@ fn known_tabs<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<PanelTab>, D
         .collect())
 }
 
+const MAX_KEEP: u64 = 10_000;
+const MAX_EVERY_DAYS: u64 = 365;
+const MAX_EVERY_MINUTES: u64 = 525_600;
+
 /// Choices of the "update every" stepper, in minutes.
 pub const UPDATE_EVERY: &[u64] = &[30, 60, 120, 180, 360, 720];
 
@@ -250,7 +254,7 @@ impl Config {
             When::Schedule => due(&self.backup_days, self.time(), now, last_backup),
             // The latest `backup_time` (today's or yesterday's) is `backup_every_days` days after the last snapshot's day.
             When::EveryDays => last_scheduled(&Day::ALL, self.time(), now)
-                .is_some_and(|at| last_backup.is_none_or(|l| (at.date() - l.date()).num_days() >= self.backup_every_days.max(1) as i64)),
+                .is_some_and(|at| last_backup.is_none_or(|l| (at.date() - l.date()).num_days() >= self.backup_every_days.clamp(1, MAX_EVERY_DAYS) as i64)),
         }
     }
 
@@ -318,7 +322,7 @@ impl Config {
         }
         match self.update_when {
             UpdateWhen::Schedule => due(&self.update_days, self.update_at(), now, last_update),
-            UpdateWhen::Interval => last_update.is_none_or(|l| now - l >= chrono::Duration::minutes(self.update_every.max(1) as i64)),
+            UpdateWhen::Interval => last_update.is_none_or(|l| now - l >= chrono::Duration::minutes(self.update_every.clamp(1, MAX_EVERY_MINUTES) as i64)),
             UpdateWhen::Startup => {
                 now - started >= chrono::Duration::minutes(STARTUP_DELAY_MIN)
                     && last_update.is_none_or(|l| l < started - chrono::Duration::minutes(STARTUP_SKIP_MIN))
@@ -365,8 +369,14 @@ impl Config {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
+        // A temp of its own per save: the tray and the CLI may save at once.
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let mut tmp = path.as_os_str().to_owned();
-        tmp.push(".tmp");
+        tmp.push(format!(
+            ".{}.{}.tmp",
+            std::process::id(),
+            SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
         let tmp = PathBuf::from(tmp);
         let written = fs::write(&tmp, toml::to_string_pretty(self)?).and_then(|()| fs::rename(&tmp, path));
         if written.is_err() {
@@ -391,9 +401,14 @@ impl Config {
     pub fn set_key(&mut self, key: &str, value: Value) -> Result<()> {
         let mut image = self.image();
         let slot = image.get_mut(key).ok_or_else(|| unknown_key(key))?;
+        let asked = value.clone();
         *slot = value;
         let next: Config =
             serde_json::from_value(Value::Object(image)).map_err(|e| Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = e)))?;
+        // Something the types dropped silently (an unknown tab name) is not what was asked for.
+        if next.get_key(key)? != asked {
+            return Err(Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = "unknown value")).into());
+        }
         if let Some((bad, reason)) = next.invalid() {
             let message = if reason == "range" {
                 tr!("config.bad_range", key = bad)
@@ -425,14 +440,27 @@ impl Config {
         if !self.flavors.iter().all(flavor) {
             return Some(("flavors", "format"));
         }
+        let absolute = |p: &Path| p.is_absolute();
+        if !absolute(&self.backup_dir) {
+            return Some(("backup_dir", "format"));
+        }
+        if !self.wow_path.iter().all(|p| absolute(p)) {
+            return Some(("wow_path", "format"));
+        }
+        if !self.screenshots_dir.iter().all(|p| absolute(p)) {
+            return Some(("screenshots_dir", "format"));
+        }
+        if !self.screenshots_dirs.values().all(|p| absolute(p)) {
+            return Some(("screenshots_dirs", "format"));
+        }
         [
-            ("keep", self.keep as u64),
-            ("backup_every_days", self.backup_every_days),
-            ("update_every", self.update_every),
+            ("keep", self.keep as u64, MAX_KEEP),
+            ("backup_every_days", self.backup_every_days, MAX_EVERY_DAYS),
+            ("update_every", self.update_every, MAX_EVERY_MINUTES),
         ]
         .into_iter()
-        .find(|(_, n)| *n < 1)
-        .map(|(k, _)| (k, "range"))
+        .find(|(_, n, max)| !(1..=*max).contains(n))
+        .map(|(k, ..)| (k, "range"))
     }
 }
 
@@ -785,6 +813,16 @@ mod tests {
             ("update_when", json!("sometimes"), "type"),
             ("screenshots_dir", json!(5), "type"),
             ("backup_time", json!(null), "type"),
+            ("update_every", json!(1e15 as u64), "range"),
+            ("update_every", json!(525_601), "range"),
+            ("backup_every_days", json!(366), "range"),
+            ("keep", json!(10_001), "range"),
+            ("hidden_tabs", json!(["macro"]), "type"),
+            ("backup_dir", json!(""), "format"),
+            ("backup_dir", json!(r"rel\dir"), "format"),
+            ("wow_path", json!("games"), "format"),
+            ("screenshots_dir", json!("shots"), "format"),
+            ("screenshots_dirs", json!({ "_retail_": "shots" }), "format"),
         ];
         for (key, value, reason) in bad {
             let e = cfg.set_key(key, value.clone()).unwrap_err();
@@ -818,6 +856,43 @@ mod tests {
         assert_eq!(parse_value("10:00"), json!("10:00"));
         assert_eq!(parse_value("game_exit"), json!("game_exit"));
         assert_eq!(parse_value(r"D:\Shots"), json!(r"D:\Shots"));
+    }
+
+    #[test]
+    fn a_huge_hand_edited_interval_does_not_panic() {
+        let cfg = Config {
+            update_addons: true,
+            backup_when: When::EveryDays,
+            update_when: UpdateWhen::Interval,
+            update_every: u64::MAX,
+            backup_every_days: u64::MAX,
+            ..Config::default()
+        };
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap().and_hms_opt(12, 0, 0).unwrap();
+        let _ = cfg.update_due(now, Some(now), now);
+        let _ = cfg.schedule_due(now, Some(now));
+    }
+
+    #[test]
+    fn concurrent_saves_never_leave_a_broken_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let (a, b) = (Config { keep: 3, ..Config::default() }, Config { keep: 9, ..Config::default() });
+        a.save(&path).unwrap();
+        std::thread::scope(|s| {
+            for cfg in [&a, &b] {
+                let path = &path;
+                s.spawn(move || {
+                    for _ in 0..200 {
+                        // A rename may lose to the other writer's on Windows; the file must still be whole.
+                        let _ = cfg.save(path);
+                    }
+                });
+            }
+        });
+        let keep = Config::load(&path).unwrap().keep;
+        assert!(keep == 3 || keep == 9);
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]
