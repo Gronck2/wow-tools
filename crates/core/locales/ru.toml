@@ -38,6 +38,7 @@ unknown_key = "нет такой настройки: {key}"
 bad_type = "{key}: значение неподходящего типа или неизвестное ({detail})"
 bad_range = "{key}: значение вне допустимых пределов"
 bad_format = "{key}: неверный формат значения"
+unknown_value = "неизвестное значение"
 set_line = "{key} = {value}"
 
 [addons]

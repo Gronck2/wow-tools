@@ -407,9 +407,11 @@ impl Config {
             serde_json::from_value(Value::Object(image)).map_err(|e| Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = e)))?;
         // Something the types dropped silently (an unknown tab name) is not what was asked for.
         if next.get_key(key)? != asked {
-            return Err(Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = "unknown value")).into());
+            return Err(Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = tr!("config.unknown_value"))).into());
         }
-        if let Some((bad, reason)) = next.invalid() {
+        // Only a setting this change made bad is refused: one already bad in the file must not block fixing the others.
+        let before = self.invalid();
+        if let Some((bad, reason)) = next.invalid().into_iter().find(|b| !before.contains(b)) {
             let message = if reason == "range" {
                 tr!("config.bad_range", key = bad)
             } else {
@@ -427,40 +429,28 @@ impl Config {
         self.set_key(key, default)
     }
 
-    /// What the types do not check: the first setting that is out of range (`range`) or malformed (`format`).
-    fn invalid(&self) -> Option<(&'static str, &'static str)> {
+    /// What the types do not check: every setting that is out of range (`range`) or malformed (`format`).
+    fn invalid(&self) -> Vec<(&'static str, &'static str)> {
         let time = |s: &str| NaiveTime::parse_from_str(s, "%H:%M").is_ok();
         let flavor = |f: &String| f.len() > 2 && f.starts_with('_') && f.ends_with('_') && f.chars().all(|c| c == '_' || c.is_ascii_alphanumeric());
-        if !time(&self.backup_time) {
-            return Some(("backup_time", "format"));
-        }
-        if !time(&self.update_time) {
-            return Some(("update_time", "format"));
-        }
-        if !self.flavors.iter().all(flavor) {
-            return Some(("flavors", "format"));
-        }
-        let absolute = |p: &Path| p.is_absolute();
-        if !absolute(&self.backup_dir) {
-            return Some(("backup_dir", "format"));
-        }
-        if !self.wow_path.iter().all(|p| absolute(p)) {
-            return Some(("wow_path", "format"));
-        }
-        if !self.screenshots_dir.iter().all(|p| absolute(p)) {
-            return Some(("screenshots_dir", "format"));
-        }
-        if !self.screenshots_dirs.values().all(|p| absolute(p)) {
-            return Some(("screenshots_dirs", "format"));
-        }
-        [
+        let absolute = |p: &PathBuf| p.is_absolute();
+        let formats = [
+            ("backup_time", time(&self.backup_time)),
+            ("update_time", time(&self.update_time)),
+            ("flavors", self.flavors.iter().all(flavor)),
+            ("backup_dir", absolute(&self.backup_dir)),
+            ("wow_path", self.wow_path.iter().all(absolute)),
+            ("screenshots_dir", self.screenshots_dir.iter().all(absolute)),
+            ("screenshots_dirs", self.screenshots_dirs.values().all(absolute)),
+        ];
+        let ranges = [
             ("keep", self.keep as u64, MAX_KEEP),
             ("backup_every_days", self.backup_every_days, MAX_EVERY_DAYS),
             ("update_every", self.update_every, MAX_EVERY_MINUTES),
-        ]
-        .into_iter()
-        .find(|(_, n, max)| !(1..=*max).contains(n))
-        .map(|(k, ..)| (k, "range"))
+        ];
+        let bad_formats = formats.into_iter().filter(|(_, ok)| !ok).map(|(k, _)| (k, "format"));
+        let bad_ranges = ranges.into_iter().filter(|(_, n, max)| !(1..=*max).contains(n)).map(|(k, ..)| (k, "range"));
+        bad_formats.chain(bad_ranges).collect()
     }
 }
 
@@ -837,6 +827,23 @@ mod tests {
         let e = cfg.set_key("nope", json!(1)).unwrap_err();
         assert_eq!(code(&e), ("not_found", json!({ "what": "config_key", "key": "nope" })));
         assert!(cfg.get_key("nope").is_err() && cfg.unset_key("nope").is_err());
+    }
+
+    #[test]
+    fn settings_already_bad_in_the_file_do_not_block_fixing_them() {
+        // A hand-edited file with two bad values: each can be fixed, and an unrelated set goes through.
+        let mut cfg = Config {
+            backup_time: "25:00".into(),
+            keep: 0,
+            ..Config::default()
+        };
+        cfg.set_key("include_addons", json!(false)).unwrap();
+        cfg.set_key("keep", json!(5)).unwrap();
+        cfg.unset_key("backup_time").unwrap();
+        assert!(cfg.invalid().is_empty());
+        // A new bad value is still refused.
+        let (c, params) = code(&cfg.set_key("update_time", json!("9")).unwrap_err());
+        assert_eq!((c, params["key"].clone()), ("invalid_args", json!("update_time")));
     }
 
     #[test]

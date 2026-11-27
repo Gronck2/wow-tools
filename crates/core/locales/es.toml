@@ -38,6 +38,7 @@ unknown_key = "no existe ese ajuste: {key}"
 bad_type = "{key}: el valor es de un tipo incorrecto o desconocido ({detail})"
 bad_range = "{key}: el valor está fuera de rango"
 bad_format = "{key}: el valor tiene un formato incorrecto"
+unknown_value = "valor desconocido"
 set_line = "{key} = {value}"
 
 [addons]
