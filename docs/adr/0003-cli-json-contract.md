@@ -21,8 +21,8 @@ schedule, so it must be versioned and must not depend on the interface language.
   a meaning bumps `v`.
 - **No localized text.** Data are codes, ids, numbers, paths and RFC 3339 timestamps with the local offset; flavors are
   folder names. The process language is forced to English under `--json`, which makes the one free-text field,
-  `error.detail` (and the `detail` of an `update-addons` entry), stable English for logs. It is diagnostic: never shown,
-  never parsed.
+  `error.detail`, English for logs (except `update-addons`, which runs in the user's language so the history it stores
+  stays readable in the tray). It is diagnostic: never shown, never parsed.
 - **Error codes** are derived from the error, not from its text: the core raises `errors::Coded` (a code, params and the
   text for `Display`, so the text output is unchanged) and `errors::classify` reads it, with I/O errors as `io` and the
   rest as `failed`. The list is in `docs/cli-json.md`.
