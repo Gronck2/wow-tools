@@ -565,6 +565,20 @@ mod tests {
     }
 
     #[test]
+    fn flavors_running_lists_only_folders_with_a_known_client() {
+        let retail = Flavor::new("_retail_", r"C:\Games\World of Warcraft\_retail_");
+        let era = Flavor::new("_classic_era_", r"C:\Games\World of Warcraft\_classic_era_");
+        let at = |dir: Option<&str>| Running {
+            name: "Wow.exe".into(),
+            dir: dir.map(PathBuf::from),
+        };
+        let both = [retail.clone(), era.clone()];
+        assert_eq!(flavors_running(&[at(Some(r"c:\games\world of warcraft\_retail_\"))], &both), ["_retail_"]);
+        assert!(flavors_running(&[at(None)], &both).is_empty());
+        assert!(flavors_running(&[], &both).is_empty());
+    }
+
+    #[test]
     fn game_clients_are_recognized_by_their_folder() {
         let run = |name: &str, dir: Option<&str>| Running {
             name: name.into(),

@@ -1772,6 +1772,18 @@ mod tests {
     }
 
     #[test]
+    fn an_empty_snapshot_reports_percent_zero() {
+        let p = snapshot::Progress {
+            what: String::new(),
+            flavor: "_retail_".into(),
+            kind: Kind::Wtf,
+            done: 0,
+            total: 0,
+        };
+        assert_eq!(progress_line(&p, t0())["data"]["percent"], 0);
+    }
+
+    #[test]
     fn closing_stdin_drops_the_sender() {
         let (tx, rx) = std::sync::mpsc::channel::<watch::Request>();
         stop_on_eof(std::io::Cursor::new(b"ignored input".to_vec()), tx);
