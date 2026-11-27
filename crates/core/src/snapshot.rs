@@ -126,7 +126,7 @@ impl Store {
         let final_path = series.join(format!("{id}.zip"));
         let tmp_path = series.join(format!("{id}.zip.partial"));
         let what = format!("{} · {}", flavor.title(), kind.label());
-        if let Err(e) = write_zip(&tmp_path, &files, &what) {
+        if let Err(e) = write_zip(&tmp_path, &files, &what, flavor, kind) {
             let _ = fs::remove_file(&tmp_path);
             return Err(e);
         }
@@ -309,6 +309,9 @@ fn fingerprint(files: &[SourceFile]) -> String {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Progress {
     pub what: String,
+    /// The folder name and series of the zip being written (`what` is text for the tray).
+    pub flavor: String,
+    pub kind: Kind,
     pub done: u64,
     pub total: u64,
 }
@@ -353,11 +356,13 @@ impl Drop for ProgressGuard {
     }
 }
 
-fn write_zip(dest: &Path, files: &[SourceFile], what: &str) -> Result<()> {
+fn write_zip(dest: &Path, files: &[SourceFile], what: &str, flavor: &Flavor, kind: Kind) -> Result<()> {
     let mut zip = ZipWriter::new(BufWriter::new(File::create(dest)?));
     let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     let mut p = Progress {
         what: what.to_string(),
+        flavor: flavor.name.clone(),
+        kind,
         done: 0,
         total: files.iter().map(|f| f.size).sum(),
     };

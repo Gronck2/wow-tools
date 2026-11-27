@@ -110,8 +110,9 @@ optional `clap` feature (on in the program, off for other shells). Core tests: `
   `macros::Finding::owner` (flavor folder, account, realm, character; `serde(skip)`, so `macro-report.json` is unchanged).
 - `cli_json.rs`: `--json` (global flag, `main::early_json` reads it before clap; the language is forced to English): one
   `{"v":1,"type":"result"|"error",...}` line on stdout, built from the same core calls as the `cmd_*` text functions,
-  never by serializing the core's stored types; `json_unsupported` for `tray`/`watch`/`quit`/`ui-snapshot`/`self-update`/
-  `schedule`; `restore` needs `--yes` (stdin is never read); exit 0/1/2. The contract is `docs/cli-json.md` and ADR 0003:
+  never by serializing the core's stored types; `json_unsupported` for `tray`/`quit`/`ui-snapshot`/`self-update`/
+  `schedule`; `restore` needs `--yes` (stdin is never read); exit 0/1/2. `--json watch` (`cli_json::watch`, ADR 0004) is the one stream:
+  NDJSON lines (`type` event/progress) from `watch::Event` via `Stream::lines`, stopped by stdin EOF. The contract is `docs/cli-json.md` and ADR 0003:
   a changed field needs a changelog line, a breaking one a new `v`. Tests: a fake tree + scratch config, `json!` expectations.
 - `http.rs` / `version.rs`: the WinHTTP `get` (user agent from `http::set_user_agent`, called first in `main`) and
   `newer`; `selfupdate` re-exports both.

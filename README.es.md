@@ -460,7 +460,7 @@ nota. `wow-tools macros` y el informe copiado imprimen los mismos textos.
 
 Opciones comunes: `--config FILE` (otra configuración), `--log-to-file`, `-v`. `wow-tools <comando> --help` explica el
 resto en el idioma elegido. `--json` muestra un objeto JSON en lugar de texto, para otros programas: véase
-[docs/cli-json.md](docs/cli-json.md) (en inglés).
+[docs/cli-json.md](docs/cli-json.md) (en inglés). `--json watch` escribe una línea JSON por evento (copias, juego, parches, actualizaciones de addons, progreso) hasta que se cierra su stdin.
 
 ## Archivos y carpetas
 

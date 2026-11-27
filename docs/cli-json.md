@@ -1,6 +1,7 @@
 # The JSON interface of the command line
 
-`wow-tools --json <command> ...` prints **exactly one line** of JSON on stdout and nothing else, errors included. It is
+`wow-tools --json <command> ...` prints **exactly one line** of JSON on stdout and nothing else, errors included (the one exception is `watch`, which
+streams lines: see "Watch stream"). It is
 the interface for another program (a second shell such as an Overwolf or Electron app, see
 `docs/adr/0002-core-crate-and-shells.md`, the contract is `docs/adr/0003-cli-json-contract.md`). Without `--json` the
 commands print text as before; nothing about the text changed.
@@ -13,7 +14,7 @@ commands print text as before; nothing about the text changed.
   exits 101).
 - stderr carries the log lines (English under `--json`). Ignore them or keep them for diagnostics; never parse them.
 - The process language is forced to English under `--json`; the language setting of the config is not used.
-- Nothing is interactive and stdin is never read. `restore` needs `--yes` (see below).
+- Nothing is interactive and stdin is never read (except `watch`, where its end means stop). `restore` needs `--yes` (see below).
 - Several processes may run at once; two that would change the same game folder exclude each other (error `busy`).
   A shell does not take that lock itself: it calls the CLI.
 
@@ -53,8 +54,7 @@ Sizes are bytes. Paths are strings as Windows writes them.
 
 ### Progress
 
-Version 1 prints the final object only; an operation takes seconds to a minute. Progress lines
-(`{"v":1,"type":"progress",...}` before the final line) can be added later without a new `v`, behind a flag.
+The one-shot commands print the final object only. `watch` streams `progress` lines (see "Watch stream").
 
 ## Errors
 
@@ -80,9 +80,8 @@ New specific codes may be split off `failed` later.
 ## Commands
 
 Examples are real output with the paths and times anonymized. `flavor` is a folder name, `kind` is `wtf` or `addons`.
-Commands without JSON: `tray`, `watch`, `quit`, `ui-snapshot`, `self-update` and `schedule` all answer
-`json_unsupported` (exit 2): they run for a long time, open windows or belong to the program itself. A shell that wants
-automatic backups schedules `backup` itself.
+Commands without JSON: `tray`, `quit`, `ui-snapshot`, `self-update` and `schedule` all answer
+`json_unsupported` (exit 2): they open windows or belong to the program itself. `watch` is a stream, below.
 
 ### `status`
 
@@ -312,4 +311,44 @@ file is written whole, as by the settings window), and one key is set per call.
 {"v":1,"type":"error","command":"list","error":{"code":"not_found","params":{"what":"flavor","key":"_nope_"},"detail":"version “_nope_” not found, there are: _retail_"}}
 {"v":1,"type":"error","command":null,"error":{"code":"invalid_args","params":{"kind":"unknown_argument"},"detail":"error: unexpected argument '--bogus' found\n..."}}
 {"v":1,"type":"error","command":"tray","error":{"code":"json_unsupported","params":{"command":"tray"},"detail":"the command tray has no --json output"}}
+```
+
+## Watch stream
+
+`wow-tools --json watch [--interval N]` runs the loop of the tray (scheduled snapshots, after the game closes, patches,
+automatic addon updates) and prints **one JSON object per line** (NDJSON) until it is stopped. The rules are in
+`docs/adr/0004-watch-json-stream.md`.
+
+- Every line has `"v":1` and `"type"`: `event` or `progress`. Lines are flushed one by one; stderr keeps the log.
+- **Stop it by closing its stdin** (or by exiting: the OS closes it). A job in progress finishes first, then the last line is
+  `stopped` and the exit code is 0. Whatever is written to stdin is ignored, so a process started with a closed stdin
+  stops after its first round. Killing it is safe too.
+- Before the loop starts, a failure (unreadable config) is the usual `error` object of a one-shot command (`command:"watch"`, exit 1).
+  Failures of the loop itself are `error` events.
+- There is no request channel. To back up or update addons now, run `backup --json` / `update-addons --json`; the folder
+  lock (`busy`) keeps them apart from the loop. The loop does not report those runs.
+- Not in the stream: WoW Tools self-update (a shell updates itself) and the tray's own states.
+- A shell ignores unknown events and fields.
+
+| `event` | `data` |
+| --- | --- |
+| `started` | `pid`, `version`, `interval_minutes` (`null` without `--interval`): the first line |
+| `busy` | `work` (`backup`, `addons`), `manual` (`null`): a job begins; the state is busy until its result event |
+| `backup` | the data of `backup` (`created`, `unchanged`, `skipped_game`, `failures`) and `manual`; `failures` may be non-empty |
+| `addons` | `manual`, `ok`, and the data of `update-addons` (`ran`, `entries[]`: the history rows this run wrote), `error` when it failed |
+| `game` | `state` (`started`, `closed`), `game` (exe name), `flavors[]` (folders whose client runs; empty when its path is unknown). Fires when "any client runs" flips |
+| `patch` | `flavor`, `from`, `to`, `saved[]` (snapshot ids taken before the first start), `outdated[]` (addon names) |
+| `error` | `source` (`backup`, `addons`), `error` (`code`, `params`, `detail`): a run that failed as a whole, with nothing else to report |
+| `stopped` | `reason` (`stdin_closed`): the last line |
+
+`progress` lines come while a snapshot is written (also the ones before an addon update or a patch), at most one per percent:
+`data` has `flavor`, `kind` (`wtf`, `addons`), `done` and `total` (bytes), `percent`. The `backup` event closes them.
+
+```json
+{"v":1,"type":"event","event":"started","time":"2026-11-27T14:39:50+04:00","data":{"pid":31720,"version":"0.8.0","interval_minutes":1}}
+{"v":1,"type":"event","event":"busy","time":"2026-11-27T14:39:50+04:00","data":{"work":"backup","manual":null}}
+{"v":1,"type":"progress","time":"2026-11-27T14:39:50+04:00","data":{"flavor":"_retail_","kind":"wtf","done":0,"total":7,"percent":0}}
+{"v":1,"type":"event","event":"backup","time":"2026-11-27T14:39:50+04:00","data":{"created":[{"flavor":"_retail_","kind":"wtf","id":"20261127-143950","size":193,"created":"2026-11-27T14:39:50+04:00"}],"unchanged":[],"skipped_game":null,"failures":[],"manual":false}}
+{"v":1,"type":"event","event":"game","time":"2026-11-27T14:41:02+04:00","data":{"state":"started","game":"Wow.exe","flavors":["_retail_"]}}
+{"v":1,"type":"event","event":"stopped","time":"2026-11-27T14:42:10+04:00","data":{"reason":"stdin_closed"}}
 ```

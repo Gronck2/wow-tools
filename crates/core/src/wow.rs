@@ -429,6 +429,15 @@ pub fn running_in(games: &[Running], fl: &Flavor) -> Option<String> {
         .map(|g| g.name.clone())
 }
 
+/// The folders of `flavors` a game with a known path runs from (a client with no path is in none).
+pub fn flavors_running(games: &[Running], flavors: &[Flavor]) -> Vec<String> {
+    flavors
+        .iter()
+        .filter(|fl| games.iter().any(|g| g.dir.as_ref().is_some_and(|d| same_dir(d, &fl.dir))))
+        .map(|fl| fl.name.clone())
+        .collect()
+}
+
 fn same_dir(a: &Path, b: &Path) -> bool {
     dir_key(a) == dir_key(b)
 }
