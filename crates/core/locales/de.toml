@@ -401,6 +401,8 @@ off = "aus"
 last = ", zuletzt {time}"
 updates = "Addon-Updates: {update}{last}"
 some_failed = "einige Sicherungen wurden nicht erstellt"
+json_unsupported = "der Befehl {command} hat keine --json-Ausgabe"
+json_needs_yes = "restore mit --json braucht --yes"
 list_header = "{flavor} / {what} – {n}"
 # Wörter für "ja" in Konsolenabfragen, durch Leerzeichen getrennt (y und yes funktionieren immer).
 yes_words = "j ja"
@@ -441,6 +443,7 @@ version = "Version anzeigen"
 config = "Pfad der Konfiguration (Standard: %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Protokoll in eine Datei schreiben (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log) statt in die Konsole"
 verbose = "Ausführliche Ausgabe"
+json = "Ein JSON-Objekt ausgeben, für andere Oberflächen"
 
 [cli.tray]
 about = "Infobereichssymbol: Sicherungen im Hintergrund, Wiederherstellung, Einstellungen"
@@ -789,9 +792,9 @@ about = "Gespeicherte Profile anzeigen"
 
 [cli.profile.apply]
 about = "Ein Profil auf einen Charakter übertragen (Spiel geschlossen; WTF wird vorher gesichert)"
-profile = "Profilnummer aus `profile list`"
+profile = "Profilnummer oder -id aus `profile list`"
 to = "Charakter: Realm/Name oder ACCOUNT/Realm/Name"
 
 [cli.profile.delete]
 about = "Ein Profil löschen"
-profile = "Profilnummer aus `profile list`"
+profile = "Profilnummer oder -id aus `profile list`"

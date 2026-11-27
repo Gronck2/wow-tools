@@ -21,6 +21,7 @@ pub use stub::get;
 
 #[cfg(windows)]
 mod imp {
+    use crate::errors::Coded;
     use anyhow::{Result, bail};
     use std::ffi::c_void;
     use std::ptr::{null, null_mut};
@@ -60,7 +61,10 @@ mod imp {
     /// A GET over HTTPS (redirects followed); returns the status and the body.
     pub fn get(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {
         let host = url.trim_start_matches("https://").split('/').next().unwrap_or_default();
-        request(url, accept).map_err(|e| anyhow::anyhow!(tr!("self_update.network", host = host, error = e)))
+        request(url, accept).map_err(|e| {
+            let text = tr!("self_update.network", host = host, error = e);
+            Coded::new(crate::errors::NETWORK, serde_json::json!({ "host": host }), text).into()
+        })
     }
 
     fn request(url: &str, accept: Option<&str>) -> Result<(u32, Vec<u8>)> {

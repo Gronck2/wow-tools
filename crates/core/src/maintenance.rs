@@ -16,7 +16,7 @@ use crate::app::{self, Ctx};
 use crate::config::{Config, ShotsBy};
 use crate::snapshot::{self, Kind, Outcome};
 use crate::wow::{self, Flavor};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -478,30 +478,59 @@ pub fn scan(flavors: &[Flavor]) -> Scan {
     scan
 }
 
+/// What `clean_item` did: files done (removed or moved) and their size, files that failed, and the flavors
+/// left alone because their game runs.
+#[derive(Debug, Default)]
+pub struct Cleaned {
+    pub files: usize,
+    pub bytes: u64,
+    pub failed: usize,
+    pub skipped: Vec<Flavor>,
+}
+
 /// Does `item` for every flavor it may touch now (`Item::needs_closed_game`); returns a summary.
 pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
+    let c = clean_item(ctx, item)?;
+    let mut s = if c.files == 0 && c.failed == 0 {
+        tr!("cleanup.nothing").to_string()
+    } else {
+        let mut s = match item {
+            Item::Screenshots => tr!("cleanup.moved", n = c.files, size = snapshot::human_size(c.bytes)),
+            _ => tr!("cleanup.removed", n = c.files, size = snapshot::human_size(c.bytes)),
+        };
+        if c.failed > 0 {
+            s.push('\n');
+            s.push_str(&tr!("cleanup.failed_files", n = c.failed));
+        }
+        s
+    };
+    if !c.skipped.is_empty() {
+        let titles: Vec<String> = c.skipped.iter().map(Flavor::title).collect();
+        s.push('\n');
+        s.push_str(&tr!("cleanup.skipped_running", flavors = titles.join(", ")));
+    }
+    log::info!("{}: {}", item.key(), s.replace('\n', " | "));
+    Ok(s)
+}
+
+/// The work of `clean`, without the text.
+pub fn clean_item(ctx: &Ctx, item: Item) -> Result<Cleaned> {
     let flavors = ctx.flavors(None)?;
     let games = wow::running_games();
     let (closed, running): (Vec<Flavor>, Vec<Flavor>) = flavors
         .into_iter()
         .partition(|fl| !item.needs_closed_game() || wow::running_in(&games, fl).is_none());
     if closed.is_empty() {
-        bail!(tr!("cleanup.game_running"));
+        let game = games.first().map_or("", |g| g.name.as_str());
+        return Err(crate::errors::Coded::game_running(game, None, tr!("cleanup.game_running")).into());
     }
     let _locks = closed.iter().map(|fl| crate::lock::acquire(fl, "clean")).collect::<Result<Vec<_>>>()?;
-    let skipped = |s: &mut String| {
-        if !running.is_empty() {
-            let titles: Vec<String> = running.iter().map(Flavor::title).collect();
-            s.push('\n');
-            s.push_str(&tr!("cleanup.skipped_running", flavors = titles.join(", ")));
-        }
-    };
     let found = scan(&closed).get(item);
     if found.files == 0 {
-        let mut s = tr!("cleanup.nothing").to_string();
-        skipped(&mut s);
-        log::info!("{}: {}", item.key(), s.replace('\n', " | "));
-        return Ok(s);
+        return Ok(Cleaned {
+            skipped: running,
+            ..Cleaned::default()
+        });
     }
     let safety = item.touches_wtf(&ctx.cfg);
     if safety {
@@ -543,17 +572,12 @@ pub fn clean(ctx: &Ctx, item: Item) -> Result<String> {
             }
         }
     }
-    let mut s = match item {
-        Item::Screenshots => tr!("cleanup.moved", n = done.files, size = snapshot::human_size(done.bytes)),
-        _ => tr!("cleanup.removed", n = done.files, size = snapshot::human_size(done.bytes)),
-    };
-    if failed > 0 {
-        s.push('\n');
-        s.push_str(&tr!("cleanup.failed_files", n = failed));
-    }
-    skipped(&mut s);
-    log::info!("{}: {}", item.key(), s.replace('\n', " | "));
-    Ok(s)
+    Ok(Cleaned {
+        files: done.files,
+        bytes: done.bytes,
+        failed,
+        skipped: running,
+    })
 }
 
 /// When a screenshot was taken: from WoW's name (`WoWScrnShot_MMDDYY_HHMMSS.jpg`), else the file time.

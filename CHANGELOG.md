@@ -4,6 +4,11 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
 
 ## [Unreleased]
 
+- New option `--json` for the command line, for other programs that drive WoW Tools: the command prints one line of
+  JSON (the result, or an error with a code) instead of text. Covered: `status`, `init`, `backup`, `list`, `restore`
+  (needs `--yes`), `chars`, `macros`, `copy-char`, `update-addons`, `clean`, `outdated` and `profile`; see
+  `docs/cli-json.md`. Without it nothing changes. `profile apply` and `profile delete` also take the profile's id (shown
+  by `profile list --json`), not only its number.
 - Two WoW Tools processes (the tray, `watch`, a scheduled run, the command line) no longer change the same game folder at
   once: the second one stops with "another WoW Tools is already working on ..." and the automatic runs try again later.
 

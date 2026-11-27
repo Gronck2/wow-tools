@@ -401,6 +401,8 @@ off = "off"
 last = ", last {time}"
 updates = "Addon updates: {update}{last}"
 some_failed = "some snapshots were not created"
+json_unsupported = "the command {command} has no --json output"
+json_needs_yes = "restore with --json needs --yes"
 list_header = "{flavor} / {what} — {n}"
 # Words for "yes" in console confirmations, space separated (y and yes always work).
 yes_words = "y yes"
@@ -441,6 +443,7 @@ version = "Print version"
 config = "Config path (default %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Write the log to a file (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), not the console"
 verbose = "Verbose output"
+json = "One JSON object on stdout, for other front ends"
 
 [cli.tray]
 about = "Tray icon: background backups, restore, settings"
@@ -789,9 +792,9 @@ about = "List saved profiles"
 
 [cli.profile.apply]
 about = "Put a profile on a character (game closed; WTF is saved first)"
-profile = "Profile number from `profile list`"
+profile = "Profile number or id from `profile list`"
 to = "Character: Realm/Name or ACCOUNT/Realm/Name"
 
 [cli.profile.delete]
 about = "Delete a profile"
-profile = "Profile number from `profile list`"
+profile = "Profile number or id from `profile list`"

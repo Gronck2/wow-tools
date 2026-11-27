@@ -121,6 +121,7 @@ mod tests {
             name: name.into(),
             line: 2,
             kind,
+            owner: Default::default(),
             fixed,
         }
     }

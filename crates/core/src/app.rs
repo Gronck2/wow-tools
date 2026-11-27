@@ -1,6 +1,7 @@
 //! Operations shared by the CLI, `watch` and the tray.
 
 use crate::config::Config;
+use crate::errors::Coded;
 use crate::snapshot::{self, Kind, Outcome, Snapshot, Store};
 use crate::wow::{self, Flavor};
 use anyhow::{Context, Result, bail};
@@ -38,7 +39,7 @@ impl Ctx {
         };
         let all = wow::all_flavors(root.as_deref());
         if all.is_empty() {
-            bail!(tr!("wow.not_found"));
+            return Err(Coded::no_wow(tr!("wow.not_found")).into());
         }
         let wanted: Vec<String> = match only {
             Some(f) => vec![f.to_string()],
@@ -50,7 +51,7 @@ impl Ctx {
             .map(|name| {
                 all.iter().find(|f| f.name.eq_ignore_ascii_case(name)).cloned().with_context(|| {
                     let names: Vec<&str> = all.iter().map(|f| f.name.as_str()).collect();
-                    tr!("app.no_flavor", name = name, names = names.join(", "))
+                    Coded::not_found("flavor", name, tr!("app.no_flavor", name = name, names = names.join(", ")))
                 })
             })
             .collect()
@@ -96,6 +97,34 @@ pub struct Report {
     /// Set when the run was skipped because the game is running.
     pub skipped_game: Option<String>,
     pub errors: Vec<String>,
+    /// The same as `created`, `unchanged` and `errors`, without text: (flavor folder, series, snapshot).
+    pub snapshots: Vec<(String, Kind, Snapshot)>,
+    pub unchanged: Vec<(String, Kind)>,
+    pub failures: Vec<Failure>,
+}
+
+/// A failed flavor (a busy folder: `kind` None) or series, as `errors::classify` reads it.
+#[derive(Debug)]
+pub struct Failure {
+    pub flavor: String,
+    pub kind: Option<Kind>,
+    pub code: &'static str,
+    pub params: serde_json::Value,
+    /// The error chain as text (the language of the process): diagnostics only.
+    pub detail: String,
+}
+
+impl Failure {
+    fn new(flavor: &str, kind: Option<Kind>, e: &anyhow::Error) -> Self {
+        let (code, params) = crate::errors::classify(e);
+        Failure {
+            flavor: flavor.to_string(),
+            kind,
+            code,
+            params,
+            detail: format!("{e:#}"),
+        }
+    }
 }
 
 /// Snapshots every selected flavor and series. `force` ignores the fingerprint and the
@@ -120,6 +149,7 @@ pub fn backup_all(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bo
             Err(e) => {
                 log::error!("{}: {e:#}", fl.name);
                 report.errors.push(format!("{}: {e:#}", fl.name));
+                report.failures.push(Failure::new(&fl.name, None, &e));
                 continue;
             }
         };
@@ -130,12 +160,17 @@ pub fn backup_all(ctx: &Ctx, flavor: Option<&str>, kind: Option<Kind>, force: bo
                     let line = format!("{what}: {} ({})", s.id, snapshot::human_size(s.size));
                     log::info!("{}", tr!("app.snapshot_made", line = line));
                     report.created.push(line);
+                    report.snapshots.push((fl.name.clone(), k, s));
                 }
-                Ok(Outcome::Unchanged) => log::info!("{}", tr!("app.unchanged", what = what)),
+                Ok(Outcome::Unchanged) => {
+                    log::info!("{}", tr!("app.unchanged", what = what));
+                    report.unchanged.push((fl.name.clone(), k));
+                }
                 Ok(Outcome::Missing) => log::debug!("{}", tr!("app.no_folder", what = what)),
                 Err(e) => {
                     log::error!("{what}: {e:#}");
                     report.errors.push(format!("{what}: {e:#}"));
+                    report.failures.push(Failure::new(&fl.name, Some(k), &e));
                 }
             }
         }
@@ -193,7 +228,7 @@ pub fn safety_done(ctx: &Ctx, fl: &Flavor) {
 /// Fails while the client of `fl` runs: it would overwrite the files on exit.
 pub fn ensure_game_closed(fl: &Flavor) -> Result<()> {
     if let Some(p) = wow::running_in(&wow::running_games(), fl) {
-        bail!(tr!("app.close_game", game = p, flavor = fl.title()));
+        return Err(Coded::game_running(&p, Some(&fl.name), tr!("app.close_game", game = p, flavor = fl.title())).into());
     }
     Ok(())
 }
@@ -209,12 +244,14 @@ pub fn restore_plan(ctx: &Ctx, flavor: Option<&str>, spec: Option<&str>, kind: O
         let list = store.list(&fl, k)?;
         match snapshot::select(&list, spec) {
             Some(s) => plan.push((k, s.clone())),
-            None if kind.is_some() => bail!(tr!("app.no_snapshot", what = k.source_rel())),
+            None if kind.is_some() => {
+                return Err(Coded::not_found("snapshot", spec.unwrap_or("latest"), tr!("app.no_snapshot", what = k.source_rel())).into());
+            }
             None => log::warn!("{}", tr!("app.no_snapshot_skip", what = k.source_rel())),
         }
     }
     if plan.is_empty() {
-        bail!(tr!("app.nothing_to_restore"));
+        return Err(Coded::not_found("snapshot", spec.unwrap_or("latest"), tr!("app.nothing_to_restore")).into());
     }
     Ok((fl, plan))
 }
@@ -253,7 +290,7 @@ pub fn update_addons(ctx: &Ctx, manual: bool) -> Result<String> {
     if ctx.cfg.update_skip_in_game
         && let Some(game) = crate::wow::running_game()
     {
-        bail!(tr!("app.no_update_in_game", game = game));
+        return Err(Coded::game_running(&game, None, tr!("app.no_update_in_game", game = game)).into());
     }
     let app = crate::updater::chosen(ctx.cfg.update_app);
     let record = |title: &str, result: &Result<String>| {

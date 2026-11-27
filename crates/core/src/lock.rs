@@ -8,8 +8,9 @@
 //! goes to `<name>.info` beside it, only to name the holder in the message. Take it at the outermost
 //! entry point only: a second handle in the same process fails.
 
+use crate::errors::Coded;
 use crate::wow::Flavor;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
@@ -27,6 +28,12 @@ pub fn acquire(fl: &Flavor, what: &str) -> Result<Guard> {
 
 #[cfg(not(test))]
 fn locks_dir() -> PathBuf {
+    // Only the program's tests (dev-dependency feature `test-ru`) can redirect it; a release build ignores the variable.
+    if cfg!(feature = "test-ru")
+        && let Some(dir) = std::env::var_os("WOW_TOOLS_LOCKS_DIR")
+    {
+        return dir.into();
+    }
     let root = directories::ProjectDirs::from("", "", crate::config::APP_NAME).and_then(|d| d.data_local_dir().parent().map(Path::to_path_buf));
     root.unwrap_or_else(|| PathBuf::from(".")).join("locks")
 }
@@ -58,7 +65,7 @@ fn acquire_in(dir: &Path, fl: &Flavor, what: &str) -> Result<Guard> {
         Err(TryLockError::WouldBlock) => {
             let holder = fs::read_to_string(path.with_extension("info")).unwrap_or_default();
             let holder = if holder.is_empty() { "?" } else { holder.trim() };
-            bail!(tr!("app.busy", flavor = fl.title(), what = holder))
+            Err(Coded::busy(&fl.name, holder, tr!("app.busy", flavor = fl.title(), what = holder)).into())
         }
         Err(TryLockError::Error(e)) => Err(e).with_context(|| tr!("error.write", path = path.display())),
     }

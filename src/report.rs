@@ -1186,6 +1186,7 @@ mod tests {
             name: "Heal".into(),
             line,
             kind,
+            owner: Default::default(),
             fixed: None,
         }
     }

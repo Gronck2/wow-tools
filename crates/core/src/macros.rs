@@ -467,6 +467,18 @@ pub fn check(m: &Macro, retail: bool, targets: &[Target], firm: bool) -> Vec<(us
     out
 }
 
+/// Whose macro it is, as plain names for a shell that does not show `Finding::scope` (which is text in the
+/// interface language). Not stored with the report: a report read back from disk has it empty.
+#[derive(Debug, Clone, Default)]
+pub struct Owner {
+    /// The flavor's folder name (`_retail_`); `Finding::flavor` is its title.
+    pub flavor: String,
+    pub account: String,
+    /// Empty for an account-wide macro.
+    pub realm: String,
+    pub character: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
     pub flavor: String,
@@ -477,6 +489,8 @@ pub struct Finding {
     pub name: String,
     pub line: usize,
     pub kind: Kind,
+    #[serde(skip)]
+    pub owner: Owner,
     /// The whole macro corrected, the same for all findings of one macro (shown with the first, see `first_fixes`).
     /// Not stored with the finding: `macro_store` keeps the texts once and links them back.
     #[serde(skip)]
@@ -644,7 +658,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
         };
         let client = client_locale(&wtf);
         let (checked_before, mut seen) = (scan.checked, BTreeSet::new());
-        let mut check_file = |path: &Path, scope: &str, targets: &[Target], firm: bool| {
+        let mut check_file = |path: &Path, scope: &str, owner: Owner, targets: &[Target], firm: bool| {
             if names_dir.is_none() {
                 return;
             }
@@ -667,6 +681,7 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                         name: m.name.clone(),
                         line,
                         kind,
+                        owner: owner.clone(),
                         fixed: fixed.clone(),
                     });
                 }
@@ -688,6 +703,12 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                     if !roster.get_or_init(|| Roster::read(&acc_dir)).has(&c, last_played(&c)) {
                         continue;
                     }
+                    let owner = Owner {
+                        flavor: fl.name.clone(),
+                        account: account.clone(),
+                        realm: realm.clone(),
+                        character: name.clone(),
+                    };
                     chars.push((
                         Target {
                             label: format!("{name}-{realm}"),
@@ -696,18 +717,30 @@ fn walk(flavors: &[Flavor], names_dir: Option<&Path>) -> Scan {
                             client: client.into_iter().collect(),
                         },
                         dir,
+                        owner,
                     ));
                 }
             }
             // Russian realms on the account: its other characters may well run a Russian client.
-            if chars.iter().any(|(t, _)| t.ru()) {
-                chars.iter_mut().for_each(|(t, _)| t.client.push("ruRU"));
+            if chars.iter().any(|(t, _, _)| t.ru()) {
+                chars.iter_mut().for_each(|(t, _, _)| t.client.push("ruRU"));
             }
-            seen.extend(chars.iter().flat_map(|(t, _)| t.valid()));
-            let all: Vec<Target> = chars.iter().map(|(t, _)| t.clone()).collect();
-            check_file(&acc_dir.join("macros-cache.txt"), &tr!("macros.account", account = account), &all, false);
-            for (target, dir) in &chars {
-                check_file(&dir.join("macros-cache.txt"), &target.label, std::slice::from_ref(target), true);
+            seen.extend(chars.iter().flat_map(|(t, _, _)| t.valid()));
+            let all: Vec<Target> = chars.iter().map(|(t, _, _)| t.clone()).collect();
+            let account_owner = Owner {
+                flavor: fl.name.clone(),
+                account: account.clone(),
+                ..Owner::default()
+            };
+            check_file(
+                &acc_dir.join("macros-cache.txt"),
+                &tr!("macros.account", account = account),
+                account_owner,
+                &all,
+                false,
+            );
+            for (target, dir, owner) in &chars {
+                check_file(&dir.join("macros-cache.txt"), &target.label, owner.clone(), std::slice::from_ref(target), true);
             }
         }
         if let Some(product) = product {
@@ -1123,6 +1156,7 @@ mod tests {
             name: "n".into(),
             line: 1,
             kind,
+            owner: Owner::default(),
             fixed: None,
         }
     }
@@ -1361,6 +1395,7 @@ mod tests {
             name: "n".into(),
             line: 1,
             kind,
+            owner: Owner::default(),
             fixed: None,
         };
         let name = |n: &str| Kind::UnknownName { name: n.into() };

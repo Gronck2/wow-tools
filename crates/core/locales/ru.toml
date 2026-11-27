@@ -401,6 +401,8 @@ off = "выключено"
 last = ", последнее {time}"
 updates = "Обновление аддонов: {update}{last}"
 some_failed = "часть снапшотов не создана"
+json_unsupported = "команда {command} не поддерживает --json"
+json_needs_yes = "в режиме --json restore требует --yes"
 list_header = "{flavor} / {what} — {n} шт."
 # Слова «да» для подтверждения в консоли, через пробел (y и yes принимаются всегда).
 yes_words = "д да"
@@ -441,6 +443,7 @@ version = "Показать версию"
 config = "Путь к конфигу (по умолчанию %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Писать лог в файл (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), а не в консоль"
 verbose = "Подробный вывод"
+json = "Вывести один JSON-объект, для других оболочек"
 
 [cli.tray]
 about = "Значок в трее: фоновый бэкап, восстановление, настройки"
@@ -789,9 +792,9 @@ about = "Список сохранённых профилей"
 
 [cli.profile.apply]
 about = "Поставить профиль на персонажа (игра закрыта; WTF сохраняется перед этим)"
-profile = "Номер профиля из `profile list`"
+profile = "Номер или id профиля из `profile list`"
 to = "Персонаж: Сервер/Имя или АККАУНТ/Сервер/Имя"
 
 [cli.profile.delete]
 about = "Удалить профиль"
-profile = "Номер профиля из `profile list`"
+profile = "Номер или id профиля из `profile list`"
