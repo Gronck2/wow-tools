@@ -409,9 +409,9 @@ impl Config {
         if next.get_key(key)? != asked {
             return Err(Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = tr!("config.unknown_value"))).into());
         }
-        // Only a setting this change made bad is refused: one already bad in the file must not block fixing the others.
+        // The key being set must come out good; another one already bad in the file must not block fixing it.
         let before = self.invalid();
-        if let Some((bad, reason)) = next.invalid().into_iter().find(|b| !before.contains(b)) {
+        if let Some((bad, reason)) = next.invalid().into_iter().find(|b| b.0 == key || !before.contains(b)) {
             let message = if reason == "range" {
                 tr!("config.bad_range", key = bad)
             } else {
@@ -838,6 +838,8 @@ mod tests {
             ..Config::default()
         };
         cfg.set_key("include_addons", json!(false)).unwrap();
+        // A bad key set to another bad value is refused, not kept because it was bad before.
+        assert!(cfg.set_key("backup_time", json!("26:00")).is_err());
         cfg.set_key("keep", json!(5)).unwrap();
         cfg.unset_key("backup_time").unwrap();
         assert!(cfg.invalid().is_empty());
