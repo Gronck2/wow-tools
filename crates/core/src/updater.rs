@@ -545,6 +545,35 @@ mod tests {
     }
 
     #[test]
+    fn an_outcome_becomes_details_and_old_rows_rewrite_byte_for_byte() {
+        let o = Outcome {
+            outdated: vec!["Plater".into()],
+            manual: vec!["WeakAuras".into()],
+            ..Default::default()
+        };
+        let d = RunDetails::from(&o);
+        assert_eq!(
+            (d.outdated, d.by_hand, d.error),
+            (vec!["Plater".to_string()], vec!["WeakAuras".to_string()], None)
+        );
+        // A file as an older exe wrote it (pretty JSON, `skipped` present): reading and writing it again changes nothing.
+        let old = "[
+  {
+    \"time\": \"2026-10-12T10:00:00\",
+    \"app\": \"WowUp\",
+    \"ok\": true,
+    \"text\": \"t\",
+    \"manual\": false,
+    \"skipped\": false
+  }
+]";
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("h.json");
+        fs::write(&path, old).unwrap();
+        assert_eq!(serde_json::to_string_pretty(&read_history(&path)).unwrap(), old);
+    }
+
+    #[test]
     fn summary_text() {
         let o = Outcome {
             updated: vec!["BigWigs".into(), "Details!".into()],
