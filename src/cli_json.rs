@@ -521,6 +521,9 @@ pub fn watch(explicit_config: Option<&std::path::Path>, interval: Option<u64>) -
             return code;
         }
     };
+    // The loop writes the addon history the tray shows: in the user's language, like `update-addons`. The lines carry no
+    // text apart from `error.detail`, which then follows it too.
+    i18n::set(ctx.cfg.language);
     snapshot::on_progress(on_progress_line);
     // No WoW found is an `error` event of the first round, not a refusal; the flavors are read once (shortcut: a game of a
     // flavor added later has `flavors: []` until the next start).

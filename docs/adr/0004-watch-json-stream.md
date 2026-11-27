@@ -17,7 +17,9 @@ other command keeps them.
 - **Stream envelope.** `wow-tools --json watch [--interval N]` prints NDJSON on stdout, one object per line, flushed per
   line, each with `"v":1` and a `"type"`: `event` (`event`, `time`, `data`) or `progress` (`time`, `data`). The version
   and the unknown-fields rule are ADR 0003's. A failure before the loop (config unreadable) is the ordinary one-shot
-  `error` object and exit 1. Logs stay on stderr. No localized text: codes, ids, numbers, paths and timestamps.
+  `error` object and exit 1. Logs stay on stderr, which the shell must drain (an unread pipe blocks the loop). No
+  localized text: codes, ids, numbers, paths and timestamps; the loop runs in the config's language (it writes the
+  addon history the tray shows), so `error.detail` and stderr are in that language, as with `update-addons`.
 - **Events.** `started`, `busy`, `backup`, `game`, `patch`, `addons`, `error`, `stopped`; the shapes are in
   `docs/cli-json.md`. They are built in the shell layer (`cli_json::Stream`) from `watch::Event`, reusing the one-shot
   builders (`backup_data`, `update_data`), never by serializing core types. The stream carries events, not a copy of the

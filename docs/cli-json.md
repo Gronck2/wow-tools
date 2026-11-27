@@ -13,7 +13,9 @@ commands print text as before; nothing about the text changed.
 - Read all of stdout, parse it as one JSON value. **No JSON on stdout means a crash** (a panic prints to stderr and
   exits 101).
 - stderr carries the log lines (English under `--json`). Ignore them or keep them for diagnostics; never parse them.
-- The process language is forced to English under `--json`; the language setting of the config is not used.
+- The process language is forced to English under `--json`; the language setting of the config is not used, except by
+  `update-addons` and `watch`, which write the addon history the tray shows: their `error.detail` and stderr are in the
+  config's language.
 - Nothing is interactive and stdin is never read (except `watch`, where its end means stop). `restore` needs `--yes` (see below).
 - Several processes may run at once; two that would change the same game folder exclude each other (error `busy`).
   A shell does not take that lock itself: it calls the CLI.
@@ -320,6 +322,8 @@ automatic addon updates) and prints **one JSON object per line** (NDJSON) until 
 `docs/adr/0004-watch-json-stream.md`.
 
 - Every line has `"v":1` and `"type"`: `event` or `progress`. Lines are flushed one by one; stderr keeps the log.
+  Always read stderr or send it to null (or use `--log-to-file`): a stderr pipe nobody reads fills up and then blocks
+  the loop, and backups stop with no sign.
 - **Stop it by closing its stdin** (or by exiting: the OS closes it). A job in progress finishes first, then the last line is
   `stopped` and the exit code is 0. Whatever is written to stdin is ignored, so a process started with a closed stdin
   stops after its first round. Killing it is safe too.
@@ -342,7 +346,8 @@ automatic addon updates) and prints **one JSON object per line** (NDJSON) until 
 | `stopped` | `reason` (`stdin_closed`): the last line |
 
 `progress` lines come while a snapshot is written (also the ones before an addon update or a patch), at most one per percent:
-`data` has `flavor`, `kind` (`wtf`, `addons`), `done` and `total` (bytes), `percent`. The `backup` event closes them.
+`data` has `flavor`, `kind` (`wtf`, `addons`), `done` and `total` (bytes), `percent`. They end at the next event line: `backup` for a backup, `addons` (or `error` with source `addons`) for the
+`pre-update` snapshot of an addon update, `patch` for a `pre-patch` snapshot, which has no `busy` line before it.
 
 ```json
 {"v":1,"type":"event","event":"started","time":"2026-11-27T14:39:50+04:00","data":{"pid":31720,"version":"0.8.0","interval_minutes":1}}
