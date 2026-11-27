@@ -195,7 +195,7 @@ tray in the language of the user. What the run did is data, from what the manage
 | `by_hand` | names of addons the user updates by hand in the manager; left alone (CurseForge) |
 | `error` | `{code, params}` as in the error table when the row failed or was skipped (`skipped:true` has `not_run`), else `null` |
 
-CurseForge names a file by its file name (it has no version field); WowUp gives its `installedVersion`; ElvUI gives the
+CurseForge names a file by its display name, else its file name, else its id (it has no version field); WowUp gives its `installedVersion`; ElvUI gives the
 installed and the site's version per flavor (`from` equal to `to` = reinstalled clean); the Wago App cannot name addons,
 so it gives at most two items with `kind` `weakauras` / `ui_packs`, `name` the folder it wrote (`WagoAppCompanion`,
 `WagoUI_Storage`) and no versions. The five keys are all `null` for a row that has no details (rows are written with them;

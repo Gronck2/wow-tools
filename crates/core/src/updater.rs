@@ -107,6 +107,9 @@ pub enum ChangeKind {
     Addon,
     Weakauras,
     UiPacks,
+    /// A kind a newer version wrote.
+    #[serde(other)]
+    Other,
 }
 
 /// One addon that got a new version. `from`/`to` are the manager's own strings; `flavor` is the
@@ -125,6 +128,7 @@ pub struct Change {
 pub enum FailReason {
     /// WowUp got no Wago token (its free Wago access needs the ad window).
     NoToken,
+    #[serde(other)]
     Unknown,
 }
 
@@ -389,8 +393,14 @@ pub struct Entry {
     #[serde(default)]
     pub skipped: bool,
     /// The run as data; absent in rows written by older versions.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_details")]
     pub details: Option<RunDetails>,
+}
+
+/// Details a newer version wrote in a shape this one cannot read are dropped, not the whole history.
+fn lenient_details<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Option<RunDetails>, D::Error> {
+    let v = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(v).ok().flatten())
 }
 
 fn history_file() -> PathBuf {
@@ -491,6 +501,26 @@ mod tests {
         assert_eq!(list.len(), HISTORY_KEEP);
         assert_eq!(list[0].text, "run 24");
         assert_eq!(list[0].time, at(24));
+    }
+
+    #[test]
+    fn rows_from_a_newer_version_do_not_wipe_the_history() {
+        let newer = r#"[{"time":"2026-10-12T10:00:00","app":"A","ok":true,"text":"t","manual":false,"details":{"failed":[{"name":"X","from":null,"to":null,"flavor":null,"reason":"brand_new","extra":1}],"updated":[{"name":"Y","kind":"future","from":null,"to":null,"flavor":null}],"extra":5}},
+                         {"time":"2026-10-11T10:00:00","app":"B","ok":true,"text":"u","manual":false,"details":"garbage"}]"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("h.json");
+        fs::write(&path, newer).unwrap();
+        let list = read_history(&path);
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].details.as_ref().unwrap().failed[0].reason, FailReason::Unknown);
+        assert_eq!(list[0].details.as_ref().unwrap().updated[0].kind, ChangeKind::Other);
+        assert!(list[1].details.is_none());
+        let entry = Entry {
+            details: None,
+            ..list[0].clone()
+        };
+        append_history(&path, entry).unwrap();
+        assert_eq!(read_history(&path).len(), 3);
     }
 
     #[test]
