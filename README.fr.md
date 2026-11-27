@@ -467,6 +467,7 @@ proposé, seulement une note. `wow-tools macros` et le rapport copié affichent 
 | `schedule interval [--every MIN]` | une tâche du Planificateur de tâches qui lance `backup` toutes les N minutes (une fois par jour par défaut) |
 | `schedule status` / `schedule remove` | affiche / supprime le démarrage automatique et la tâche |
 | `outdated` | les addons qui ne sont pas faits pour la version installée du jeu |
+| `config get [KEY]` / `config set KEY VALUE` / `config unset KEY` | lire, modifier ou réinitialiser un réglage (noms comme dans `config.toml`, la valeur est du JSON ou du texte simple) |
 | `macros [--flavor F] [--update-names]` | trouver les macros cassées (API retirée, trop longues, crochets, noms et commandes d'une autre langue, fautes de frappe) ; `--update-names` télécharge les noms des sorts et des objets depuis wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | affiche ce qui peut être nettoyé ; avec des éléments, les nettoie |
 | `self-update [--check]` | cherche une nouvelle version de WoW Tools sur GitHub et l'installe |

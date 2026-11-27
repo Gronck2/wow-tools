@@ -169,6 +169,11 @@ enum Cmd {
         #[command(subcommand)]
         action: ProfileCmd,
     },
+    /// Settings: read, change, reset
+    Config {
+        #[command(subcommand)]
+        action: ConfigCmd,
+    },
     /// Automatic start
     Schedule {
         #[command(subcommand)]
@@ -220,6 +225,60 @@ enum ProfileCmd {
 }
 
 #[derive(Subcommand)]
+enum ConfigCmd {
+    /// Show the settings or one of them (names as in config.toml)
+    Get {
+        /// Setting name
+        key: Option<String>,
+    },
+    /// Change a setting (the value is JSON or plain text)
+    Set {
+        /// Setting name
+        key: String,
+        /// New value: 10, true, game_exit, '["mon","fri"]', null
+        value: String,
+    },
+    /// Set a setting back to its default
+    Unset {
+        /// Setting name
+        key: String,
+    },
+}
+
+/// Saves one setting (`value`; `None` = back to the default) into the config file; the old and the new value.
+fn config_change(ctx: &Ctx, key: &str, value: Option<serde_json::Value>) -> Result<(serde_json::Value, serde_json::Value)> {
+    let mut cfg = ctx.cfg.clone();
+    let old = cfg.get_key(key)?;
+    match value {
+        Some(v) => cfg.set_key(key, v)?,
+        None => cfg.unset_key(key)?,
+    }
+    cfg.save(&ctx.config_path)?;
+    Ok((old, cfg.get_key(key)?))
+}
+
+/// A value for the console: a string as it is, anything else as JSON.
+fn value_text(v: &serde_json::Value) -> String {
+    v.as_str().map_or_else(|| v.to_string(), str::to_string)
+}
+
+fn cmd_config(ctx: &Ctx, action: ConfigCmd) -> Result<()> {
+    match action {
+        ConfigCmd::Get { key: None } => print!("{}", toml::to_string_pretty(&ctx.cfg)?),
+        ConfigCmd::Get { key: Some(key) } => println!("{}", value_text(&ctx.cfg.get_key(&key)?)),
+        ConfigCmd::Set { key, value } => {
+            let (_, new) = config_change(ctx, &key, Some(config::parse_value(&value)))?;
+            println!("{}", tr!("config.set_line", key = key, value = value_text(&new)));
+        }
+        ConfigCmd::Unset { key } => {
+            let (_, new) = config_change(ctx, &key, None)?;
+            println!("{}", tr!("config.set_line", key = key, value = value_text(&new)));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Subcommand)]
 enum ScheduleCmd {
     /// Task Scheduler task: `backup` every N minutes (once a day by default)
     Interval {
@@ -254,11 +313,17 @@ fn early_json() -> bool {
 }
 
 /// Puts the interface language into `--help`: `cli.<command path>.about` for commands,
-/// `cli.<command path>.<arg>` for arguments (`cli.about`, `cli.config` at the top), and the
+/// `cli.<command path>.<arg>` for arguments (`cli.about`, `cli.config_file` for `--config` at the top), and the
 /// headings and the built-in help/version flags.
 fn localize(cmd: clap::Command, path: &str) -> clap::Command {
     use clap::{Arg, ArgAction};
-    let key = |k: &str| if path.is_empty() { format!("cli.{k}") } else { format!("cli.{path}.{k}") };
+    let key = |k: &str| {
+        if path.is_empty() {
+            format!("cli.{}", if k == "config" { "config_file" } else { k })
+        } else {
+            format!("cli.{path}.{k}")
+        }
+    };
     let mut cmd = cmd
         .help_template(format!("{{about-with-newline}}\n{}: {{usage}}\n\n{{all-args}}{{after-help}}", tr!("cli.usage")))
         .subcommand_help_heading(tr!("cli.commands"))
@@ -400,6 +465,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Clean { items } => cmd_clean(&ctx, &items),
         Cmd::Outdated => cmd_outdated(&ctx),
         Cmd::Profile { action } => cmd_profile(&ctx, action),
+        Cmd::Config { action } => cmd_config(&ctx, action),
         Cmd::Schedule { action } => cmd_schedule(&ctx, action),
         Cmd::Quit => cmd_quit(),
         Cmd::UiSnapshot { out, view, dark, lang } => {
@@ -1470,7 +1536,13 @@ mod tests {
     #[test]
     fn every_command_and_argument_has_help_text() {
         fn walk(cmd: &clap::Command, path: &str, missing: &mut Vec<String>) {
-            let key = |k: &str| if path.is_empty() { format!("cli.{k}") } else { format!("cli.{path}.{k}") };
+            let key = |k: &str| {
+                if path.is_empty() {
+                    format!("cli.{}", if k == "config" { "config_file" } else { k })
+                } else {
+                    format!("cli.{path}.{k}")
+                }
+            };
             if !path.is_empty() && i18n::lookup(&key("about")).is_none() {
                 missing.push(key("about"));
             }

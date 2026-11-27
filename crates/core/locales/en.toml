@@ -34,6 +34,11 @@ write = "could not write {path}"
 [config]
 bad = "error in the config {path}"
 migrate_failed = "could not move {from} to {to}"
+unknown_key = "no such setting: {key}"
+bad_type = "{key}: the value has the wrong type or is unknown ({detail})"
+bad_range = "{key}: the value is out of range"
+bad_format = "{key}: the value has the wrong format"
+set_line = "{key} = {value}"
 
 [addons]
 app_not_found = "{app} is not installed"
@@ -440,7 +445,7 @@ options = "Options"
 arguments = "Arguments"
 help = "Print help"
 version = "Print version"
-config = "Config path (default %APPDATA%\\WoW Tools\\config\\config.toml)"
+config_file = "Config path (default %APPDATA%\\WoW Tools\\config\\config.toml)"
 log_to_file = "Write the log to a file (%LOCALAPPDATA%\\WoW Tools\\data\\wow-tools.log), not the console"
 verbose = "Verbose output"
 json = "One JSON object on stdout, for other front ends"
@@ -676,6 +681,22 @@ in_zhTW = "in Chinese (Traditional)"
 
 [cli.outdated]
 about = "Addons not made for the installed game version"
+
+[cli.config]
+about = "Settings: read, change, reset"
+
+[cli.config.get]
+about = "Show the settings or one of them (names as in config.toml)"
+key = "Setting name"
+
+[cli.config.set]
+about = "Change a setting (the value is JSON or plain text)"
+key = "Setting name"
+value = "New value: 10, true, game_exit, '[\"mon\",\"fri\"]', null"
+
+[cli.config.unset]
+about = "Set a setting back to its default"
+key = "Setting name"
 
 [patch]
 title = "The game was updated"

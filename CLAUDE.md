@@ -186,7 +186,7 @@ optional `clap` feature (on in the program, off for other shells). Core tests: `
   posts `WM_SHOW_SETTINGS` to the running tray instead of exiting silently.
 - Windows are shown with `gfx::show` (SetWindowPos), not `ShowWindow`: the first `ShowWindow` of a process started
   hidden (autostart via `conhost --headless`) takes the start mode and the window stays invisible.
-- `config.rs`: `%APPDATA%\WoW Tools\config\config.toml`, all fields `#[serde(default)]`.
+- `config.rs`: `%APPDATA%\WoW Tools\config\config.toml`, all fields `#[serde(default)]`; `save` writes a temp file and renames it. `wow-tools config get|set|unset` (`Config::get_key`/`set_key`/`unset_key`: the JSON image of `Config` patched and read back, then `invalid()` for the time formats and ranges; the value argument is JSON else a string, `parse_value`).
 - `wow.rs`: install detection (registry, Battle.net, then common paths incl. `X:\Games\World of Warcraft`). A flavor is
   any `_name_` dir (letters, digits: `_dark_realm_2_`) with Battle.net's `.flavor.info` (product code), `WTF`,
   `Interface` or a `Wow*.exe`, so installed-never-started and unknown future flavors count. Warcraft III Reforged

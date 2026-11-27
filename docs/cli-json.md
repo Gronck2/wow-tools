@@ -62,8 +62,8 @@ Version 1 prints the final object only; an operation takes seconds to a minute. 
 | --- | --- | --- |
 | `busy` | `flavor`, `pid`, `operation` (the holder; `null` when unknown) | another process (the tray, `watch`, another CLI) is changing that game folder |
 | `game_running` | `game`, `flavor` (`null` when it concerns every flavor) | the game client runs and the command would be overwritten on exit |
-| `not_found` | `what` (`snapshot`, `character`, `profile`, `flavor`), `key` (what was asked for) | the lookup found nothing |
-| `invalid_args` | `kind` (clap's error kind, snake_case) | the command line is wrong; `detail` is clap's message |
+| `not_found` | `what` (`snapshot`, `character`, `profile`, `flavor`, `config_key`), `key` (what was asked for) | the lookup found nothing |
+| `invalid_args` | `kind` (clap's error kind, snake_case; `invalid_value` also has `key` and `reason`: `type`, `range` or `format`) | the command line is wrong, or `config set` refused the value; `detail` says why |
 | `confirmation_required` | none | `restore --json` without `--yes` |
 | `no_wow` | none | no WoW install found (or the configured folder holds none) |
 | `config_invalid` | `path` | the config is not valid TOML |
@@ -252,6 +252,40 @@ given by its `id` or its number (both work in text mode too).
 ```json
 {"v":1,"type":"result","command":"profile delete","data":{"deleted":"_retail_/20261127-131442 Name - Realm.zip"}}
 ```
+
+### `config get`
+
+`wow-tools --json config get [key]`
+
+```json
+{"v":1,"type":"result","command":"config get","data":{"path":"C:\\Users\\Name\\AppData\\Roaming\\WoW Tools\\config\\config.toml","exists":true,"config":{"wow_path":null,"flavors":[],"keep":30,"update_app":null},"defaults":{"wow_path":null,"flavors":[],"keep":30,"update_app":null}}}
+{"v":1,"type":"result","command":"config get","data":{"key":"keep","value":30,"default":30}}
+```
+
+(`config` and `defaults` hold every setting; four are shown.) The keys are the names in `config.toml`; a setting that is
+not set is `null`. An unknown key is `not_found` with `what` `config_key`. `exists` false means the file is not there
+yet and the values are the defaults.
+
+### `config set` and `config unset`
+
+`wow-tools --json config set keep 10`, `wow-tools --json config unset update_app`
+
+```json
+{"v":1,"type":"result","command":"config set","data":{"key":"keep","value":10,"changed":true}}
+{"v":1,"type":"error","command":"config set","error":{"code":"invalid_args","params":{"kind":"invalid_value","key":"keep","reason":"range"},"detail":"keep: the value is out of range"}}
+```
+
+The value argument is read as JSON; if that is not JSON it is a plain string. So `10`, `true`, `null`,
+`'["mon","fri"]'`, `'{"_retail_":"D:\\Shots"}'` are JSON and `game_exit`, `10:00`, `D:\Shots` are strings. A number
+for a string setting (`config set backup_time 1000`) is refused as `type`: write it with quotes (`'"1000"'`).
+The whole config is checked before it is written: a wrong type or unknown enum name is `reason` `type`, `keep`,
+`backup_every_days` and `update_every` below 1 are `range`, `backup_time` / `update_time` not `HH:MM` and `flavors`
+not like `_retail_` are `format`; the file is untouched then. `unset` sets the default (`null` for `wow_path`,
+`update_app`, `language`, `screenshots_dir`). `changed` is false when the value was already that.
+
+Only the file is written: the tray reads it again on its next round. The settings window keeps its own copy and writes it
+back on its next click, so change settings while it is closed. Comments in a hand-edited `config.toml` are lost (the
+file is written whole, as by the settings window), and one key is set per call.
 
 ### Errors, examples
 

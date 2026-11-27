@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use chrono::{Datelike, Days, NaiveDate, NaiveDateTime, NaiveTime};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -359,12 +360,89 @@ impl Config {
         toml::from_str(&text).with_context(|| Coded::config_invalid(path, tr!("config.bad", path = path.display())))
     }
 
+    /// Written to a temp file next to it and renamed over it, so a reader never sees half a file.
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(path, toml::to_string_pretty(self)?).with_context(|| tr!("error.write", path = path.display()))
+        let mut tmp = path.as_os_str().to_owned();
+        tmp.push(".tmp");
+        let tmp = PathBuf::from(tmp);
+        let written = fs::write(&tmp, toml::to_string_pretty(self)?).and_then(|()| fs::rename(&tmp, path));
+        if written.is_err() {
+            let _ = fs::remove_file(&tmp);
+        }
+        written.with_context(|| tr!("error.write", path = path.display()))
     }
+
+    /// Every setting under its file name; the unset ones are `null`.
+    pub fn image(&self) -> serde_json::Map<String, Value> {
+        match serde_json::to_value(self) {
+            Ok(Value::Object(m)) => m,
+            _ => unreachable!("Config serializes to an object"),
+        }
+    }
+
+    pub fn get_key(&self, key: &str) -> Result<Value> {
+        Ok(self.image().remove(key).ok_or_else(|| unknown_key(key))?)
+    }
+
+    /// Sets one setting from its JSON form; the whole config is checked, and nothing changes on an error.
+    pub fn set_key(&mut self, key: &str, value: Value) -> Result<()> {
+        let mut image = self.image();
+        let slot = image.get_mut(key).ok_or_else(|| unknown_key(key))?;
+        *slot = value;
+        let next: Config =
+            serde_json::from_value(Value::Object(image)).map_err(|e| Coded::invalid_value(key, "type", tr!("config.bad_type", key = key, detail = e)))?;
+        if let Some((bad, reason)) = next.invalid() {
+            let message = if reason == "range" {
+                tr!("config.bad_range", key = bad)
+            } else {
+                tr!("config.bad_format", key = bad)
+            };
+            return Err(Coded::invalid_value(bad, reason, message).into());
+        }
+        *self = next;
+        Ok(())
+    }
+
+    /// The default of one setting.
+    pub fn unset_key(&mut self, key: &str) -> Result<()> {
+        let default = Config::default().get_key(key)?;
+        self.set_key(key, default)
+    }
+
+    /// What the types do not check: the first setting that is out of range (`range`) or malformed (`format`).
+    fn invalid(&self) -> Option<(&'static str, &'static str)> {
+        let time = |s: &str| NaiveTime::parse_from_str(s, "%H:%M").is_ok();
+        let flavor = |f: &String| f.len() > 2 && f.starts_with('_') && f.ends_with('_') && f.chars().all(|c| c == '_' || c.is_ascii_alphanumeric());
+        if !time(&self.backup_time) {
+            return Some(("backup_time", "format"));
+        }
+        if !time(&self.update_time) {
+            return Some(("update_time", "format"));
+        }
+        if !self.flavors.iter().all(flavor) {
+            return Some(("flavors", "format"));
+        }
+        [
+            ("keep", self.keep as u64),
+            ("backup_every_days", self.backup_every_days),
+            ("update_every", self.update_every),
+        ]
+        .into_iter()
+        .find(|(_, n)| *n < 1)
+        .map(|(k, _)| (k, "range"))
+    }
+}
+
+fn unknown_key(key: &str) -> Coded {
+    Coded::not_found("config_key", key, tr!("config.unknown_key", key = key))
+}
+
+/// A command line value: JSON when it is JSON (`10`, `true`, `["mon"]`, `null`), else a plain string (`game_exit`, `10:00`, `D:\Shots`).
+pub fn parse_value(raw: &str) -> Value {
+    serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.to_string()))
 }
 
 pub const APP_NAME: &str = "WoW Tools";
@@ -503,6 +581,7 @@ pub fn days_text(days: &[Day]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn old_interval_config_still_loads() {
@@ -650,5 +729,94 @@ mod tests {
 
         let back: Config = toml::from_str(&toml::to_string_pretty(&cfg).unwrap()).unwrap();
         assert_eq!((back.tab_order(), back.shown_tabs()), (cfg.tab_order(), cfg.shown_tabs()));
+    }
+
+    fn code(e: &anyhow::Error) -> (&'static str, serde_json::Value) {
+        crate::errors::classify(e)
+    }
+
+    #[test]
+    fn set_get_unset_one_key_of_each_kind() {
+        let defaults = Config::default();
+        let mut cfg = Config::default();
+        let cases = [
+            ("update_addons", json!(true)),
+            ("keep", json!(5)),
+            ("backup_time", json!("07:30")),
+            ("backup_when", json!("every_days")),
+            ("backup_days", json!(["mon", "fri"])),
+            ("update_app", json!("curseforge")),
+            ("screenshots_dir", json!(r"D:\Shots")),
+            ("screenshots_dirs", json!({ "_retail_": r"D:\Retail" })),
+            ("hidden_tabs", json!(["macros"])),
+            ("language", json!("de")),
+        ];
+        for (key, value) in cases {
+            let before = cfg.image();
+            cfg.set_key(key, value.clone()).unwrap_or_else(|e| panic!("{key}: {e:#}"));
+            assert_eq!(cfg.get_key(key).unwrap(), value, "{key}");
+            // Only that key changed.
+            let mut expect = before;
+            expect.insert(key.into(), value);
+            assert_eq!(cfg.image(), expect, "{key}");
+            cfg.unset_key(key).unwrap();
+            assert_eq!(cfg.get_key(key).unwrap(), defaults.get_key(key).unwrap(), "{key}");
+        }
+        assert_eq!(cfg.image(), defaults.image());
+    }
+
+    #[test]
+    fn a_bad_set_is_refused_and_changes_nothing() {
+        let mut cfg = Config::default();
+        let bad = [
+            ("keep", json!("many"), "type"),
+            ("keep", json!(0), "range"),
+            ("backup_every_days", json!(0), "range"),
+            ("update_every", json!(0), "range"),
+            ("backup_when", json!("never"), "type"),
+            ("backup_days", json!(["mon", "someday"]), "type"),
+            ("backup_time", json!("25:00"), "format"),
+            ("update_time", json!("9"), "format"),
+            ("flavors", json!(["retail"]), "format"),
+            ("update_addons", json!("yes"), "type"),
+        ];
+        for (key, value, reason) in bad {
+            let e = cfg.set_key(key, value.clone()).unwrap_err();
+            let (c, params) = code(&e);
+            assert_eq!(
+                (c, params["key"].clone(), params["reason"].clone()),
+                ("invalid_args", json!(key), json!(reason)),
+                "{key}={value}"
+            );
+            assert_eq!(cfg.image(), Config::default().image());
+        }
+        let e = cfg.set_key("nope", json!(1)).unwrap_err();
+        assert_eq!(code(&e), ("not_found", json!({ "what": "config_key", "key": "nope" })));
+        assert!(cfg.get_key("nope").is_err() && cfg.unset_key("nope").is_err());
+    }
+
+    #[test]
+    fn command_line_values_are_json_or_text() {
+        assert_eq!(parse_value("10"), json!(10));
+        assert_eq!(parse_value("true"), json!(true));
+        assert_eq!(parse_value("null"), Value::Null);
+        assert_eq!(parse_value("[\"mon\"]"), json!(["mon"]));
+        assert_eq!(parse_value("10:00"), json!("10:00"));
+        assert_eq!(parse_value("game_exit"), json!("game_exit"));
+        assert_eq!(parse_value(r"D:\Shots"), json!(r"D:\Shots"));
+    }
+
+    #[test]
+    fn save_replaces_the_file_whole_and_leaves_no_temp() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub").join("config.toml");
+        let mut cfg = Config::default();
+        cfg.save(&path).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), toml::to_string_pretty(&cfg).unwrap());
+        cfg.set_key("keep", json!(7)).unwrap();
+        cfg.save(&path).unwrap();
+        assert_eq!(Config::load(&path).unwrap().keep, 7);
+        let names: Vec<_> = fs::read_dir(path.parent().unwrap()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("config.toml")]);
     }
 }

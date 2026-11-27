@@ -429,6 +429,7 @@ offered, only a note. `wow-tools macros` and the copied report print the same te
 | `schedule interval [--every MIN]` | a Task Scheduler task running `backup` every N minutes (a day by default) |
 | `schedule status` / `schedule remove` | show / remove autostart and the task |
 | `outdated` | addons not made for the installed game version |
+| `config get [KEY]` / `config set KEY VALUE` / `config unset KEY` | read, change or reset a setting (names as in `config.toml`, the value is JSON or plain text) |
 | `macros [--flavor F] [--update-names]` | find broken macros (removed API, too long, bad brackets, names and slash aliases of another language, typos); `--update-names` downloads spell and item names from wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | show what can be tidied up; with items, tidy them up |
 | `self-update [--check]` | check GitHub for a new version of WoW Tools and install it |

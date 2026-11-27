@@ -68,6 +68,11 @@ impl Coded {
         Self::new(INVALID_ARGS, json!({ "kind": snake(kind) }), message)
     }
 
+    /// A setting value `config set` refuses: `reason` is `type`, `range` or `format`.
+    pub fn invalid_value(key: &str, reason: &str, message: impl Into<String>) -> Self {
+        Self::new(INVALID_ARGS, json!({ "kind": "invalid_value", "key": key, "reason": reason }), message)
+    }
+
     pub fn confirmation_required(message: impl Into<String>) -> Self {
         Self::new(CONFIRMATION_REQUIRED, json!({}), message)
     }

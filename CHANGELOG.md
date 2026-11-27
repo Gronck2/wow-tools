@@ -4,6 +4,11 @@ What changed in each version of WoW Tools. The release notes on GitHub are taken
 
 ## [Unreleased]
 
+- New command `wow-tools config get [key]`, `config set <key> <value>` and `config unset <key>`: read, change and reset
+  the settings from the command line (names as in `config.toml`, the value is JSON or plain text; a wrong value is
+  refused and nothing is written). Works with `--json` too (`docs/cli-json.md`). The config file is now replaced whole
+  (a temp file renamed over it), so the running tray never reads half of it. Comments in a hand-edited `config.toml` are
+  still lost when the program saves it. Change settings while the settings window is closed: it keeps its own copy.
 - New option `--json` for the command line, for other programs that drive WoW Tools: the command prints one line of
   JSON (the result, or an error with a code) instead of text. Covered: `status`, `init`, `backup`, `list`, `restore`
   (needs `--yes`), `chars`, `macros`, `copy-char`, `update-addons`, `clean`, `outdated` and `profile`; see

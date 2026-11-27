@@ -441,6 +441,7 @@ wago.tools названия заклинаний и предметов, раз �
 | `schedule interval [--every MIN]` | задача Планировщика, запускающая `backup` каждые N минут (по умолчанию раз в сутки) |
 | `schedule status` / `schedule remove` | показать / убрать автозапуск и задачу |
 | `outdated` | аддоны, не рассчитанные на установленную версию игры |
+| `config get [KEY]` / `config set KEY VALUE` / `config unset KEY` | прочитать, изменить или сбросить настройку (имена как в `config.toml`, значение — JSON или просто текст) |
 | `macros [--flavor F] [--update-names]` | найти сломанные макросы (удалённый API, слишком длинные, лишние скобки, названия и команды другого языка, опечатки); `--update-names` скачивает названия заклинаний и предметов с wago.tools |
 | `clean [orphans\|backups\|logs\|screenshots\|cache …]` | показать, что можно убрать; с пунктами — убрать их |
 | `self-update [--check]` | проверить на GitHub, нет ли новой версии WoW Tools, и установить её |
